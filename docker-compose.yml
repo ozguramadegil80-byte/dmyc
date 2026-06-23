@@ -1,0 +1,26 @@
+services:
+  dmyc-postgres:
+    image: postgis/postgis:16-3.4
+    container_name: dmyc-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-dmyc_dev}
+      POSTGRES_USER: ${POSTGRES_USER:-dmyc_app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dmyc_dev_password}
+    ports:
+      - "${POSTGRES_HOST_PORT:-55432}:5432"
+    volumes:
+      - dmyc_postgres_data:/var/lib/postgresql/data
+    networks:
+      - dmyc_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-dmyc_app} -d ${POSTGRES_DB:-dmyc_dev}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  dmyc_postgres_data:
+
+networks:
+  dmyc_network:
+    name: dmyc_network

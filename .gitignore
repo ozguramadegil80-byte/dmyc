@@ -1,0 +1,24 @@
+.env
+.env.local
+.codex-tmp/
+
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build outputs
+**/dist/
+**/.next/
+**/build/
+
+# Expo
+**/.expo/
+**/expo-env.d.ts
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db

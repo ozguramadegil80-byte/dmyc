@@ -1,0 +1,496 @@
+{
+  "generatedAt": "2026-06-08T16:29:02.062Z",
+  "seedPath": "Docs\\vehicle_specs_master.json",
+  "manifestModelCount": 25,
+  "manifestVariantCount": 53,
+  "seedSpecCount": 31,
+  "matchedVariantCount": 0,
+  "missingInSeed": [
+    {
+      "brand": "BMW",
+      "model": "i4",
+      "variant": "i4 eDrive40 Sport Line"
+    },
+    {
+      "brand": "BMW",
+      "model": "i4",
+      "variant": "i4 eDrive40 M Sport"
+    },
+    {
+      "brand": "BMW",
+      "model": "i4",
+      "variant": "i4 eDrive40 Edition M Sport"
+    },
+    {
+      "brand": "BMW",
+      "model": "iX3",
+      "variant": "iX3 M Sport"
+    },
+    {
+      "brand": "BYD",
+      "model": "Atto 2",
+      "variant": "Atto 2 Boost"
+    },
+    {
+      "brand": "BYD",
+      "model": "Atto 2",
+      "variant": "Atto 2 Comfort"
+    },
+    {
+      "brand": "BYD",
+      "model": "Atto 3",
+      "variant": "Atto 3 Design"
+    },
+    {
+      "brand": "BYD",
+      "model": "Dolphin",
+      "variant": "Dolphin Design"
+    },
+    {
+      "brand": "BYD",
+      "model": "Seal",
+      "variant": "Seal Excellence AWD"
+    },
+    {
+      "brand": "BYD",
+      "model": "Seal U EV",
+      "variant": "Seal U EV Design"
+    },
+    {
+      "brand": "BYD",
+      "model": "Sealion 7",
+      "variant": "Sealion 7"
+    },
+    {
+      "brand": "Hyundai",
+      "model": "Ioniq 5",
+      "variant": "Ioniq 5 Dynamic"
+    },
+    {
+      "brand": "Hyundai",
+      "model": "Ioniq 5",
+      "variant": "Ioniq 5 Dynamic Vision Roof"
+    },
+    {
+      "brand": "Hyundai",
+      "model": "Ioniq 5",
+      "variant": "Ioniq 5 Advance"
+    },
+    {
+      "brand": "Hyundai",
+      "model": "Ioniq 5",
+      "variant": "Ioniq 5 Progressive"
+    },
+    {
+      "brand": "Hyundai",
+      "model": "Ioniq 5",
+      "variant": "Ioniq 5 N"
+    },
+    {
+      "brand": "Hyundai",
+      "model": "Ioniq 6",
+      "variant": "Ioniq 6 Progressive"
+    },
+    {
+      "brand": "KGM",
+      "model": "Torres EVX",
+      "variant": "Torres EVX"
+    },
+    {
+      "brand": "Kia",
+      "model": "EV3",
+      "variant": "EV3 Elegance"
+    },
+    {
+      "brand": "Kia",
+      "model": "EV3",
+      "variant": "EV3 Prestige"
+    },
+    {
+      "brand": "Kia",
+      "model": "EV6",
+      "variant": "EV6 Prestige"
+    },
+    {
+      "brand": "Kia",
+      "model": "EV6",
+      "variant": "EV6 GT"
+    },
+    {
+      "brand": "MG",
+      "model": "MG4 Electric",
+      "variant": "MG4 Electric Comfort"
+    },
+    {
+      "brand": "MG",
+      "model": "MG4 Electric",
+      "variant": "MG4 Electric Luxury"
+    },
+    {
+      "brand": "MINI",
+      "model": "Countryman Electric",
+      "variant": "Countryman E Classic"
+    },
+    {
+      "brand": "MINI",
+      "model": "Countryman Electric",
+      "variant": "Countryman SE ALL4 Favoured"
+    },
+    {
+      "brand": "MINI",
+      "model": "Countryman Electric",
+      "variant": "Countryman SE ALL4 JCW"
+    },
+    {
+      "brand": "Mercedes-Benz",
+      "model": "EQE SUV",
+      "variant": "EQE 350 4MATIC AMG"
+    },
+    {
+      "brand": "Opel",
+      "model": "Mokka Electric",
+      "variant": "Mokka Electric Ultimate"
+    },
+    {
+      "brand": "Peugeot",
+      "model": "E-208",
+      "variant": "E-208 GT"
+    },
+    {
+      "brand": "Renault",
+      "model": "Megane E-Tech",
+      "variant": "Megane E-Tech Techno"
+    },
+    {
+      "brand": "Renault",
+      "model": "Megane E-Tech",
+      "variant": "Megane E-Tech Iconic"
+    },
+    {
+      "brand": "Skywell",
+      "model": "ET5",
+      "variant": "ET5 LR Elite"
+    },
+    {
+      "brand": "Skywell",
+      "model": "ET5",
+      "variant": "ET5 LR Premium"
+    },
+    {
+      "brand": "Skywell",
+      "model": "ET5",
+      "variant": "ET5 Legend"
+    },
+    {
+      "brand": "Tesla",
+      "model": "Model Y",
+      "variant": "Model Y Arkadan Çekiş"
+    },
+    {
+      "brand": "Tesla",
+      "model": "Model Y",
+      "variant": "Model Y Long Range Arkadan Çekiş"
+    },
+    {
+      "brand": "Tesla",
+      "model": "Model Y",
+      "variant": "Model Y Long Range AWD"
+    },
+    {
+      "brand": "Tesla",
+      "model": "Model Y",
+      "variant": "Model Y Performance"
+    },
+    {
+      "brand": "Togg",
+      "model": "T10F",
+      "variant": "T10F V1 RWD Standart Menzil"
+    },
+    {
+      "brand": "Togg",
+      "model": "T10F",
+      "variant": "T10F V1 RWD Uzun Menzil"
+    },
+    {
+      "brand": "Togg",
+      "model": "T10F",
+      "variant": "T10F V2 RWD Uzun Menzil"
+    },
+    {
+      "brand": "Togg",
+      "model": "T10F",
+      "variant": "T10F V2 4More"
+    },
+    {
+      "brand": "Togg",
+      "model": "T10X",
+      "variant": "T10X V1 RWD Standart Menzil"
+    },
+    {
+      "brand": "Togg",
+      "model": "T10X",
+      "variant": "T10X V1 RWD Uzun Menzil"
+    },
+    {
+      "brand": "Togg",
+      "model": "T10X",
+      "variant": "T10X V2 RWD Uzun Menzil"
+    },
+    {
+      "brand": "Togg",
+      "model": "T10X",
+      "variant": "T10X V2 4More Obsidiyen"
+    },
+    {
+      "brand": "Volvo",
+      "model": "EX30",
+      "variant": "EX30 Core"
+    },
+    {
+      "brand": "Volvo",
+      "model": "EX30",
+      "variant": "EX30 Plus"
+    },
+    {
+      "brand": "Volvo",
+      "model": "EX30",
+      "variant": "EX30 Ultra"
+    },
+    {
+      "brand": "Volvo",
+      "model": "EX40",
+      "variant": "EX40 Core"
+    },
+    {
+      "brand": "Volvo",
+      "model": "EX40",
+      "variant": "EX40 Plus"
+    },
+    {
+      "brand": "Volvo",
+      "model": "EX40",
+      "variant": "EX40 Ultra"
+    }
+  ],
+  "extraInSeed": [
+    {
+      "brand": "Togg",
+      "model": "T10X",
+      "variant": "V1 RWD Standard Range",
+      "official_sales_status": "active",
+      "verification_level": "official_verified"
+    },
+    {
+      "brand": "Togg",
+      "model": "T10X",
+      "variant": "V2 RWD Long Range",
+      "official_sales_status": "active",
+      "verification_level": "official_verified"
+    },
+    {
+      "brand": "Togg",
+      "model": "T10X",
+      "variant": "4More AWD Obsidian",
+      "official_sales_status": "active",
+      "verification_level": "official_verified"
+    },
+    {
+      "brand": "Togg",
+      "model": "T10F",
+      "variant": "RWD Standard Range",
+      "official_sales_status": "active",
+      "verification_level": "official_verified"
+    },
+    {
+      "brand": "Togg",
+      "model": "T10F",
+      "variant": "RWD Long Range",
+      "official_sales_status": "active",
+      "verification_level": "official_verified"
+    },
+    {
+      "brand": "Tesla",
+      "model": "Model Y",
+      "variant": "Standard RWD",
+      "official_sales_status": "active",
+      "verification_level": "partial_official_verified"
+    },
+    {
+      "brand": "Tesla",
+      "model": "Model Y",
+      "variant": "Premium Long Range RWD",
+      "official_sales_status": "active",
+      "verification_level": "partial_official_verified"
+    },
+    {
+      "brand": "Tesla",
+      "model": "Model Y",
+      "variant": "Premium Long Range AWD",
+      "official_sales_status": "active",
+      "verification_level": "partial_official_verified"
+    },
+    {
+      "brand": "Tesla",
+      "model": "Model Y",
+      "variant": "Performance",
+      "official_sales_status": "active",
+      "verification_level": "partial_official_verified"
+    },
+    {
+      "brand": "BYD",
+      "model": "Atto 3",
+      "variant": "Design",
+      "official_sales_status": "active",
+      "verification_level": "official_verified"
+    },
+    {
+      "brand": "BYD",
+      "model": "Seal",
+      "variant": "AWD Excellence",
+      "official_sales_status": "active",
+      "verification_level": "official_verified"
+    },
+    {
+      "brand": "BYD",
+      "model": "Seal U",
+      "variant": "EV Design 87 kWh",
+      "official_sales_status": "active",
+      "verification_level": "verified"
+    },
+    {
+      "brand": "BYD",
+      "model": "Dolphin",
+      "variant": "Comfort 60.4 kWh",
+      "official_sales_status": "active",
+      "verification_level": "official_verified"
+    },
+    {
+      "brand": "Hyundai",
+      "model": "Ioniq 5",
+      "variant": "Progressive 125 kW RWD",
+      "official_sales_status": "active",
+      "verification_level": "verified"
+    },
+    {
+      "brand": "Hyundai",
+      "model": "Ioniq 5",
+      "variant": "Progressive 168 kW Long Range RWD",
+      "official_sales_status": "active",
+      "verification_level": "verified"
+    },
+    {
+      "brand": "Hyundai",
+      "model": "Ioniq 6",
+      "variant": "Progressive 111 kW RWD Standard Range",
+      "official_sales_status": "active",
+      "verification_level": "verified"
+    },
+    {
+      "brand": "Kia",
+      "model": "EV3",
+      "variant": "Long Range 81.4 kWh",
+      "official_sales_status": "active",
+      "verification_level": "official_verified"
+    },
+    {
+      "brand": "Kia",
+      "model": "EV6",
+      "variant": "Long Range AWD GT-Line",
+      "official_sales_status": "active",
+      "verification_level": "verified"
+    },
+    {
+      "brand": "MINI",
+      "model": "Countryman Electric",
+      "variant": "E SE All4",
+      "official_sales_status": "active",
+      "verification_level": "verified"
+    },
+    {
+      "brand": "KGM",
+      "model": "Torres EVX",
+      "variant": "73.4 kWh",
+      "official_sales_status": "active",
+      "verification_level": "verified"
+    },
+    {
+      "brand": "Renault",
+      "model": "Megane E-Tech",
+      "variant": "EV60 Techno Iconic",
+      "official_sales_status": "active",
+      "verification_level": "verified"
+    },
+    {
+      "brand": "MG",
+      "model": "MG4 Electric",
+      "variant": "Comfort 51 kWh",
+      "official_sales_status": "active",
+      "verification_level": "verified"
+    },
+    {
+      "brand": "MG",
+      "model": "MG4 Electric",
+      "variant": "Luxury 64 kWh",
+      "official_sales_status": "active",
+      "verification_level": "verified"
+    },
+    {
+      "brand": "Peugeot",
+      "model": "e-208",
+      "variant": "51 kWh GT",
+      "official_sales_status": "active",
+      "verification_level": "verified"
+    },
+    {
+      "brand": "BMW",
+      "model": "i4",
+      "variant": "eDrive30 M Sport",
+      "official_sales_status": "legacy_reference",
+      "verification_level": "archived_legacy"
+    },
+    {
+      "brand": "BMW",
+      "model": "iX3",
+      "variant": "Impressive",
+      "official_sales_status": "discontinued",
+      "verification_level": "verified"
+    },
+    {
+      "brand": "Mercedes-Benz",
+      "model": "EQE SUV",
+      "variant": "350 4MATIC",
+      "official_sales_status": "legacy_reference",
+      "verification_level": "archived_legacy"
+    },
+    {
+      "brand": "Volvo",
+      "model": "EX30",
+      "variant": "Single Motor Extended Range",
+      "official_sales_status": "active",
+      "verification_level": "verified"
+    },
+    {
+      "brand": "Volvo",
+      "model": "EX40",
+      "variant": "Single Motor Extended Range",
+      "official_sales_status": "active",
+      "verification_level": "verified"
+    },
+    {
+      "brand": "Opel",
+      "model": "Mokka-e",
+      "variant": "Ultimate 100 kW",
+      "official_sales_status": "discontinued",
+      "verification_level": "verified"
+    },
+    {
+      "brand": "Skywell",
+      "model": "ET5",
+      "variant": "Premium LR 86 kWh",
+      "official_sales_status": "active",
+      "verification_level": "verified"
+    }
+  ],
+  "manifestIssues": [],
+  "specIssues": []
+}

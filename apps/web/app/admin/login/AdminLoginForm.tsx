@@ -1,0 +1,109 @@
+'use client';
+
+import { Globe2, LogIn } from 'lucide-react';
+import { FormEvent, useState } from 'react';
+
+const marketDefaults = {
+  TR: 'tr',
+  GB: 'en',
+} as const;
+
+export function AdminLoginForm() {
+  const [username, setUsername] = useState('admin');
+  const [password, setPassword] = useState('');
+  const [marketCode, setMarketCode] = useState<keyof typeof marketDefaults>('TR');
+  const [contentLocale, setContentLocale] = useState<'tr' | 'en'>('tr');
+  const [message, setMessage] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsSubmitting(true);
+    setMessage(null);
+
+    try {
+      const response = await fetch('/api/admin-auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password, marketCode, contentLocale }),
+      });
+      const result = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        setMessage(result.error ?? 'Giriş yapılamadı.');
+        return;
+      }
+      window.location.assign('/admin/vehicles');
+    } catch {
+      setMessage('Giriş servisine ulaşılamadı.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  return (
+    <main className="login-shell">
+      <section className="login-panel">
+        <div className="login-brand">
+          <span className="login-brand-mark">D</span>
+          <div>
+            <p className="eyebrow">DMyC Yönetim Sistemi</p>
+            <h1>Admin girişi</h1>
+          </div>
+        </div>
+
+        <form className="login-form" onSubmit={submit}>
+          <label>
+            Kullanıcı adı
+            <input autoComplete="username" required value={username} onChange={(event) => setUsername(event.target.value)} />
+          </label>
+          <label>
+            Şifre
+            <input
+              autoComplete="current-password"
+              required
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+            />
+          </label>
+
+          <div className="login-context-grid">
+            <label>
+              Çalışılacak ülke
+              <select
+                value={marketCode}
+                onChange={(event) => {
+                  const market = event.target.value as keyof typeof marketDefaults;
+                  setMarketCode(market);
+                  setContentLocale(marketDefaults[market]);
+                }}
+              >
+                <option value="TR">Türkiye (TR)</option>
+                <option value="GB">Birleşik Krallık (GB)</option>
+              </select>
+            </label>
+            <label>
+              İçerik dili
+              <select value={contentLocale} onChange={(event) => setContentLocale(event.target.value as 'tr' | 'en')}>
+                <option value="tr">Türkçe</option>
+                <option value="en">English</option>
+              </select>
+            </label>
+          </div>
+
+          <div className="login-context-note">
+            <Globe2 size={18} />
+            <p>Panel menüleri Türkçe kalır. Araç adları, kaynaklar ve pazar içerikleri seçilen içerik dilinde yönetilir.</p>
+          </div>
+
+          {message ? <p className="login-error" role="alert">{message}</p> : null}
+
+          <button className="primary-button login-submit" disabled={isSubmitting} type="submit">
+            <LogIn size={18} />
+            {isSubmitting ? 'Giriş yapılıyor...' : 'Panele gir'}
+          </button>
+        </form>
+      </section>
+    </main>
+  );
+}

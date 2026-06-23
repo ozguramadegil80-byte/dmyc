@@ -1,0 +1,14 @@
+{
+  "generatedAt": "2026-06-14T03:35:03.104Z",
+  "markets": {
+    "TR": {
+      "recordCount": 53,
+      "invalidMarketRowCount": 0
+    },
+    "GB": {
+      "recordCount": 0,
+      "invalidMarketRowCount": 0
+    }
+  },
+  "issues": []
+}

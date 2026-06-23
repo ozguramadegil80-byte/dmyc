@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Get-ChildItem \"c:\\\\Users\\\\oxgur\\\\DMyC\\\\apps\" -Recurse -Depth 2 | Where-Object { $_.PSIsContainer } | Select-Object FullName)",
+      "Bash(node node_modules/typescript/bin/tsc --noEmit)",
+      "PowerShell(cd \"c:\\\\Users\\\\oxgur\\\\DMyC\\\\apps\\\\mobile\"; npx tsc --noEmit 2>&1 | Where-Object { $_ -notmatch \"npm notice\" } | Select-Object -First 30)",
+      "PowerShell(cd \"c:\\\\Users\\\\oxgur\\\\DMyC\\\\apps\\\\mobile\"; npx tsc --noEmit 2>&1 | Where-Object { $_ -notmatch \"npm notice\" })",
+      "Bash(curl -s http://localhost:3000/users/732ee773-fd87-4601-8be2-fc0c08f5988a/active-binding)",
+      "Bash(curl -s http://localhost:4311/users/732ee773-fd87-4601-8be2-fc0c08f5988a/active-binding)",
+      "Bash(curl -s http://localhost:4311/vehicles/5b99a458-cdef-4ca9-9e0c-8802422db314/monthly-report/2026/6)",
+      "Bash(curl -s http://localhost:4311/vehicles/5b99a458-cdef-4ca9-9e0c-8802422db314/monthly-report/latest)",
+      "Bash(curl -s http://localhost:4311/vehicles/5b99a458-cdef-4ca9-9e0c-8802422db314/annual-report/latest)",
+      "Bash(curl -s http://localhost:4311/vehicles/5b99a458-cdef-4ca9-9e0c-8802422db314/assessment/latest)",
+      "Bash(curl -s http://localhost:4311/)",
+      "Bash(curl -s http://localhost:4311/vehicles/5b99a458-cdef-4ca9-9e0c-8802422db314/battery-lifecycle)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(list\\(d.keys\\(\\)\\)[:5]\\)\")",
+      "Bash(curl -s http://localhost:4311/vehicles/5b99a458-cdef-4ca9-9e0c-8802422db314/monthly-report/latest -v)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d.get\\('scripts', {}\\)\\)\")",
+      "Bash(curl -s http://localhost:4311/vehicles/5b99a458-cdef-4ca9-9e0c-8802422db314/usage-profile)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(list\\(d.keys\\(\\)\\)\\)\")",
+      "Bash(npx tsc *)",
+      "Bash(python3 -c ' *)",
+      "Bash(node -e \"const a=require\\('./app.json'\\); console.log\\(JSON.stringify\\(a.expo?.runtimeVersion ?? 'none'\\)\\)\")",
+      "Bash(ls eas.json)",
+      "Bash(npx eas *)",
+      "Bash(npm list *)",
+      "Bash(eas whoami *)",
+      "Bash(npx expo *)",
+      "Bash(eas build *)",
+      "Bash(EXPO_ROOT_DIR=\"c:/Users/oxgur/DMyC\" eas build --profile development --platform android --non-interactive)",
+      "Bash(git init *)",
+      "Bash(git add *)",
+      "Bash(git commit *)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\oxgur\\.claude\\projects\\c--Users-oxgur-DMyC\\memory"
+    ]
+  }
+}

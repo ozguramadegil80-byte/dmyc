@@ -1,0 +1,28 @@
+{
+  "name": "mobile",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "dependencies": {
+    "@react-native-async-storage/async-storage": "^3.1.1",
+    "expo": "~56.0.9",
+    "expo-dev-client": "~56.0.20",
+    "expo-location": "^56.0.18",
+    "expo-status-bar": "~56.0.4",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native": "0.85.3",
+    "react-native-web": "^0.21.2"
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.2",
+    "typescript": "~6.0.3"
+  },
+  "scripts": {
+    "start": "expo start --web --port 19010",
+    "android": "expo start --android --port 19010",
+    "ios": "expo start --ios --port 19010",
+    "web": "expo start --web --port 19010",
+    "typecheck": "tsc --noEmit"
+  },
+  "private": true
+}
