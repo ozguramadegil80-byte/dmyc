@@ -402,9 +402,14 @@ export default function App() {
   const [savedLocationMessage, setSavedLocationMessage] = useState<string | null>(null);
   const [selectedSavedRouteId, setSelectedSavedRouteId] = useState<string>('');
   const [selectedDestinationLocationId, setSelectedDestinationLocationId] = useState<string>('');
+  const [tripOriginQuery, setTripOriginQuery] = useState<string>('');
+  const [tripOriginPredictions, setTripOriginPredictions] = useState<ApiPlacePrediction[]>([]);
+  const [tripOriginLocation, setTripOriginLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [tripDestQuery, setTripDestQuery] = useState<string>('');
   const [tripDestPredictions, setTripDestPredictions] = useState<ApiPlacePrediction[]>([]);
   const [mapPickerVisible, setMapPickerVisible] = useState(false);
+  const [mapPickerMode, setMapPickerMode] = useState<'origin' | 'destination'>('destination');
+  const [tripWelcomeVisible, setTripWelcomeVisible] = useState(false);
   const [profileMessage, setProfileMessage] = useState<string | null>(null);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [brandQuery, setBrandQuery] = useState('');
@@ -723,6 +728,18 @@ export default function App() {
     return () => clearTimeout(timeout);
   }, [language, savedLocationForm.searchLabel, savedLocationForm.selectedPlaceId, step]);
 
+  // Trip origin autocomplete
+  useEffect(() => {
+    const query = tripOriginQuery.trim();
+    if (query.length < 2) { setTripOriginPredictions([]); return undefined; }
+    const timeout = setTimeout(() => {
+      fetchPlaceAutocomplete(query, language)
+        .then((result) => setTripOriginPredictions(result.predictions))
+        .catch(() => setTripOriginPredictions([]));
+    }, 350);
+    return () => clearTimeout(timeout);
+  }, [language, tripOriginQuery]);
+
   // Trip destination autocomplete
   useEffect(() => {
     const query = tripDestQuery.trim();
@@ -737,6 +754,23 @@ export default function App() {
     }, 350);
     return () => clearTimeout(timeout);
   }, [language, tripDestQuery]);
+
+  const selectTripOriginPlace = async (prediction: ApiPlacePrediction) => {
+    try {
+      const details = await fetchPlaceDetails(prediction.placeId, language);
+      const place = details.place;
+      if (!place) return;
+      setTripOriginLocation({ latitude: place.latitude, longitude: place.longitude });
+      setTripOriginQuery(prediction.description);
+      setTripOriginPredictions([]);
+    } catch {}
+  };
+
+  const clearTripOrigin = () => {
+    setTripOriginLocation(null);
+    setTripOriginQuery('');
+    setTripOriginPredictions([]);
+  };
 
   const selectTripDestinationPlace = async (prediction: ApiPlacePrediction) => {
     const binding = backendBindingRef.current;
@@ -1436,7 +1470,8 @@ export default function App() {
       const hasOdometer = parseInt(assessmentOdometerKm, 10) > 0;
       await bindSelectedVehicle();
       if (hasOdometer) setShowWelcomeModal(true);
-      setStep('today');
+      setStep('yolculuk');
+      setTripWelcomeVisible(true);
       return;
     }
 
@@ -1607,7 +1642,9 @@ export default function App() {
       return;
     }
 
-    const firstPoint = await getCurrentTripPoint(0);
+    const firstPoint = tripOriginLocation
+      ? { latitude: tripOriginLocation.latitude, longitude: tripOriginLocation.longitude, recordedAt: new Date().toISOString() }
+      : await getCurrentTripPoint(0);
     await startTripFromPoint(firstPoint, 'manual', {
       destinationLocationId: selectedDestinationLocationId || undefined,
       plannedRouteId: selectedSavedRouteId || undefined,
@@ -2357,6 +2394,11 @@ export default function App() {
           autoTripStatus={autoTripStatus}
           backendBinding={backendBinding}
           destQuery={tripDestQuery}
+          onClearOrigin={clearTripOrigin}
+          onOriginPlaceSelect={selectTripOriginPlace}
+          onOriginSearch={setTripOriginQuery}
+          originPredictions={tripOriginPredictions}
+          originQuery={tripOriginQuery}
           lastCompletedTrip={lastCompletedTrip}
           lastTripRecap={lastTripRecap}
           lastTripShareCard={lastTripShareCard}
@@ -2366,7 +2408,7 @@ export default function App() {
           onCreateShareCard={createShareCardForLastRecap}
           onDestSearch={setTripDestQuery}
           onFinishTrip={finishActiveTrip}
-          onOpenMap={() => setMapPickerVisible(true)}
+          onOpenMap={(mode) => { setMapPickerMode(mode); setMapPickerVisible(true); }}
           onPlaceSelect={selectTripDestinationPlace}
           onStartTrip={startTripRecording}
           onSelectDestination={setSelectedDestinationLocationId}
@@ -2551,13 +2593,38 @@ export default function App() {
       ) : null}
 
       <MapLocationPicker
-        currentLocation={null}
         language={language}
+        mode={mapPickerMode}
         onClose={() => setMapPickerVisible(false)}
-        onSave={saveMapLocation}
-        onSelect={selectMapLocation}
+        onConfirm={(coord, label) => {
+          if (mapPickerMode === 'origin') {
+            setTripOriginLocation(coord);
+            setTripOriginQuery(label);
+            setTripOriginPredictions([]);
+          } else {
+            selectMapLocation(coord, label, null);
+          }
+        }}
+        onSave={(saveName, coord, label) => saveMapLocation(saveName, coord, label, null)}
         visible={mapPickerVisible}
       />
+
+      {/* Trip welcome modal — shown once after onboarding */}
+      {tripWelcomeVisible && registeredUser ? (
+        <Modal animationType="fade" transparent visible={tripWelcomeVisible} onRequestClose={() => setTripWelcomeVisible(false)}>
+          <View style={styles.tripWelcomeOverlay}>
+            <View style={styles.tripWelcomeCard}>
+              <Text style={styles.tripWelcomeTitle}>Hoş geldiniz, {registeredUser.fullName || registeredUser.username || 'Sürücü'} 👋</Text>
+              <Text style={styles.tripWelcomeBody}>
+                Sistemin konumları otomatik algılayabilmesi için sürekli kullandığınız konumları kaydedebilirsiniz.{'\n\n'}Bu kayıtlı rotalar algılandığında sistem sizden sürekli teyit istemeyecektir.{'\n\n'}Aşağıdaki haritayı kullanarak NEREDEN ve NEREYE noktalarınızı seçin, kaydedin.
+              </Text>
+              <Pressable accessibilityRole="button" onPress={() => setTripWelcomeVisible(false)} style={styles.tripWelcomeBtn}>
+                <Text style={styles.tripWelcomeBtnText}>ANLADIM</Text>
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -4073,28 +4140,48 @@ function PlaceSearchState({ status }: { status: PlaceSearchStatus }) {
   return <Text style={styles.placeSearchStatus}>{message}</Text>;
 }
 
+const ISTANBUL = { latitude: 41.0082, longitude: 28.9784, latitudeDelta: 0.05, longitudeDelta: 0.05 };
+
 function MapLocationPicker({
-  currentLocation,
   language,
+  mode,
   onClose,
+  onConfirm,
   onSave,
-  onSelect,
   visible,
 }: {
-  currentLocation: { latitude: number; longitude: number } | null;
   language: Locale;
+  mode: 'origin' | 'destination';
   onClose: () => void;
-  onSave: (saveName: string, coord: { latitude: number; longitude: number }, label: string, placeId: string | null) => Promise<void>;
-  onSelect: (coord: { latitude: number; longitude: number }, label: string, placeId: string | null) => void;
+  onConfirm: (coord: { latitude: number; longitude: number }, label: string) => void;
+  onSave: (saveName: string, coord: { latitude: number; longitude: number }, label: string) => void;
   visible: boolean;
 }) {
+  const mapRef = useRef<any>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [predictions, setPredictions] = useState<ApiPlacePrediction[]>([]);
-  const [selected, setSelected] = useState<{ coordinate: { latitude: number; longitude: number } | null; label: string; placeId: string | null }>({ coordinate: null, label: '', placeId: null });
-  const [saveName, setSaveName] = useState('');
+  // Region center = current pin location
+  const [pinRegion, setPinRegion] = useState(ISTANBUL);
+  const [pinLabel, setPinLabel] = useState('');
+  const [pinMoving, setPinMoving] = useState(false);
   const [saveMode, setSaveMode] = useState(false);
+  const [saveName, setSaveName] = useState('');
   const [saving, setSaving] = useState(false);
 
+  // Reset on open
+  useEffect(() => {
+    if (visible) {
+      setSearchQuery('');
+      setPredictions([]);
+      setPinRegion(ISTANBUL);
+      setPinLabel('');
+      setPinMoving(false);
+      setSaveMode(false);
+      setSaveName('');
+    }
+  }, [visible]);
+
+  // Autocomplete debounce
   useEffect(() => {
     if (!visible) return;
     const q = searchQuery.trim();
@@ -4107,16 +4194,6 @@ function MapLocationPicker({
     return () => clearTimeout(t);
   }, [searchQuery, language, visible]);
 
-  useEffect(() => {
-    if (visible) {
-      setSearchQuery('');
-      setPredictions([]);
-      setSelected({ coordinate: currentLocation ?? null, label: '', placeId: null });
-      setSaveName('');
-      setSaveMode(false);
-    }
-  }, [visible, currentLocation]);
-
   const pickPrediction = async (prediction: ApiPlacePrediction) => {
     setPredictions([]);
     setSearchQuery(prediction.description);
@@ -4124,54 +4201,63 @@ function MapLocationPicker({
       const details = await fetchPlaceDetails(prediction.placeId, language);
       const place = details.place;
       if (place) {
-        setSelected({ coordinate: { latitude: place.latitude, longitude: place.longitude }, label: prediction.description, placeId: place.googlePlaceId });
+        const region = { latitude: place.latitude, longitude: place.longitude, latitudeDelta: 0.02, longitudeDelta: 0.02 };
+        setPinRegion(region);
+        setPinLabel(prediction.description);
+        mapRef.current?.animateToRegion(region, 500);
       }
     } catch {}
   };
 
-  const handleSelect = () => {
-    if (!selected.coordinate) return;
-    onSelect(selected.coordinate, selected.label, selected.placeId);
+  const handleConfirm = () => {
+    const coord = { latitude: pinRegion.latitude, longitude: pinRegion.longitude };
+    onConfirm(coord, pinLabel || searchQuery);
     onClose();
   };
 
-  const handleSave = async () => {
-    if (!selected.coordinate || !saveName.trim()) return;
+  const handleSave = () => {
+    if (!saveName.trim()) return;
     setSaving(true);
-    try {
-      await onSave(saveName.trim(), selected.coordinate, selected.label, selected.placeId);
-      onClose();
-    } finally {
-      setSaving(false);
-    }
+    const coord = { latitude: pinRegion.latitude, longitude: pinRegion.longitude };
+    onSave(saveName.trim(), coord, pinLabel || searchQuery);
+    setSaving(false);
+    onClose();
   };
 
-  const initialRegion = selected.coordinate
-    ? { latitude: selected.coordinate.latitude, longitude: selected.coordinate.longitude, latitudeDelta: 0.02, longitudeDelta: 0.02 }
-    : { latitude: 41.0082, longitude: 28.9784, latitudeDelta: 0.1, longitudeDelta: 0.1 };
+  const confirmLabel = mode === 'origin' ? 'NEREDEN OLARAK SEÇ' : 'NEREYE OLARAK SEÇ';
+  const hasPin = pinLabel.length > 0 || searchQuery.length > 0;
 
   return (
     <Modal animationType="slide" onRequestClose={onClose} presentationStyle="fullScreen" visible={visible}>
       <View style={styles.mapPickerRoot}>
-        {/* MAP — native only */}
+
+        {/* MAP — native only, fills entire screen */}
         {Platform.OS !== 'web' && MapView ? (
           <MapView
-            initialRegion={initialRegion}
-            region={selected.coordinate ? { ...selected.coordinate, latitudeDelta: 0.02, longitudeDelta: 0.02 } : undefined}
+            ref={mapRef}
+            initialRegion={ISTANBUL}
+            onRegionChange={() => setPinMoving(true)}
+            onRegionChangeComplete={(region: { latitude: number; longitude: number; latitudeDelta: number; longitudeDelta: number }) => {
+              setPinMoving(false);
+              setPinRegion(region);
+              if (pinLabel) setPinLabel('');
+            }}
             showsUserLocation
+            showsMyLocationButton={false}
             style={styles.mapPickerMap}
-          >
-            {selected.coordinate && Marker ? (
-              <Marker coordinate={selected.coordinate} />
-            ) : null}
-          </MapView>
+          />
         ) : (
           <View style={styles.mapPickerMapPlaceholder}>
             <Text style={styles.mapPickerPlaceholderText}>Harita telefon uygulamasında görünür</Text>
           </View>
         )}
 
-        {/* SEARCH OVERLAY */}
+        {/* FIXED CENTER PIN */}
+        <View style={styles.mapPickerPin} pointerEvents="none">
+          <Text style={[styles.mapPickerPinIcon, pinMoving && { opacity: 0.6 }]}>📍</Text>
+        </View>
+
+        {/* TOP: close + search */}
         <View style={styles.mapPickerOverlay}>
           <View style={styles.mapPickerTopRow}>
             <Pressable accessibilityRole="button" onPress={onClose} style={styles.mapPickerCloseBtn}>
@@ -4179,9 +4265,8 @@ function MapLocationPicker({
             </Pressable>
             <View style={styles.mapPickerSearchBox}>
               <TextInput
-                autoFocus={Platform.OS !== 'web'}
                 onChangeText={setSearchQuery}
-                placeholder="Konum ara..."
+                placeholder={mode === 'origin' ? 'Başlangıç noktası ara...' : 'Hedef ara...'}
                 placeholderTextColor={colors.muted}
                 style={styles.mapPickerSearchInput}
                 value={searchQuery}
@@ -4195,10 +4280,12 @@ function MapLocationPicker({
 
         {/* BOTTOM SHEET */}
         <View style={styles.mapPickerBottomSheet}>
-          {selected.label ? (
-            <Text style={styles.mapPickerSelectedLabel} numberOfLines={2}>{selected.label}</Text>
+          {pinMoving ? (
+            <Text style={styles.mapPickerHint}>Pini bırakın...</Text>
+          ) : pinLabel ? (
+            <Text style={styles.mapPickerSelectedLabel} numberOfLines={2}>{pinLabel}</Text>
           ) : (
-            <Text style={styles.mapPickerHint}>Aramak için yukarıdaki kutuya yazın</Text>
+            <Text style={styles.mapPickerHint}>Haritayı kaydırarak konumu seçin</Text>
           )}
 
           {saveMode ? (
@@ -4206,7 +4293,7 @@ function MapLocationPicker({
               <TextInput
                 autoFocus
                 onChangeText={setSaveName}
-                placeholder="İş Yerim, Spor Salonu, Annem..."
+                placeholder="İş Yerim, Ev, Spor Salonu..."
                 placeholderTextColor={colors.muted}
                 style={styles.mapPickerSaveInput}
                 value={saveName}
@@ -4226,24 +4313,25 @@ function MapLocationPicker({
               </View>
             </>
           ) : (
-            <View style={styles.mapPickerBtnRow}>
-              <Pressable
-                accessibilityRole="button"
-                disabled={!selected.coordinate}
-                onPress={() => setSaveMode(true)}
-                style={[styles.mapPickerSecBtn, !selected.coordinate && { opacity: 0.4 }]}
-              >
-                <Text style={styles.mapPickerSecBtnText}>KAYDET ★</Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                disabled={!selected.coordinate}
-                onPress={handleSelect}
-                style={[styles.mapPickerPriBtn, !selected.coordinate && { opacity: 0.4 }]}
-              >
-                <Text style={styles.mapPickerPriBtnText}>SEÇ →</Text>
-              </Pressable>
-            </View>
+            <>
+              <View style={styles.mapPickerBtnRow}>
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={!hasPin}
+                  onPress={() => setSaveMode(true)}
+                  style={[styles.mapPickerSecBtn, !hasPin && { opacity: 0.4 }]}
+                >
+                  <Text style={styles.mapPickerSecBtnText}>İSİM VER & KAYDET</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={handleConfirm}
+                  style={styles.mapPickerPriBtn}
+                >
+                  <Text style={styles.mapPickerPriBtnText}>{confirmLabel}</Text>
+                </Pressable>
+              </View>
+            </>
           )}
         </View>
       </View>
@@ -4918,6 +5006,11 @@ type TripRecorderStepProps = {
   backendBinding: BackendBinding | null;
   destQuery: string;
   guidance: ApiPremiumGuidance | null;
+  onClearOrigin: () => void;
+  onOriginPlaceSelect: (prediction: ApiPlacePrediction) => void;
+  onOriginSearch: (query: string) => void;
+  originPredictions: ApiPlacePrediction[];
+  originQuery: string;
   lastCompletedTrip: ApiTrip | null;
   lastTripRecap: ApiTripRecap | null;
   lastTripShareCard: ApiTripShareCard | null;
@@ -4927,7 +5020,7 @@ type TripRecorderStepProps = {
   onCreateShareCard: () => void;
   onDestSearch: (query: string) => void;
   onFinishTrip: () => void;
-  onOpenMap: () => void;
+  onOpenMap: (mode: 'origin' | 'destination') => void;
   onPlaceSelect: (prediction: ApiPlacePrediction) => void;
   onStartTrip: () => void;
   onSelectDestination: (id: string) => void;
@@ -4953,6 +5046,11 @@ function TripRecorderStep({
   backendBinding,
   destQuery,
   guidance: _guidance,
+  onClearOrigin,
+  onOriginPlaceSelect,
+  onOriginSearch,
+  originPredictions,
+  originQuery,
   lastCompletedTrip: _lastCompletedTrip,
   lastTripRecap,
   lastTripShareCard: _lastTripShareCard,
@@ -5079,13 +5177,30 @@ function TripRecorderStep({
         <>
           {/* ── ROTA PLANLAYICI ─────────────────────────────────────────── */}
           <View style={styles.yolculukPlanCard}>
-            <View style={styles.yolculukInputWrap}>
-              <Text style={styles.yolculukInputLabel}>NEREDEN</Text>
-              <Text style={styles.yolculukInputValue}>Mevcut Konumdan</Text>
-            </View>
             <Pressable
               accessibilityRole="button"
-              onPress={onOpenMap}
+              onPress={() => onOpenMap('origin')}
+              style={styles.yolculukInputWrap}
+            >
+              <Text style={styles.yolculukInputLabel}>NEREDEN</Text>
+              {originQuery ? (
+                <Text style={styles.yolculukInputValue}>{originQuery}</Text>
+              ) : (
+                <Text style={[styles.yolculukInputValue, { color: colors.muted }]}>Haritadan seç...</Text>
+              )}
+            </Pressable>
+            {!originQuery && (
+              <Pressable
+                accessibilityRole="button"
+                onPress={onClearOrigin}
+                style={styles.yolculukBuraBtn}
+              >
+                <Text style={styles.yolculukBuraBtnText}>⊙  BURADAN BAŞLAT (GPS)</Text>
+              </Pressable>
+            )}
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => onOpenMap('destination')}
               style={styles.yolculukInputWrap}
             >
               <Text style={styles.yolculukInputLabel}>NEREYE</Text>
@@ -9223,6 +9338,67 @@ const styles = StyleSheet.create({
     letterSpacing: 1.5,
   },
 
+  // BURADAN chip
+  yolculukBuraBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    borderColor: colors.cyan,
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+  },
+  yolculukBuraBtnText: {
+    color: colors.cyan,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1.5,
+  },
+
+  // ── Trip Welcome Modal ────────────────────────────────────────────────
+  tripWelcomeOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  tripWelcomeCard: {
+    backgroundColor: '#192122',
+    borderColor: colors.line,
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 24,
+    gap: 16,
+    width: '100%',
+    maxWidth: 400,
+  },
+  tripWelcomeTitle: {
+    color: colors.text,
+    fontSize: 20,
+    fontWeight: '600',
+    lineHeight: 28,
+  },
+  tripWelcomeBody: {
+    color: colors.muted,
+    fontSize: 14,
+    lineHeight: 22,
+  },
+  tripWelcomeBtn: {
+    backgroundColor: colors.cyan,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 4,
+  },
+  tripWelcomeBtnText: {
+    color: '#004f54',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1.5,
+  },
+
   // ── MapLocationPicker ─────────────────────────────────────────────────
   mapPickerRoot: {
     flex: 1,
@@ -9230,6 +9406,19 @@ const styles = StyleSheet.create({
   },
   mapPickerMap: {
     flex: 1,
+  },
+  // Fixed center pin — stays on screen while map scrolls underneath
+  mapPickerPin: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    marginLeft: -16,
+    marginTop: -44,
+    zIndex: 10,
+    pointerEvents: 'none',
+  },
+  mapPickerPinIcon: {
+    fontSize: 36,
   },
   mapPickerMapPlaceholder: {
     flex: 1,
