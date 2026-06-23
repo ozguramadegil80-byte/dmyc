@@ -7,6 +7,7 @@ import {
   Image,
   Linking,
   Modal,
+  Platform,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -17,6 +18,11 @@ import {
   TextInput,
   View,
 } from 'react-native';
+// react-native-maps is native only — guarded by Platform.OS check at render time
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const RNMaps: any = Platform.OS !== 'web' ? require('react-native-maps') : null;
+const MapView = RNMaps?.default ?? null;
+const Marker = RNMaps?.Marker ?? null;
 import {
   appendTripPoints,
   createChargingDecisionEvent,
@@ -396,6 +402,9 @@ export default function App() {
   const [savedLocationMessage, setSavedLocationMessage] = useState<string | null>(null);
   const [selectedSavedRouteId, setSelectedSavedRouteId] = useState<string>('');
   const [selectedDestinationLocationId, setSelectedDestinationLocationId] = useState<string>('');
+  const [tripDestQuery, setTripDestQuery] = useState<string>('');
+  const [tripDestPredictions, setTripDestPredictions] = useState<ApiPlacePrediction[]>([]);
+  const [mapPickerVisible, setMapPickerVisible] = useState(false);
   const [profileMessage, setProfileMessage] = useState<string | null>(null);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [brandQuery, setBrandQuery] = useState('');
@@ -713,6 +722,95 @@ export default function App() {
 
     return () => clearTimeout(timeout);
   }, [language, savedLocationForm.searchLabel, savedLocationForm.selectedPlaceId, step]);
+
+  // Trip destination autocomplete
+  useEffect(() => {
+    const query = tripDestQuery.trim();
+    if (query.length < 2) {
+      setTripDestPredictions([]);
+      return undefined;
+    }
+    const timeout = setTimeout(() => {
+      fetchPlaceAutocomplete(query, language)
+        .then((result) => setTripDestPredictions(result.predictions))
+        .catch(() => setTripDestPredictions([]));
+    }, 350);
+    return () => clearTimeout(timeout);
+  }, [language, tripDestQuery]);
+
+  const selectTripDestinationPlace = async (prediction: ApiPlacePrediction) => {
+    const binding = backendBindingRef.current;
+    if (!binding) return;
+    try {
+      const details = await fetchPlaceDetails(prediction.placeId, language);
+      const place = details.place;
+      if (!place) return;
+      const location = await createSavedLocation(binding.user.id, {
+        label: prediction.description,
+        locationKind: 'waypoint',
+        address: prediction.description,
+        googlePlaceId: place.googlePlaceId,
+        latitude: place.latitude,
+        longitude: place.longitude,
+        source: 'trip_destination',
+      });
+      setSelectedDestinationLocationId(location.id);
+      setSelectedSavedRouteId('');
+      setTripDestQuery(prediction.description);
+      setTripDestPredictions([]);
+    } catch {
+      // silently ignore — user can retry
+    }
+  };
+
+  // MapLocationPicker: select destination without saving
+  const selectMapLocation = async (
+    coord: { latitude: number; longitude: number },
+    label: string,
+    placeId: string | null,
+  ) => {
+    const binding = backendBindingRef.current;
+    if (!binding) return;
+    try {
+      const location = await createSavedLocation(binding.user.id, {
+        label: label || 'Hedef',
+        locationKind: 'waypoint',
+        address: label,
+        googlePlaceId: placeId ?? undefined,
+        latitude: coord.latitude,
+        longitude: coord.longitude,
+        source: 'trip_destination',
+      });
+      setSelectedDestinationLocationId(location.id);
+      setSelectedSavedRouteId('');
+      setTripDestQuery(label || 'Hedef');
+      setTripDestPredictions([]);
+    } catch {}
+  };
+
+  // MapLocationPicker: save with a user-given name
+  const saveMapLocation = async (
+    saveName: string,
+    coord: { latitude: number; longitude: number },
+    label: string,
+    placeId: string | null,
+  ) => {
+    const binding = backendBindingRef.current;
+    if (!binding) return;
+    const location = await createSavedLocation(binding.user.id, {
+      label: saveName,
+      address: label,
+      googlePlaceId: placeId ?? undefined,
+      latitude: coord.latitude,
+      longitude: coord.longitude,
+      source: 'manual',
+    });
+    setSavedLocations((prev) => [...prev, location]);
+    setSelectedDestinationLocationId(location.id);
+    setSelectedSavedRouteId('');
+    setTripDestQuery(saveName);
+    setTripDestPredictions([]);
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -2258,6 +2356,7 @@ export default function App() {
           autoTripMessage={autoTripMessage}
           autoTripStatus={autoTripStatus}
           backendBinding={backendBinding}
+          destQuery={tripDestQuery}
           lastCompletedTrip={lastCompletedTrip}
           lastTripRecap={lastTripRecap}
           lastTripShareCard={lastTripShareCard}
@@ -2265,11 +2364,15 @@ export default function App() {
           message={tripMessage}
           onAppendPoint={appendCurrentTripPoint}
           onCreateShareCard={createShareCardForLastRecap}
+          onDestSearch={setTripDestQuery}
           onFinishTrip={finishActiveTrip}
+          onOpenMap={() => setMapPickerVisible(true)}
+          onPlaceSelect={selectTripDestinationPlace}
           onStartTrip={startTripRecording}
           onSelectDestination={setSelectedDestinationLocationId}
           onSelectRoute={setSelectedSavedRouteId}
           onToggleAutoTrip={setAutoTripEnabled}
+          placePredictions={tripDestPredictions}
           points={tripPoints}
           savedLocations={savedLocations}
           savedRoutes={savedRoutes}
@@ -2446,6 +2549,15 @@ export default function App() {
           onSkip={() => submitRoutePlan('skip')}
         />
       ) : null}
+
+      <MapLocationPicker
+        currentLocation={null}
+        language={language}
+        onClose={() => setMapPickerVisible(false)}
+        onSave={saveMapLocation}
+        onSelect={selectMapLocation}
+        visible={mapPickerVisible}
+      />
     </SafeAreaView>
   );
 }
@@ -3961,6 +4073,184 @@ function PlaceSearchState({ status }: { status: PlaceSearchStatus }) {
   return <Text style={styles.placeSearchStatus}>{message}</Text>;
 }
 
+function MapLocationPicker({
+  currentLocation,
+  language,
+  onClose,
+  onSave,
+  onSelect,
+  visible,
+}: {
+  currentLocation: { latitude: number; longitude: number } | null;
+  language: Locale;
+  onClose: () => void;
+  onSave: (saveName: string, coord: { latitude: number; longitude: number }, label: string, placeId: string | null) => Promise<void>;
+  onSelect: (coord: { latitude: number; longitude: number }, label: string, placeId: string | null) => void;
+  visible: boolean;
+}) {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [predictions, setPredictions] = useState<ApiPlacePrediction[]>([]);
+  const [selected, setSelected] = useState<{ coordinate: { latitude: number; longitude: number } | null; label: string; placeId: string | null }>({ coordinate: null, label: '', placeId: null });
+  const [saveName, setSaveName] = useState('');
+  const [saveMode, setSaveMode] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!visible) return;
+    const q = searchQuery.trim();
+    if (q.length < 2) { setPredictions([]); return; }
+    const t = setTimeout(() => {
+      fetchPlaceAutocomplete(q, language)
+        .then((r) => setPredictions(r.predictions))
+        .catch(() => setPredictions([]));
+    }, 350);
+    return () => clearTimeout(t);
+  }, [searchQuery, language, visible]);
+
+  useEffect(() => {
+    if (visible) {
+      setSearchQuery('');
+      setPredictions([]);
+      setSelected({ coordinate: currentLocation ?? null, label: '', placeId: null });
+      setSaveName('');
+      setSaveMode(false);
+    }
+  }, [visible, currentLocation]);
+
+  const pickPrediction = async (prediction: ApiPlacePrediction) => {
+    setPredictions([]);
+    setSearchQuery(prediction.description);
+    try {
+      const details = await fetchPlaceDetails(prediction.placeId, language);
+      const place = details.place;
+      if (place) {
+        setSelected({ coordinate: { latitude: place.latitude, longitude: place.longitude }, label: prediction.description, placeId: place.googlePlaceId });
+      }
+    } catch {}
+  };
+
+  const handleSelect = () => {
+    if (!selected.coordinate) return;
+    onSelect(selected.coordinate, selected.label, selected.placeId);
+    onClose();
+  };
+
+  const handleSave = async () => {
+    if (!selected.coordinate || !saveName.trim()) return;
+    setSaving(true);
+    try {
+      await onSave(saveName.trim(), selected.coordinate, selected.label, selected.placeId);
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const initialRegion = selected.coordinate
+    ? { latitude: selected.coordinate.latitude, longitude: selected.coordinate.longitude, latitudeDelta: 0.02, longitudeDelta: 0.02 }
+    : { latitude: 41.0082, longitude: 28.9784, latitudeDelta: 0.1, longitudeDelta: 0.1 };
+
+  return (
+    <Modal animationType="slide" onRequestClose={onClose} presentationStyle="fullScreen" visible={visible}>
+      <View style={styles.mapPickerRoot}>
+        {/* MAP — native only */}
+        {Platform.OS !== 'web' && MapView ? (
+          <MapView
+            initialRegion={initialRegion}
+            region={selected.coordinate ? { ...selected.coordinate, latitudeDelta: 0.02, longitudeDelta: 0.02 } : undefined}
+            showsUserLocation
+            style={styles.mapPickerMap}
+          >
+            {selected.coordinate && Marker ? (
+              <Marker coordinate={selected.coordinate} />
+            ) : null}
+          </MapView>
+        ) : (
+          <View style={styles.mapPickerMapPlaceholder}>
+            <Text style={styles.mapPickerPlaceholderText}>Harita telefon uygulamasında görünür</Text>
+          </View>
+        )}
+
+        {/* SEARCH OVERLAY */}
+        <View style={styles.mapPickerOverlay}>
+          <View style={styles.mapPickerTopRow}>
+            <Pressable accessibilityRole="button" onPress={onClose} style={styles.mapPickerCloseBtn}>
+              <Text style={styles.mapPickerCloseBtnText}>✕</Text>
+            </Pressable>
+            <View style={styles.mapPickerSearchBox}>
+              <TextInput
+                autoFocus={Platform.OS !== 'web'}
+                onChangeText={setSearchQuery}
+                placeholder="Konum ara..."
+                placeholderTextColor={colors.muted}
+                style={styles.mapPickerSearchInput}
+                value={searchQuery}
+              />
+            </View>
+          </View>
+          {predictions.length > 0 && (
+            <PlacePredictionList predictions={predictions} onSelect={pickPrediction} />
+          )}
+        </View>
+
+        {/* BOTTOM SHEET */}
+        <View style={styles.mapPickerBottomSheet}>
+          {selected.label ? (
+            <Text style={styles.mapPickerSelectedLabel} numberOfLines={2}>{selected.label}</Text>
+          ) : (
+            <Text style={styles.mapPickerHint}>Aramak için yukarıdaki kutuya yazın</Text>
+          )}
+
+          {saveMode ? (
+            <>
+              <TextInput
+                autoFocus
+                onChangeText={setSaveName}
+                placeholder="İş Yerim, Spor Salonu, Annem..."
+                placeholderTextColor={colors.muted}
+                style={styles.mapPickerSaveInput}
+                value={saveName}
+              />
+              <View style={styles.mapPickerBtnRow}>
+                <Pressable accessibilityRole="button" onPress={() => setSaveMode(false)} style={styles.mapPickerSecBtn}>
+                  <Text style={styles.mapPickerSecBtnText}>VAZGEÇ</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={!saveName.trim() || saving}
+                  onPress={handleSave}
+                  style={[styles.mapPickerPriBtn, (!saveName.trim() || saving) && { opacity: 0.4 }]}
+                >
+                  <Text style={styles.mapPickerPriBtnText}>{saving ? 'KAYDEDİLİYOR...' : 'KAYDET'}</Text>
+                </Pressable>
+              </View>
+            </>
+          ) : (
+            <View style={styles.mapPickerBtnRow}>
+              <Pressable
+                accessibilityRole="button"
+                disabled={!selected.coordinate}
+                onPress={() => setSaveMode(true)}
+                style={[styles.mapPickerSecBtn, !selected.coordinate && { opacity: 0.4 }]}
+              >
+                <Text style={styles.mapPickerSecBtnText}>KAYDET ★</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                disabled={!selected.coordinate}
+                onPress={handleSelect}
+                style={[styles.mapPickerPriBtn, !selected.coordinate && { opacity: 0.4 }]}
+              >
+                <Text style={styles.mapPickerPriBtnText}>SEÇ →</Text>
+              </Pressable>
+            </View>
+          )}
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 function PlacePredictionList({ onSelect, predictions }: { onSelect: (prediction: ApiPlacePrediction) => void; predictions: ApiPlacePrediction[] }) {
   if (predictions.length === 0) {
     return null;
@@ -4626,6 +4916,7 @@ type TripRecorderStepProps = {
   autoTripMessage: string | null;
   autoTripStatus: AutoTripStatus;
   backendBinding: BackendBinding | null;
+  destQuery: string;
   guidance: ApiPremiumGuidance | null;
   lastCompletedTrip: ApiTrip | null;
   lastTripRecap: ApiTripRecap | null;
@@ -4634,11 +4925,15 @@ type TripRecorderStepProps = {
   message: string | null;
   onAppendPoint: () => void;
   onCreateShareCard: () => void;
+  onDestSearch: (query: string) => void;
   onFinishTrip: () => void;
+  onOpenMap: () => void;
+  onPlaceSelect: (prediction: ApiPlacePrediction) => void;
   onStartTrip: () => void;
   onSelectDestination: (id: string) => void;
   onSelectRoute: (id: string) => void;
   onToggleAutoTrip: (enabled: boolean) => void;
+  placePredictions: ApiPlacePrediction[];
   points: TripPoint[];
   routeProgress: ApiTripRouteProgress | null;
   savedLocations: ApiSavedLocation[];
@@ -4656,6 +4951,7 @@ function TripRecorderStep({
   autoTripMessage,
   autoTripStatus,
   backendBinding,
+  destQuery,
   guidance: _guidance,
   lastCompletedTrip: _lastCompletedTrip,
   lastTripRecap,
@@ -4664,11 +4960,15 @@ function TripRecorderStep({
   message,
   onAppendPoint: _onAppendPoint,
   onCreateShareCard: _onCreateShareCard,
+  onDestSearch,
   onFinishTrip,
+  onOpenMap,
+  onPlaceSelect,
   onStartTrip,
   onSelectDestination,
   onSelectRoute,
   onToggleAutoTrip,
+  placePredictions,
   points,
   routeProgress,
   savedLocations,
@@ -4702,8 +5002,6 @@ function TripRecorderStep({
   }
 
   // Destination query for NEREYE input
-  const [destQuery, setDestQuery] = useState('');
-
   const filteredRoutes = destQuery.length > 0
     ? savedRoutes.filter((r) => r.label.toLowerCase().includes(destQuery.toLowerCase()))
     : savedRoutes;
@@ -4785,16 +5083,18 @@ function TripRecorderStep({
               <Text style={styles.yolculukInputLabel}>NEREDEN</Text>
               <Text style={styles.yolculukInputValue}>Mevcut Konumdan</Text>
             </View>
-            <View style={styles.yolculukInputWrap}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={onOpenMap}
+              style={styles.yolculukInputWrap}
+            >
               <Text style={styles.yolculukInputLabel}>NEREYE</Text>
-              <TextInput
-                onChangeText={setDestQuery}
-                placeholder="Hedef ara..."
-                placeholderTextColor={colors.muted}
-                style={styles.yolculukDestInput}
-                value={destQuery}
-              />
-            </View>
+              {destQuery ? (
+                <Text style={styles.yolculukInputValue}>{destQuery}</Text>
+              ) : (
+                <Text style={[styles.yolculukInputValue, { color: colors.muted }]}>Haritadan seç veya ara...</Text>
+              )}
+            </Pressable>
             <Pressable
               accessibilityRole="button"
               disabled={disabled}
@@ -8919,6 +9219,129 @@ const styles = StyleSheet.create({
   todaySecondaryButtonText: {
     color: colors.text,
     fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: 1.5,
+  },
+
+  // ── MapLocationPicker ─────────────────────────────────────────────────
+  mapPickerRoot: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  mapPickerMap: {
+    flex: 1,
+  },
+  mapPickerMapPlaceholder: {
+    flex: 1,
+    backgroundColor: '#1a2424',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mapPickerPlaceholderText: {
+    color: colors.muted,
+    fontSize: 14,
+  },
+  mapPickerOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    paddingTop: 52,
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  mapPickerTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  mapPickerCloseBtn: {
+    width: 44,
+    height: 44,
+    backgroundColor: '#192122',
+    borderColor: colors.line,
+    borderWidth: 1,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  mapPickerCloseBtnText: {
+    color: colors.text,
+    fontSize: 16,
+  },
+  mapPickerSearchBox: {
+    flex: 1,
+    backgroundColor: '#192122',
+    borderColor: colors.line,
+    borderWidth: 1,
+    borderRadius: 4,
+  },
+  mapPickerSearchInput: {
+    color: colors.text,
+    fontSize: 14,
+    paddingHorizontal: 16,
+    height: 48,
+  },
+  mapPickerBottomSheet: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#192122',
+    borderTopColor: colors.line,
+    borderTopWidth: 1,
+    padding: 20,
+    paddingBottom: 36,
+    gap: 12,
+  },
+  mapPickerSelectedLabel: {
+    color: colors.text,
+    fontSize: 16,
+    lineHeight: 24,
+  },
+  mapPickerHint: {
+    color: colors.muted,
+    fontSize: 14,
+  },
+  mapPickerSaveInput: {
+    backgroundColor: colors.background,
+    borderColor: colors.line,
+    borderWidth: 1,
+    borderRadius: 4,
+    color: colors.text,
+    fontSize: 14,
+    paddingHorizontal: 16,
+    height: 52,
+  },
+  mapPickerBtnRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  mapPickerSecBtn: {
+    flex: 1,
+    borderColor: colors.line,
+    borderWidth: 1,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mapPickerSecBtnText: {
+    color: colors.text,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1.5,
+  },
+  mapPickerPriBtn: {
+    flex: 1,
+    backgroundColor: colors.cyan,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mapPickerPriBtnText: {
+    color: '#004f54',
+    fontSize: 11,
     fontWeight: '700',
     letterSpacing: 1.5,
   },

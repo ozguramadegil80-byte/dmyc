@@ -14,6 +14,11 @@
     },
     "android": {
       "package": "com.oxgurunal.dmyc",
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyDKal0lYAMwAIGf5i8pq8oFmMPZzmXVkvw"
+        }
+      },
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
