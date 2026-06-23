@@ -13,6 +13,7 @@
       }
     },
     "android": {
+      "package": "com.oxgurunal.dmyc",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -22,7 +23,9 @@
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "ACCESS_COARSE_LOCATION",
-        "ACCESS_FINE_LOCATION"
+        "ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
       ]
     },
     "web": {
@@ -35,6 +38,12 @@
           "locationWhenInUsePermission": "DMyC otomatik yolculuk algısı için konumunu kullanır."
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "17ef6b8f-edce-468b-ab75-58f16c17f406"
+      }
+    },
+    "owner": "oxgurunal"
   }
 }
