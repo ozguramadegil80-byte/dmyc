@@ -23,6 +23,7 @@ import { ServiceVisitService } from './service-visit.service';
 import { TripContextService } from './trip-context.service';
 import { TripsService } from './trips.service';
 import { TripBehaviorService } from './trip-behavior.service';
+import { WeatherService } from './weather.service';
 import { TripRecapService } from './trip-recap.service';
 import { VehicleRegistryService } from './vehicle-registry.service';
 import { VehicleSpecsService } from './vehicle-specs.service';
@@ -48,6 +49,7 @@ export class AppController {
     private readonly premiumGuidance: PremiumGuidanceService,
     private readonly routeFingerprints: RouteFingerprintService,
     private readonly tripBehavior: TripBehaviorService,
+    private readonly weather: WeatherService,
     private readonly routeGeometry: RouteGeometryService,
     private readonly routePlanning: RoutePlanningService,
     private readonly savedLocations: SavedLocationsService,
@@ -397,6 +399,11 @@ export class AppController {
   @Get('trips/:id/behavior')
   getTripBehavior(@Param('id') id: string) {
     return this.tripBehavior.getTripBehaviorSummary(id);
+  }
+
+  @Patch('trips/:id/hvac-confirmation')
+  confirmTripHvac(@Param('id') id: string, @Body() body: { confirmed: boolean }) {
+    return this.weather.confirmHvac(id, body.confirmed);
   }
 
   @Get('route-fingerprints/:id/behavior')

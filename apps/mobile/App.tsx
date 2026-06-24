@@ -96,6 +96,7 @@ import {
   listRouteFingerprints,
   type ApiRouteFingerprint,
   fetchVehicleSpecs,
+  confirmTripHvac,
   finishTrip,
   loginUser,
   API_BASE_URL,
@@ -185,8 +186,11 @@ const AUTO_TRIP_STOP_SPEED_KMH = 2;
 const AUTO_TRIP_STOP_DEBOUNCE_MS = 180000;
 const AUTO_TRIP_WATCH_TIME_INTERVAL_MS = 5000;
 const AUTO_TRIP_WATCH_DISTANCE_INTERVAL_M = 10;
-const UNKNOWN_ROUTE_NOTIFY_MS = 10 * 60 * 1000; // 10 dakika hareketsizlik
+const UNKNOWN_ROUTE_NOTIFY_MS = 10 * 60 * 1000;
+const HVAC_NOTIFY_DELAY_MS = 10 * 60 * 1000;
 const SAVED_LOCATION_MATCH_RADIUS_M = 300;
+const HVAC_LEARNED_KEY_COOLING = '@dmyc/hvac_cooling_learned';
+const HVAC_LEARNED_KEY_HEATING = '@dmyc/hvac_heating_learned';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -392,8 +396,10 @@ export default function App() {
   const [acceptMessage, setAcceptMessage] = useState<string | null>(null);
   const [vehicleRoutes, setVehicleRoutes] = useState<ApiRouteFingerprint[]>([]);
   const [showRouteSaveModal, setShowRouteSaveModal] = useState(false);
-  const [routeSaveName, setRouteSaveName] = useState('');
+  const [originSaveName, setOriginSaveName] = useState('');
   const [routeSaveOrigin, setRouteSaveOrigin] = useState<{ lat: number; lng: number } | null>(null);
+  const [showHvacModal, setShowHvacModal] = useState(false);
+  const [pendingHvacTrip, setPendingHvacTrip] = useState<{ id: string; tempC: number; type: 'cooling' | 'heating' } | null>(null);
   const [activeTrip, setActiveTrip] = useState<ApiTrip | null>(null);
   const [lastCompletedTrip, setLastCompletedTrip] = useState<ApiTrip | null>(null);
   const [lastTripRecap, setLastTripRecap] = useState<ApiTripRecap | null>(null);
@@ -484,6 +490,7 @@ export default function App() {
   const routeMatchCheckedRef = useRef(false);
   const unknownOriginTripRef = useRef<{ lat: number; lng: number } | null>(null);
   const unknownRouteNotifyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hvacNotifyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const brands = useMemo(() => getBrands(catalogItems), [catalogItems]);
   const visibleBrands = useMemo(
@@ -724,8 +731,16 @@ export default function App() {
       const data = response.notification.request.content.data as Record<string, unknown>;
       if (data?.type === 'unknown_route' && data?.lat && data?.lng) {
         setRouteSaveOrigin({ lat: data.lat as number, lng: data.lng as number });
-        setRouteSaveName('');
+        setOriginSaveName('');
         setShowRouteSaveModal(true);
+      }
+      if (data?.type === 'hvac_check' && data?.tripId) {
+        setPendingHvacTrip({
+          id: data.tripId as string,
+          tempC: data.tempC as number,
+          type: data.hvacType as 'cooling' | 'heating',
+        });
+        setShowHvacModal(true);
       }
     });
 
@@ -1420,6 +1435,33 @@ export default function App() {
     }
   };
 
+  const scheduleHvacNotification = async (trip: { id: string; tempC: number; type: 'cooling' | 'heating' }) => {
+    const learnedKey = trip.type === 'cooling' ? HVAC_LEARNED_KEY_COOLING : HVAC_LEARNED_KEY_HEATING;
+    const learned = await AsyncStorage.getItem(learnedKey).catch(() => null);
+    if (learned && learned !== 'unknown') return;
+
+    if (hvacNotifyTimerRef.current) clearTimeout(hvacNotifyTimerRef.current);
+
+    hvacNotifyTimerRef.current = setTimeout(async () => {
+      hvacNotifyTimerRef.current = null;
+      const tempStr = `${Math.round(trip.tempC)}°C`;
+      const body = trip.type === 'cooling'
+        ? `Bugün ${tempStr}'ydi — klima kullandınız mı? Menzil hesabınıza ekleyelim.`
+        : `Bugün ${tempStr}'ydi — ısıtma sistemi kullandınız mı?`;
+      await Notifications.scheduleNotificationAsync({
+        content: { title: 'Enerji tüketimi', body, data: { type: 'hvac_check', tripId: trip.id, tempC: trip.tempC, hvacType: trip.type } },
+        trigger: null,
+      });
+    }, HVAC_NOTIFY_DELAY_MS);
+  };
+
+  const cancelHvacNotification = () => {
+    if (hvacNotifyTimerRef.current) {
+      clearTimeout(hvacNotifyTimerRef.current);
+      hvacNotifyTimerRef.current = null;
+    }
+  };
+
   const refreshVehicleRoutes = async (vehicleId: string) => {
     try {
       const routes = await listRouteFingerprints(vehicleId);
@@ -1793,6 +1835,14 @@ export default function App() {
       refreshAnnualReport(binding.vehicle.id);
       void refreshVehicleRoutes(binding.vehicle.id);
       const recapResult = await refreshTripRecap(completedTrip.id);
+
+      if (completedTrip.hvacInferred === 'cooling' || completedTrip.hvacInferred === 'heating') {
+        void scheduleHvacNotification({
+          id: completedTrip.id,
+          tempC: completedTrip.ambientTempC ?? 0,
+          type: completedTrip.hvacInferred,
+        });
+      }
 
       if (completedTrip.hasPendingQuestions) {
         try {
@@ -2653,9 +2703,9 @@ export default function App() {
             <TextInput
               style={styles.routeSaveInput}
               placeholder="örn. Ev, İş, Spor Salonu..."
-              placeholderTextColor={colors.dimText}
-              value={routeSaveName}
-              onChangeText={setRouteSaveName}
+              placeholderTextColor={colors.muted}
+              value={originSaveName}
+              onChangeText={setOriginSaveName}
               autoFocus
               returnKeyType="done"
             />
@@ -2666,23 +2716,73 @@ export default function App() {
               <Pressable
                 accessibilityRole="button"
                 onPress={async () => {
-                  if (!routeSaveName.trim() || !routeSaveOrigin || !registeredUser) return;
+                  if (!originSaveName.trim() || !routeSaveOrigin || !registeredUser) return;
                   try {
                     const loc = await createSavedLocation(registeredUser.id, {
-                      label: routeSaveName.trim(),
+                      label: originSaveName.trim(),
                       latitude: routeSaveOrigin.lat,
                       longitude: routeSaveOrigin.lng,
                       locationKind: 'other',
                     });
                     setSavedLocations((prev) => [...prev, loc]);
                     setShowRouteSaveModal(false);
-                    setRouteSaveName('');
+                    setOriginSaveName('');
                     setRouteSaveOrigin(null);
                   } catch { /* ignore */ }
                 }}
-                style={[styles.routeSaveSaveBtn, !routeSaveName.trim() && { opacity: 0.4 }]}
+                style={[styles.routeSaveSaveBtn, !originSaveName.trim() && { opacity: 0.4 }]}
               >
                 <Text style={styles.routeSaveSaveText}>KAYDET</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── HVAC ONAY ────────────────────────────────────────────────── */}
+      <Modal transparent animationType="fade" visible={showHvacModal} onRequestClose={() => setShowHvacModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.routeSaveModal}>
+            <Text style={styles.routeSaveTitle}>ENERJİ TÜKETİMİ</Text>
+            <Text style={styles.routeSaveDesc}>
+              {pendingHvacTrip
+                ? `Bugün ${Math.round(pendingHvacTrip.tempC)}°C'ydi. ${pendingHvacTrip.type === 'cooling' ? 'Klima' : 'Isıtma sistemi'} kullandınız mı? Menzil hesabınıza ekleyelim.`
+                : ''}
+            </Text>
+            <View style={styles.routeSaveActions}>
+              <Pressable
+                accessibilityRole="button"
+                onPress={async () => {
+                  setShowHvacModal(false);
+                  if (pendingHvacTrip) {
+                    try {
+                      const result = await confirmTripHvac(pendingHvacTrip.id, false);
+                      const key = pendingHvacTrip.type === 'cooling' ? HVAC_LEARNED_KEY_COOLING : HVAC_LEARNED_KEY_HEATING;
+                      if (result.learned) await AsyncStorage.setItem(key, 'no');
+                    } catch { /* non-fatal */ }
+                    setPendingHvacTrip(null);
+                  }
+                }}
+                style={styles.routeSaveCancelBtn}
+              >
+                <Text style={styles.routeSaveCancelText}>HAYIR</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                onPress={async () => {
+                  setShowHvacModal(false);
+                  if (pendingHvacTrip) {
+                    try {
+                      const result = await confirmTripHvac(pendingHvacTrip.id, true);
+                      const key = pendingHvacTrip.type === 'cooling' ? HVAC_LEARNED_KEY_COOLING : HVAC_LEARNED_KEY_HEATING;
+                      if (result.learned) await AsyncStorage.setItem(key, 'yes');
+                    } catch { /* non-fatal */ }
+                    setPendingHvacTrip(null);
+                  }
+                }}
+                style={styles.routeSaveSaveBtn}
+              >
+                <Text style={styles.routeSaveSaveText}>EVET, KULLANDIM</Text>
               </Pressable>
             </View>
           </View>
@@ -4576,7 +4676,7 @@ function AracScreen({
             return (
               <View key={route.id} style={styles.routeRow}>
                 <View style={styles.routeRowLeft}>
-                  <View style={[styles.routeDot, { backgroundColor: learned ? colors.cyan : colors.dimText }]} />
+                  <View style={[styles.routeDot, { backgroundColor: learned ? colors.cyan : colors.muted }]} />
                   <View>
                     <Text style={styles.routeLabel}>{formatRouteLabel(route)}</Text>
                     <Text style={styles.routeMeta}>
@@ -4587,7 +4687,7 @@ function AracScreen({
                   </View>
                 </View>
                 <View style={[styles.routeBadge, { backgroundColor: learned ? 'rgba(0,217,188,0.12)' : 'rgba(132,148,149,0.12)' }]}>
-                  <Text style={[styles.routeBadgeText, { color: learned ? colors.cyan : colors.dimText }]}>
+                  <Text style={[styles.routeBadgeText, { color: learned ? colors.cyan : colors.muted }]}>
                     {learned ? 'TANIMLANDI' : 'ÖĞRENİYOR'}
                   </Text>
                 </View>
@@ -10384,7 +10484,7 @@ const styles = StyleSheet.create({
     lineHeight: 28,
   },
   aracCardSubtitle: {
-    color: colors.dimText,
+    color: colors.muted,
     fontSize: 12,
     fontWeight: '600',
     letterSpacing: 1,
@@ -10416,7 +10516,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   routeMeta: {
-    color: colors.dimText,
+    color: colors.muted,
     fontSize: 11,
     marginTop: 2,
   },
@@ -10446,7 +10546,7 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
   },
   routeSaveDesc: {
-    color: colors.dimText,
+    color: colors.muted,
     fontSize: 13,
     lineHeight: 20,
   },
@@ -10472,7 +10572,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   routeSaveCancelText: {
-    color: colors.dimText,
+    color: colors.muted,
     fontSize: 13,
     fontWeight: '700',
     letterSpacing: 1,

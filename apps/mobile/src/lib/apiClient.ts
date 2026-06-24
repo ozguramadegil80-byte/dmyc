@@ -89,6 +89,9 @@ export type ApiTrip = {
   driverAssignmentStatus: string;
   hasPendingQuestions?: boolean;
   createdAt?: string;
+  ambientTempC?: number | null;
+  hvacInferred?: 'cooling' | 'heating' | 'none' | null;
+  hvacConfirmationStatus?: 'pending' | 'confirmed' | 'denied' | 'skipped' | 'auto' | null;
 };
 
 export type ApiTripSummary = {
@@ -755,6 +758,13 @@ export async function finishTrip(
 
 export async function fetchTripRouteProgress(tripId: string) {
   return fetchJson<ApiTripRouteProgress | null>(`/trips/${tripId}/route-progress`);
+}
+
+export async function confirmTripHvac(tripId: string, confirmed: boolean) {
+  return fetchJson<{ learned: boolean }>(`/trips/${tripId}/hvac-confirmation`, {
+    method: 'PATCH',
+    body: JSON.stringify({ confirmed }),
+  });
 }
 
 export async function createTripRecap(tripId: string) {

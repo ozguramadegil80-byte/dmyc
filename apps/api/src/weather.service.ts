@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { DatabaseService } from './database.service';
 
 type WeatherResponse = {
   main: { temp: number };
@@ -31,9 +32,66 @@ function normalizeCondition(weatherMain: string): string {
   return map[weatherMain] ?? 'clear';
 }
 
+const HVAC_LEARNED_THRESHOLD = 2;
+
 @Injectable()
 export class WeatherService {
   private readonly apiKey = process.env.OPENWEATHERMAP_API_KEY ?? '';
+
+  constructor(private readonly db: DatabaseService) {}
+
+  async confirmHvac(tripId: string, confirmed: boolean): Promise<{ learned: boolean }> {
+    const tripResult = await this.db.query<{
+      userId: string | null;
+      hvacInferred: string | null;
+    }>(
+      `SELECT user_id AS "userId", hvac_inferred AS "hvacInferred" FROM trips WHERE id = $1`,
+      [tripId],
+    );
+    const trip = tripResult.rows[0];
+    if (!trip) return { learned: false };
+
+    const confirmationStatus = confirmed ? 'confirmed' : 'denied';
+    const hvacSource = confirmed ? 'user_confirmed' : 'user_denied';
+
+    await this.db.query(
+      `UPDATE trips SET
+         hvac_user_confirmed = $2,
+         hvac_source = $3,
+         hvac_confirmation_status = $4
+       WHERE id = $1`,
+      [tripId, confirmed, hvacSource, confirmationStatus],
+    );
+
+    if (!trip.userId || !trip.hvacInferred || trip.hvacInferred === 'none') {
+      return { learned: false };
+    }
+
+    const isCooling = trip.hvacInferred === 'cooling';
+    const countCol = isCooling ? 'hvac_cooling_confirmations' : 'hvac_heating_confirmations';
+    const learnedCol = isCooling ? 'hvac_cooling_learned' : 'hvac_heating_learned';
+    const confirmedValue = confirmed ? 'yes' : 'no';
+
+    const updateResult = await this.db.query<{ newCount: number }>(
+      `UPDATE users SET
+         ${countCol} = ${countCol} + 1
+       WHERE id = $1
+       RETURNING ${countCol} AS "newCount"`,
+      [trip.userId],
+    );
+
+    const newCount = updateResult.rows[0]?.newCount ?? 0;
+    const learned = Number(newCount) >= HVAC_LEARNED_THRESHOLD;
+
+    if (learned) {
+      await this.db.query(
+        `UPDATE users SET ${learnedCol} = $2 WHERE id = $1`,
+        [trip.userId, confirmedValue],
+      );
+    }
+
+    return { learned };
+  }
 
   async getWeatherAtLocation(
     lat: number,

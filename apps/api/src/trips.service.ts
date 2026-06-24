@@ -235,12 +235,14 @@ export class TripsService {
       await this.tripBehavior.analyzeTrip(trip.id);
     }
 
-    if (trip?.id && trip?.vehicleId) {
+    let weatherResult: { tempC: number; hvacInferred: string } | null = null;
+    if (trip?.id) {
       const endLat = body.endLocation?.latitude ?? null;
       const endLng = body.endLocation?.longitude ?? null;
       if (endLat !== null && endLng !== null) {
         const w = await this.weather.getWeatherAtLocation(endLat, endLng);
         if (w) {
+          weatherResult = w;
           await this.db.query(
             `UPDATE trips SET
                ambient_temp_c = $2,
@@ -284,7 +286,13 @@ export class TripsService {
       }
     }
 
-    return { ...trip, hasPendingQuestions };
+    return {
+      ...trip,
+      hasPendingQuestions,
+      ambientTempC: weatherResult?.tempC ?? null,
+      hvacInferred: weatherResult?.hvacInferred ?? null,
+      hvacConfirmationStatus: weatherResult ? 'pending' : null,
+    };
   }
 
   async listVehicleTrips(vehicleId: string) {
