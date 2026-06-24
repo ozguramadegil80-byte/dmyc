@@ -462,6 +462,15 @@ export class AppController {
     return this.trips.getTripSummary(id);
   }
 
+  @Get('vehicles/:id/route-fingerprints/match-origin')
+  matchRouteOrigin(
+    @Param('id') id: string,
+    @Query('lat') lat: string,
+    @Query('lng') lng: string,
+  ) {
+    return this.routeFingerprints.matchOrigin(id, parseFloat(lat), parseFloat(lng));
+  }
+
   @Get('vehicles/:id/route-fingerprints')
   listVehicleRouteFingerprints(@Param('id') id: string) {
     return this.routeFingerprints.listVehicleRouteFingerprints(id);

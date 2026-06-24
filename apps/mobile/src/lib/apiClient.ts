@@ -1391,6 +1391,39 @@ export async function acceptVehicleInvite(token: string, userId: string) {
   );
 }
 
+export type ApiRouteFingerprint = {
+  id: string;
+  vehicleId: string;
+  routeKey: string;
+  originCell: string;
+  destinationCell: string;
+  normalDistanceM: number | null;
+  normalDurationSeconds: number | null;
+  normalAvgSpeedKmh: number | null;
+  observedTripCount: number;
+  confidenceScore: number | null;
+  firstSeenAt: string;
+  lastSeenAt: string;
+};
+
+export async function listRouteFingerprints(vehicleId: string): Promise<ApiRouteFingerprint[]> {
+  try {
+    return await fetchJson<ApiRouteFingerprint[]>(`/vehicles/${vehicleId}/route-fingerprints`);
+  } catch {
+    return [];
+  }
+}
+
+export async function matchRouteOrigin(vehicleId: string, lat: number, lng: number): Promise<ApiRouteFingerprint[]> {
+  try {
+    return await fetchJson<ApiRouteFingerprint[]>(
+      `/vehicles/${vehicleId}/route-fingerprints/match-origin?lat=${lat}&lng=${lng}`,
+    );
+  } catch {
+    return [];
+  }
+}
+
 async function fetchJson<T>(path: string, init: RequestInit = {}): Promise<T> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);

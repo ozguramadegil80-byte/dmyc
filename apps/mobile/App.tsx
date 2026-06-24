@@ -91,6 +91,9 @@ import {
   revokeVehicleAccess,
   createVehicleInvite,
   acceptVehicleInvite,
+  matchRouteOrigin,
+  listRouteFingerprints,
+  type ApiRouteFingerprint,
   fetchVehicleSpecs,
   finishTrip,
   loginUser,
@@ -374,6 +377,7 @@ export default function App() {
   const [acceptToken, setAcceptToken] = useState('');
   const [acceptLoading, setAcceptLoading] = useState(false);
   const [acceptMessage, setAcceptMessage] = useState<string | null>(null);
+  const [vehicleRoutes, setVehicleRoutes] = useState<ApiRouteFingerprint[]>([]);
   const [activeTrip, setActiveTrip] = useState<ApiTrip | null>(null);
   const [lastCompletedTrip, setLastCompletedTrip] = useState<ApiTrip | null>(null);
   const [lastTripRecap, setLastTripRecap] = useState<ApiTripRecap | null>(null);
@@ -459,6 +463,8 @@ export default function App() {
   const autoTripStoppedSinceRef = useRef<number | null>(null);
   const autoTripWorkingRef = useRef(false);
   const autoTripPointIndexRef = useRef(0);
+  const detectedRouteRef = useRef<ApiRouteFingerprint | null>(null);
+  const routeMatchCheckedRef = useRef(false);
 
   const brands = useMemo(() => getBrands(catalogItems), [catalogItems]);
   const visibleBrands = useMemo(
@@ -1351,10 +1357,22 @@ export default function App() {
     }
   };
 
+  const refreshVehicleRoutes = async (vehicleId: string) => {
+    try {
+      const routes = await listRouteFingerprints(vehicleId);
+      setVehicleRoutes(routes);
+    } catch {
+      // non-fatal
+    }
+  };
+
   const restoreActiveBindingFromApi = async (user: ApiUser) => {
     try {
       const activeBinding = await fetchActiveBindingForUser(user.id);
       void refreshUserVehicles(user.id);
+      if (activeBinding?.vehicle?.id) {
+        void refreshVehicleRoutes(activeBinding.vehicle.id);
+      }
 
       if (!activeBinding) {
         return null;
@@ -1710,6 +1728,7 @@ export default function App() {
       await refreshCommunityBenchmark(binding.vehicle.id);
       refreshMonthlyReport(binding.vehicle.id);
       refreshAnnualReport(binding.vehicle.id);
+      void refreshVehicleRoutes(binding.vehicle.id);
       const recapResult = await refreshTripRecap(completedTrip.id);
 
       if (completedTrip.hasPendingQuestions) {
@@ -1839,6 +1858,7 @@ export default function App() {
       await refreshCommunityBenchmark(binding.vehicle.id);
       refreshMonthlyReport(binding.vehicle.id);
       refreshAnnualReport(binding.vehicle.id);
+      void refreshVehicleRoutes(binding.vehicle.id);
       const recapResult = await refreshTripRecap(completedTrip.id);
       const guidance = await createMockGuidance(guidanceRoutePlan.id, {
         distanceKm: guidanceRoutePlan.requestedDistanceKm ?? undefined,
@@ -1917,16 +1937,41 @@ export default function App() {
         autoTripStoppedSinceRef.current = null;
 
         if (speedKmh > AUTO_TRIP_START_SPEED_KMH) {
+          const isFirstMovement = autoTripMovingSinceRef.current === null;
           autoTripMovingSinceRef.current ??= now;
-          const elapsed = now - autoTripMovingSinceRef.current;
-          setAutoTripStatus(elapsed >= AUTO_TRIP_START_DEBOUNCE_MS ? 'active' : 'moving');
 
-          if (elapsed >= AUTO_TRIP_START_DEBOUNCE_MS) {
+          // On first movement: fire-and-forget route origin match
+          if (isFirstMovement && !routeMatchCheckedRef.current) {
+            routeMatchCheckedRef.current = true;
+            const binding = backendBindingRef.current;
+            if (binding) {
+              matchRouteOrigin(binding.vehicle.id, point.latitude, point.longitude)
+                .then((matches) => {
+                  const best = matches.find((m) => (m.confidenceScore ?? 0) >= 0.5);
+                  if (best) {
+                    detectedRouteRef.current = best;
+                    setAutoTripMessage(formatRouteLabel(best) + ' hattı algılandı');
+                  }
+                })
+                .catch(() => {});
+            }
+          }
+
+          const elapsed = now - autoTripMovingSinceRef.current;
+          // Known route: 3s debounce. Unknown: 15s.
+          const debounce = detectedRouteRef.current ? 3000 : AUTO_TRIP_START_DEBOUNCE_MS;
+          setAutoTripStatus(elapsed >= debounce ? 'active' : 'moving');
+
+          if (elapsed >= debounce) {
             await startTripFromPoint(point, 'auto');
             autoTripMovingSinceRef.current = null;
+            detectedRouteRef.current = null;
+            routeMatchCheckedRef.current = false;
           }
         } else {
           autoTripMovingSinceRef.current = null;
+          routeMatchCheckedRef.current = false;
+          detectedRouteRef.current = null;
           setAutoTripStatus('watching');
         }
 
@@ -2736,6 +2781,7 @@ export default function App() {
           serviceVisits={serviceVisits}
           user={registeredUser}
           vehicle={selectedVehicle}
+          vehicleRoutes={vehicleRoutes}
         />
       ) : null}
 
@@ -4115,6 +4161,7 @@ type AracScreenProps = {
   serviceVisits: ApiServiceVisit[];
   user: ApiUser | null;
   vehicle: VehicleCatalogItem | null;
+  vehicleRoutes: ApiRouteFingerprint[];
 };
 
 function AracScreen({
@@ -4138,6 +4185,7 @@ function AracScreen({
   serviceVisits,
   user,
   vehicle,
+  vehicleRoutes,
 }: AracScreenProps) {
   const translate = createTranslator(language);
   const vehicleImage = vehicle?.imageUrl ?? vehicle?.brandImageUrl ?? HERO_IMAGE;
@@ -4377,6 +4425,42 @@ function AracScreen({
               <Text style={styles.aracOutlineButtonText}>ERİŞİM YÖNETİMİ</Text>
             </Pressable>
           </View>
+        </View>
+      ) : null}
+
+      {/* ── HATLARIM ───────────────────────────────────────────────────── */}
+      {vehicleRoutes.length > 0 ? (
+        <View style={styles.aracCard}>
+          <View style={styles.aracCardHeader}>
+            <Text style={styles.aracCardTitle}>HATLARIM</Text>
+            <Text style={styles.aracCardSubtitle}>{vehicleRoutes.length} hat</Text>
+          </View>
+          {vehicleRoutes.slice(0, 5).map((route) => {
+            const confidence = route.confidenceScore ?? 0;
+            const learned = confidence >= 0.5;
+            const distKm = route.normalDistanceM ? (route.normalDistanceM / 1000).toFixed(0) : null;
+            const durMin = route.normalDurationSeconds ? Math.round(route.normalDurationSeconds / 60) : null;
+            return (
+              <View key={route.id} style={styles.routeRow}>
+                <View style={styles.routeRowLeft}>
+                  <View style={[styles.routeDot, { backgroundColor: learned ? colors.cyan : colors.dimText }]} />
+                  <View>
+                    <Text style={styles.routeLabel}>{formatRouteLabel(route)}</Text>
+                    <Text style={styles.routeMeta}>
+                      {route.observedTripCount} yolculuk
+                      {distKm ? ` · ${distKm} km` : ''}
+                      {durMin ? ` · ~${durMin} dk` : ''}
+                    </Text>
+                  </View>
+                </View>
+                <View style={[styles.routeBadge, { backgroundColor: learned ? 'rgba(0,217,188,0.12)' : 'rgba(132,148,149,0.12)' }]}>
+                  <Text style={[styles.routeBadgeText, { color: learned ? colors.cyan : colors.dimText }]}>
+                    {learned ? 'TANIMLANDI' : 'ÖĞRENİYOR'}
+                  </Text>
+                </View>
+              </View>
+            );
+          })}
         </View>
       ) : null}
 
@@ -6787,6 +6871,14 @@ function toDisplayNumber(value: string | number | null | undefined) {
   const parsed = Number(value);
 
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function formatRouteLabel(route: ApiRouteFingerprint): string {
+  const [oLat, oLng] = route.originCell.split(',').map(Number);
+  const [dLat, dLng] = route.destinationCell.split(',').map(Number);
+  if (!oLat || !dLat) return 'Bilinen hat';
+  const fmt = (v: number) => v.toFixed(2);
+  return `${fmt(oLat)},${fmt(oLng)} → ${fmt(dLat)},${fmt(dLng)}`;
 }
 
 function formatTL(value: number, decimals = 0): string {
@@ -10149,6 +10241,53 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '600',
     lineHeight: 28,
+  },
+  aracCardSubtitle: {
+    color: colors.dimText,
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 1,
+  },
+  routeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomColor: colors.line,
+    borderBottomWidth: 1,
+  },
+  routeRowLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  routeDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  routeLabel: {
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+  },
+  routeMeta: {
+    color: colors.dimText,
+    fontSize: 11,
+    marginTop: 2,
+  },
+  routeBadge: {
+    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  routeBadgeText: {
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 1.2,
   },
   aracAssessmentHeader: {
     padding: 16,

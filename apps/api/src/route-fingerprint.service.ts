@@ -223,6 +223,38 @@ export class RouteFingerprintService {
     return result.rows[0] ? mapTripRouteAssignment(result.rows[0]) : null;
   }
 
+  async matchOrigin(vehicleId: string, lat: number, lng: number) {
+    const originCell = `${(Math.round(lat * 100) / 100).toFixed(2)},${(Math.round(lng * 100) / 100).toFixed(2)}`;
+
+    const result = await this.db.query<RouteFingerprintRow>(
+      `
+        SELECT
+          id,
+          vehicle_id AS "vehicleId",
+          ownership_id AS "ownershipId",
+          user_id AS "userId",
+          route_key AS "routeKey",
+          origin_cell AS "originCell",
+          destination_cell AS "destinationCell",
+          normal_distance_m AS "normalDistanceM",
+          normal_duration_seconds AS "normalDurationSeconds",
+          normal_avg_speed_kmh AS "normalAvgSpeedKmh",
+          observed_trip_count AS "observedTripCount",
+          confidence_score AS "confidenceScore",
+          first_seen_at AS "firstSeenAt",
+          last_seen_at AS "lastSeenAt"
+        FROM route_fingerprints
+        WHERE vehicle_id = $1
+          AND origin_cell = $2
+        ORDER BY confidence_score DESC, observed_trip_count DESC
+        LIMIT 5
+      `,
+      [vehicleId, originCell],
+    );
+
+    return result.rows.map(mapRouteFingerprint);
+  }
+
   async listVehicleRouteFingerprints(vehicleId: string) {
     const result = await this.db.query<RouteFingerprintRow>(
       `
