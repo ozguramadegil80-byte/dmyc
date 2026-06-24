@@ -3141,6 +3141,7 @@ export default function App() {
       ) : null}
 
       <MapLocationPicker
+        initialCoord={mapPickerMode === 'origin' ? tripOriginLocation : null}
         language={language}
         mode={mapPickerMode}
         onClose={() => setMapPickerVisible(false)}
@@ -5119,6 +5120,7 @@ function MapLocationPicker({
   onConfirm,
   onSave,
   visible,
+  initialCoord,
 }: {
   language: Locale;
   mode: 'origin' | 'destination';
@@ -5126,6 +5128,7 @@ function MapLocationPicker({
   onConfirm: (coord: { latitude: number; longitude: number }, label: string) => void;
   onSave: (saveName: string, coord: { latitude: number; longitude: number }, label: string) => void;
   visible: boolean;
+  initialCoord?: { latitude: number; longitude: number } | null;
 }) {
   const mapRef = useRef<any>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -5158,18 +5161,29 @@ function MapLocationPicker({
     }
   };
 
-  // Reset on open; origin mode → auto-center on GPS
+  // Reset on open; use initialCoord if provided, else GPS for origin
   useEffect(() => {
     if (visible) {
       setSearchQuery('');
       setPredictions([]);
-      setPinRegion(ISTANBUL);
       setPinLabel('');
       setPinMoving(false);
       setSaveMode(false);
       setSaveName('');
-      if (mode === 'origin') {
-        goToCurrentLocation();
+      if (initialCoord) {
+        const region = {
+          latitude: initialCoord.latitude,
+          longitude: initialCoord.longitude,
+          latitudeDelta: 0.008,
+          longitudeDelta: 0.008,
+        };
+        setPinRegion(region);
+        setTimeout(() => mapRef.current?.animateToRegion(region, 400), 300);
+      } else {
+        setPinRegion(ISTANBUL);
+        if (mode === 'origin') {
+          goToCurrentLocation();
+        }
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -6340,7 +6354,7 @@ function TripRecorderStep({
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <Pressable
                 accessibilityRole="button"
-                onPress={() => !originQuery && onOpenMap('origin')}
+                onPress={() => onOpenMap('origin')}
                 style={[styles.yolculukInputWrap, { flex: 1 }]}
               >
                 <Text style={styles.yolculukInputLabel}>NEREDEN</Text>
