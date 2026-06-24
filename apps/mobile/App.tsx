@@ -910,6 +910,18 @@ export default function App() {
     setTripOriginPredictions([]);
   };
 
+  const useCurrentLocationAsOrigin = async () => {
+    setTripOriginQuery('Konum alınıyor...');
+    const point = await readCurrentLocationPoint();
+    if (!point.ok) {
+      setTripOriginQuery('');
+      return;
+    }
+    setTripOriginLocation({ latitude: point.latitude, longitude: point.longitude });
+    setTripOriginQuery('Mevcut Konumum');
+    setTripOriginPredictions([]);
+  };
+
   const selectTripDestinationPlace = async (prediction: ApiPlacePrediction) => {
     const binding = backendBindingRef.current;
     if (!binding) return;
@@ -2878,6 +2890,7 @@ export default function App() {
           backendBinding={backendBinding}
           destQuery={tripDestQuery}
           onClearOrigin={clearTripOrigin}
+          onUseCurrentLocation={useCurrentLocationAsOrigin}
           onOriginPlaceSelect={selectTripOriginPlace}
           onOriginSearch={setTripOriginQuery}
           originPredictions={tripOriginPredictions}
@@ -6142,6 +6155,7 @@ type TripRecorderStepProps = {
   destQuery: string;
   guidance: ApiPremiumGuidance | null;
   onClearOrigin: () => void;
+  onUseCurrentLocation: () => void;
   onOriginPlaceSelect: (prediction: ApiPlacePrediction) => void;
   onOriginSearch: (query: string) => void;
   originPredictions: ApiPlacePrediction[];
@@ -6187,6 +6201,7 @@ function TripRecorderStep({
   destQuery,
   guidance: _guidance,
   onClearOrigin,
+  onUseCurrentLocation,
   onOriginPlaceSelect,
   onOriginSearch,
   originPredictions,
@@ -6322,22 +6337,29 @@ function TripRecorderStep({
         <>
           {/* ── ROTA PLANLAYICI ─────────────────────────────────────────── */}
           <View style={styles.yolculukPlanCard}>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => onOpenMap('origin')}
-              style={styles.yolculukInputWrap}
-            >
-              <Text style={styles.yolculukInputLabel}>NEREDEN</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => !originQuery && onOpenMap('origin')}
+                style={[styles.yolculukInputWrap, { flex: 1 }]}
+              >
+                <Text style={styles.yolculukInputLabel}>NEREDEN</Text>
+                {originQuery ? (
+                  <Text style={styles.yolculukInputValue}>{originQuery}</Text>
+                ) : (
+                  <Text style={[styles.yolculukInputValue, { color: colors.muted }]}>Haritadan seç...</Text>
+                )}
+              </Pressable>
               {originQuery ? (
-                <Text style={styles.yolculukInputValue}>{originQuery}</Text>
-              ) : (
-                <Text style={[styles.yolculukInputValue, { color: colors.muted }]}>Haritadan seç...</Text>
-              )}
-            </Pressable>
+                <Pressable accessibilityRole="button" onPress={onClearOrigin} style={{ padding: 10 }}>
+                  <MaterialIcons color={colors.muted} name="close" size={18} />
+                </Pressable>
+              ) : null}
+            </View>
             {!originQuery && (
               <Pressable
                 accessibilityRole="button"
-                onPress={onClearOrigin}
+                onPress={onUseCurrentLocation}
                 style={styles.yolculukBuraBtn}
               >
                 <Text style={styles.yolculukBuraBtnText}>⊙  BURADAN BAŞLAT (GPS)</Text>
