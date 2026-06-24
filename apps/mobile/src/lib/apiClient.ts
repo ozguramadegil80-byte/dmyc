@@ -60,6 +60,7 @@ export type ApiActiveBinding = {
   catalogKey: string | null;
   ownership: ApiOwnership;
   vehicle: ApiVehicle;
+  access?: { id: string; role: string; permissions: string[] };
 } | null;
 
 export type ApiUsageSignal = {
@@ -555,6 +556,14 @@ export async function fetchActiveBindingForUser(userId: string) {
   return fetchJson<ApiActiveBinding>(`/users/${userId}/active-binding`);
 }
 
+export async function fetchActiveVehiclesForUser(userId: string) {
+  return fetchJson<NonNullable<ApiActiveBinding>[]>(`/users/${userId}/vehicles`);
+}
+
+export async function fetchCurrentVehicleContext(userId: string) {
+  return fetchJson<ApiActiveBinding>(`/users/${userId}/vehicle-context`);
+}
+
 export async function fetchPremiumAccess(userId: string) {
   return fetchJson<ApiPremiumAccess>(`/users/${userId}/premium-access`);
 }
@@ -581,8 +590,27 @@ export async function createSavedLocation(
   });
 }
 
+export async function updateSavedLocation(
+  userId: string,
+  locationId: string,
+  input: { label: string; locationKind?: string },
+) {
+  return fetchJson<ApiSavedLocation>(`/users/${userId}/saved-locations/${locationId}`, {
+    body: JSON.stringify(input),
+    method: 'PATCH',
+  });
+}
+
+export async function deleteSavedLocation(userId: string, locationId: string) {
+  await fetchJson<void>(`/users/${userId}/saved-locations/${locationId}`, { method: 'DELETE' });
+}
+
 export async function fetchSavedRoutes(userId: string) {
   return fetchJson<ApiSavedRoute[]>(`/users/${userId}/saved-routes`);
+}
+
+export async function deleteSavedRoute(userId: string, routeId: string) {
+  await fetchJson<void>(`/users/${userId}/saved-routes/${routeId}`, { method: 'DELETE' });
 }
 
 export async function createSavedRoute(
@@ -1272,6 +1300,95 @@ export async function createLiveTripGuidance(tripId: string) {
 
 export async function fetchLatestTripAdvisories(vehicleId: string) {
   return fetchJson<ApiPremiumGuidance>(`/vehicles/${vehicleId}/trip-advisories/latest`);
+}
+
+export type NearbyEvStation = {
+  googlePlaceId: string;
+  stationName: string;
+  address: string | null;
+  latitude: number;
+  longitude: number;
+  maxDcKw: number | null;
+  connectorTypes: string[];
+  operationalStatus: 'active' | 'closed';
+  sourceUrl: string | null;
+};
+
+export async function fetchNearbyEvStations(latitude: number, longitude: number) {
+  return fetchJson<{ status: string; stations: NearbyEvStation[] }>(
+    `/maps/places/nearby-ev?latitude=${latitude}&longitude=${longitude}`,
+  );
+}
+
+// ── Vehicle access (rol/izin) ─────────────────────────────────────────────
+
+export type ApiVehicleAccess = {
+  accessId: string;
+  userId: string;
+  username: string | null;
+  fullName: string | null;
+  role: 'owner' | 'manager' | 'driver' | 'viewer';
+  permissions: string[];
+  accessStatus: 'invited' | 'active' | 'suspended' | 'revoked';
+  createdAt: string;
+};
+
+export type ApiMyVehicleAccess = {
+  vehicleId: string;
+  role: 'owner' | 'manager' | 'driver' | 'viewer';
+  permissions: string[];
+  accessStatus: string;
+};
+
+export async function fetchMyVehicleAccess(vehicleId: string, userId: string) {
+  return fetchJson<ApiMyVehicleAccess>(
+    `/vehicles/${vehicleId}/access/me?userId=${userId}`,
+  );
+}
+
+export async function listVehicleAccess(vehicleId: string, userId: string) {
+  return fetchJson<ApiVehicleAccess[]>(
+    `/vehicles/${vehicleId}/access?userId=${userId}`,
+  );
+}
+
+export async function revokeVehicleAccess(vehicleId: string, accessId: string, userId: string) {
+  return fetchJson<{ id: string; accessStatus: string }>(
+    `/vehicles/${vehicleId}/access/${accessId}/revoke?userId=${userId}`,
+    { method: 'POST' },
+  );
+}
+
+// ── Vehicle access invites ────────────────────────────────────────────────
+
+export type ApiVehicleInvite = {
+  status: 'PENDING';
+  shareUrl: string;
+  webUrl: string;
+};
+
+export type ApiAcceptInviteResult = {
+  vehicleId: string;
+  role: string;
+  accessStatus: string;
+};
+
+export async function createVehicleInvite(
+  vehicleId: string,
+  userId: string,
+  body: { identifier: string; role?: string; permissions?: string[] },
+) {
+  return fetchJson<ApiVehicleInvite>(
+    `/vehicles/${vehicleId}/invites?userId=${userId}`,
+    { method: 'POST', body: JSON.stringify(body) },
+  );
+}
+
+export async function acceptVehicleInvite(token: string, userId: string) {
+  return fetchJson<ApiAcceptInviteResult>(
+    `/vehicle-invites/${token}/accept`,
+    { method: 'POST', body: JSON.stringify({ userId }) },
+  );
 }
 
 async function fetchJson<T>(path: string, init: RequestInit = {}): Promise<T> {

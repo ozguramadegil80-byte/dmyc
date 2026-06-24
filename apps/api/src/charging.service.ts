@@ -1,9 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { AnnualReportService } from './annual-report.service';
 import { BatteryLifecycleService } from './battery-lifecycle.service';
 import { DatabaseService } from './database.service';
 import { MonthlyReportService } from './monthly-report.service';
 import { UsageProfileService } from './usage-profile.service';
+import { VehiclesService } from './vehicles.service';
 
 type GeoPoint = {
   latitude?: number;
@@ -62,15 +63,34 @@ export class ChargingService {
     private readonly batteryLifecycle: BatteryLifecycleService,
     private readonly monthlyReports: MonthlyReportService,
     private readonly usageProfile: UsageProfileService,
+    private readonly vehicleAccess: VehiclesService,
   ) {}
 
   async createChargeSession(body: CreateChargeSessionBody) {
+    // Access guard: actorUserId (kaydı giren) bu araçta add_charge iznine sahip olmalı.
+    // userId yoksa (anonim/legacy kayıt) guard atlanır — geriye dönük uyumluluk.
+    const actorUserId = body.userId ?? null;
+    if (actorUserId) {
+      const allowed = await this.vehicleAccess.canUseVehiclePermission(
+        actorUserId,
+        body.vehicleId,
+        'add_charge',
+      );
+      if (!allowed) {
+        throw new ForbiddenException('Bu araçta şarj kaydı ekleme izniniz yok.');
+      }
+    }
+
+    const driverUserId = actorUserId;
+
     const result = await this.db.query(
       `
         INSERT INTO charge_sessions (
           vehicle_id,
           ownership_id,
           user_id,
+          actor_user_id,
+          driver_user_id,
           canonical_charging_location_id,
           started_at,
           ended_at,
@@ -91,14 +111,14 @@ export class ChargingService {
           $2,
           $3,
           $4,
-          COALESCE($5::timestamptz, now()),
-          $6::timestamptz,
+          $5,
+          $6,
+          COALESCE($7::timestamptz, now()),
+          $8::timestamptz,
           CASE
-            WHEN $7::numeric IS NULL OR $8::numeric IS NULL THEN NULL
-            ELSE ST_SetSRID(ST_MakePoint($8::numeric, $7::numeric), 4326)::geography
+            WHEN $9::numeric IS NULL OR $10::numeric IS NULL THEN NULL
+            ELSE ST_SetSRID(ST_MakePoint($10::numeric, $9::numeric), 4326)::geography
           END,
-          $9,
-          $10,
           $11,
           $12,
           $13,
@@ -106,14 +126,22 @@ export class ChargingService {
           $15,
           $16,
           $17,
+          $18,
           'none'
         )
-        RETURNING id, vehicle_id AS "vehicleId", ownership_id AS "ownershipId", user_id AS "userId", started_at AS "startedAt", ended_at AS "endedAt", charge_location_type AS "chargeLocationType", connector_type AS "connectorType", start_soc AS "startSoc", end_soc AS "endSoc", energy_kwh AS "energyKwh", cost_amount AS "costAmount", currency, source, confidence_score AS "confidenceScore", evidence_status AS "evidenceStatus", created_at AS "createdAt"
+        RETURNING id, vehicle_id AS "vehicleId", ownership_id AS "ownershipId", user_id AS "userId",
+          actor_user_id AS "actorUserId", driver_user_id AS "driverUserId",
+          started_at AS "startedAt", ended_at AS "endedAt", charge_location_type AS "chargeLocationType",
+          connector_type AS "connectorType", start_soc AS "startSoc", end_soc AS "endSoc",
+          energy_kwh AS "energyKwh", cost_amount AS "costAmount", currency, source,
+          confidence_score AS "confidenceScore", evidence_status AS "evidenceStatus", created_at AS "createdAt"
       `,
       [
         body.vehicleId,
         body.ownershipId ?? null,
-        body.userId ?? null,
+        actorUserId,
+        actorUserId,
+        driverUserId,
         body.canonicalChargingLocationId ?? null,
         body.startedAt ?? null,
         body.endedAt ?? null,

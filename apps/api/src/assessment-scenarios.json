@@ -1,0 +1,75 @@
+{
+  "tr": {
+    "HEAVY_USED_WORN": {
+      "title": "Yüksek Kullanım",
+      "body": [
+        "Aracınız {vehicleAgeYears} yılda {odometer_km} km yapmış; yıllık ortalama {annualKm} km, aylık yaklaşık {monthlyKm} km. {city} gibi trafik yükü yüksek bir şehirde bile bu kullanım yoğun kabul edilir.",
+
+        "Batarya döngüsü (EFC) nedir?\nHer tam şarj döngüsü pilin kimyasal ömrünü küçük bir miktar azaltır. %30'dan %80'e doldurmak 0,5 döngü, sıfırdan tamama 1 tam döngü sayılır. Bu araçta fabrika menzili ({practicalRangeKm} km) baz alınarak hesaplanan tahmini toplam EFC yaklaşık {estimatedTotalFullCycles} seviyesinde — yüksek kullanım bandını işaret ediyor.",
+
+        "Şarj durumu (SOC) neden kritik?\nSOC, pilinizin anlık doluluk yüzdesidir. Sürekli %95+ şarj ya da %10 altında sürüş, pil hücrelerine ek stres bindirir. İdeal günlük aralık %20–%80'dir; bu alışkanlık döngü başına hasarı belirgin ölçüde azaltır.",
+
+        "Bu noktada ne yapmalısınız?\nSadece km'ye bakmak yeterli değil. Şarj alışkanlıklarınız, DC hızlı şarj oranınız ve servis geçmişiniz bundan sonra belirleyici olacak. Uygulama üzerinden şarj ve yolculuk kayıtlarınızı tutmaya devam edin — sistem verisi arttıkça tahminler daha kesinleşir."
+      ]
+    },
+
+    "NORMAL_USAGE": {
+      "title": "Orta / Normal Kullanım",
+      "body": [
+        "Aracınız {vehicleAgeYears} yılda {odometer_km} km yapmış; yıllık ortalama {annualKm} km, aylık yaklaşık {monthlyKm} km. {city} koşulları dikkate alındığında bu kullanım orta bant içinde değerlendiriliyor.",
+
+        "Batarya döngüsü (EFC) ne durumda?\nFabrika menzili ({practicalRangeKm} km) baz alındığında bu araç ayda ortalama {estimatedMonthlyFullCycles} tam şarj eşdeğeri kullanmış görünür. Toplam tahmini EFC yaklaşık {estimatedTotalFullCycles} — henüz kritik eşiklerin altında.",
+
+        "İyi haber nedir?\nMevcut verilerle araç ne çok az ne de aşırı kullanılmış. Günlük şarj için %20–%80 SOC aralığını (pilinizin doluluk yüzdesi) hedeflemek ve servis takibini sürdürmek bu tablonun korunmasını sağlar. Kayıtlarınız arttıkça sistem daha kesin bir değerlendirme yapacak."
+      ]
+    },
+
+    "UNDER_USED_CLEAN": {
+      "title": "Temiz / Değerinin Altında",
+      "body": [
+        "Aracınız {vehicleAgeYears} yılda {odometer_km} km yapmış; yıllık ortalama {annualKm} km, aylık yaklaşık {monthlyKm} km. {city} için bu kullanım düşük-temiz bant içinde kalıyor.",
+
+        "Batarya açısından ne anlama geliyor?\nFabrika menzili ({practicalRangeKm} km) baz alındığında ayda ortalama {estimatedMonthlyFullCycles} tam şarj eşdeğeri kullanımla toplam EFC tahmini {estimatedTotalFullCycles} civarında. EFC (Eşdeğer Tam Döngü), pilinizin kaç kez sıfırdan doluya şarj edildiğinin toplamıdır — bu değer batarya için olumlu bir tablo çiziyor.",
+
+        "Dikkat gerektiren bir nokta:\nAz kullanılan EV bataryaları uzun süre yüksek veya düşük SOC'ta (şarj durumunda) beklerse bu da pil kimyasını olumsuz etkiler. Uzun süre park edecekseniz %40–%60 SOC aralığında bekletmek önerilir. Servis kayıtlarınızı düzenli tutmaya devam edin."
+      ]
+    }
+  },
+
+  "en": {
+    "HEAVY_USED_WORN": {
+      "title": "Heavy Usage",
+      "body": [
+        "Your vehicle has covered {odometer_km} km in {vehicleAgeYears} years — an average of {annualKm} km per year, approximately {monthlyKm} km per month. Even accounting for heavy traffic in {city}, this puts usage in the high-intensity band.",
+
+        "What is a battery cycle (EFC)?\nEach full charge cycle slightly reduces the battery's chemical lifespan. Charging from 30% to 80% counts as 0.5 cycles; from empty to full is 1 full cycle. Based on the factory range ({practicalRangeKm} km), the estimated total EFC for this vehicle is around {estimatedTotalFullCycles} — indicating significant accumulated use.",
+
+        "Why does SOC matter?\nSOC (State of Charge) is your battery's current charge percentage. Consistently charging above 95% or driving below 10% adds extra stress to battery cells. The ideal daily range is 20–80%, which noticeably reduces per-cycle degradation.",
+
+        "What should you do now?\nKilometres alone don't tell the full story. Your charging habits, DC fast-charge ratio and service history will be the deciding factors going forward. Keep logging charges and trips — the more data the system has, the more accurate its estimates become."
+      ]
+    },
+
+    "NORMAL_USAGE": {
+      "title": "Moderate / Normal Usage",
+      "body": [
+        "Your vehicle has covered {odometer_km} km in {vehicleAgeYears} years — an average of {annualKm} km per year, approximately {monthlyKm} km per month. Considering conditions in {city}, this usage falls within the moderate band.",
+
+        "Where does the battery stand?\nBased on the factory range ({practicalRangeKm} km), this vehicle has used an average of {estimatedMonthlyFullCycles} equivalent full cycles per month. Total estimated EFC is around {estimatedTotalFullCycles} — still well below critical thresholds.",
+
+        "Good news:\nAvailable data shows neither underuse nor excessive wear. Targeting a 20–80% SOC (State of Charge) range for daily charging and keeping up with service visits will maintain this picture. As more records accumulate, the system will provide an increasingly precise assessment."
+      ]
+    },
+
+    "UNDER_USED_CLEAN": {
+      "title": "Light / Clean Usage",
+      "body": [
+        "Your vehicle has covered {odometer_km} km in {vehicleAgeYears} years — an average of {annualKm} km per year, approximately {monthlyKm} km per month. For {city}, this falls in the low-use, clean-condition band.",
+
+        "What does this mean for the battery?\nBased on the factory range ({practicalRangeKm} km), the monthly average is {estimatedMonthlyFullCycles} equivalent full cycles (EFC — the cumulative count of full charge-discharge cycles). Total estimated EFC is around {estimatedTotalFullCycles}. This is a positive picture for battery health.",
+
+        "One thing to watch:\nEV batteries left at very high or very low charge levels for extended periods can degrade even without heavy use. If parking for more than a few days, aim to leave the battery at 40–60% SOC (State of Charge). Keep your service records up to date."
+      ]
+    }
+  }
+}

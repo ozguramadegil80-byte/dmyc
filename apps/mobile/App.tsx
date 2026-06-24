@@ -1,7 +1,8 @@
-﻿import AsyncStorage from '@react-native-async-storage/async-storage';
+﻿import { MaterialIcons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import React, { Component, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -12,15 +13,20 @@ import {
   SafeAreaView,
   ScrollView,
   Share,
+  StatusBar as RNStatusBar,
   StyleSheet,
   Switch,
   Text,
   TextInput,
   View,
 } from 'react-native';
-// react-native-maps is native only — guarded by Platform.OS check at render time
+// react-native-maps: native only. Android requires API key in AndroidManifest (EAS build plugin injects it).
+// Keep Android blocked until a new EAS build is taken — old APK was built without the key, native crash occurs.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const RNMaps: any = Platform.OS !== 'web' ? require('react-native-maps') : null;
+let RNMaps: any = null;
+if (Platform.OS === 'ios' || Platform.OS === 'android') {
+  try { RNMaps = require('react-native-maps'); } catch { /* maps not in this build */ }
+}
 const MapView = RNMaps?.default ?? null;
 const Marker = RNMaps?.Marker ?? null;
 import {
@@ -34,6 +40,10 @@ import {
   createRouteGeometry,
   createSavedLocation,
   createSavedRoute,
+  deleteSavedLocation,
+  deleteSavedRoute,
+  fetchNearbyEvStations,
+  updateSavedLocation,
   createOwnership,
   createPremiumGuidance,
   createTripRecap,
@@ -76,6 +86,11 @@ import {
   addExternalBatteryReport,
   fetchApiHealth,
   fetchActiveBindingForUser,
+  fetchActiveVehiclesForUser,
+  listVehicleAccess,
+  revokeVehicleAccess,
+  createVehicleInvite,
+  acceptVehicleInvite,
   fetchVehicleSpecs,
   finishTrip,
   loginUser,
@@ -114,7 +129,10 @@ import {
   type ApiUser,
   type ApiUsageProfile,
   type ApiVehicle,
+  type ApiVehicleAccess,
+  type ApiVehicleInvite,
 } from './src/lib/apiClient';
+import { getTooltip, type TooltipKey } from './src/lib/tooltips';
 import { buildFirstCard } from './src/lib/firstCard';
 import {
   getBrandImageUrl,
@@ -182,6 +200,7 @@ type BackendBinding = {
   vehicle: ApiVehicle;
   ownership: ApiOwnership;
   catalogKey: string;
+  access?: { id: string; role: string; permissions: string[] };
 };
 
 type TripPoint = {
@@ -229,6 +248,7 @@ type ChargeForm = {
   locationType: string;
   perceivedNeed: string;
   targetSoc: string;
+  stationName: string;
 };
 
 function getTrackingModes(locale: Locale): Array<{
@@ -323,6 +343,7 @@ const emptyChargeForm: ChargeForm = {
   locationType: 'unknown',
   perceivedNeed: '',
   targetSoc: '',
+  stationName: '',
 };
 
 export default function App() {
@@ -342,6 +363,17 @@ export default function App() {
   const [language, setLanguage] = useState<Locale>('tr');
   const [backendBinding, setBackendBinding] = useState<BackendBinding | null>(null);
   const [bindingStatus, setBindingStatus] = useState<'idle' | 'saving' | 'linked' | 'offline'>('idle');
+  const [userVehicles, setUserVehicles] = useState<NonNullable<ApiActiveBinding>[]>([]);
+  const [showVehicleSwitcher, setShowVehicleSwitcher] = useState(false);
+  const [showDriversModal, setShowDriversModal] = useState(false);
+  const [driversAccessList, setDriversAccessList] = useState<ApiVehicleAccess[]>([]);
+  const [driversModalLoading, setDriversModalLoading] = useState(false);
+  const [inviteResult, setInviteResult] = useState<ApiVehicleInvite | null>(null);
+  const [inviteIdentifier, setInviteIdentifier] = useState('');
+  const [inviteLoading, setInviteLoading] = useState(false);
+  const [acceptToken, setAcceptToken] = useState('');
+  const [acceptLoading, setAcceptLoading] = useState(false);
+  const [acceptMessage, setAcceptMessage] = useState<string | null>(null);
   const [activeTrip, setActiveTrip] = useState<ApiTrip | null>(null);
   const [lastCompletedTrip, setLastCompletedTrip] = useState<ApiTrip | null>(null);
   const [lastTripRecap, setLastTripRecap] = useState<ApiTripRecap | null>(null);
@@ -357,6 +389,7 @@ export default function App() {
   const [autoTripStatus, setAutoTripStatus] = useState<AutoTripStatus>('off');
   const [autoTripMessage, setAutoTripMessage] = useState<string | null>(null);
   const [chargeForm, setChargeForm] = useState<ChargeForm>(emptyChargeForm);
+  const [chargeStartedAt, setChargeStartedAt] = useState<Date | null>(null);
   const [lastChargeSession, setLastChargeSession] = useState<ApiChargeSession | null>(null);
   const [chargeSummary, setChargeSummary] = useState<ApiChargeSummary | null>(null);
   const [chargeStatus, setChargeStatus] = useState<'idle' | 'saving' | 'offline'>('idle');
@@ -412,6 +445,7 @@ export default function App() {
   const [tripWelcomeVisible, setTripWelcomeVisible] = useState(false);
   const [profileMessage, setProfileMessage] = useState<string | null>(null);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+  const [welcomeModalIsOnboarding, setWelcomeModalIsOnboarding] = useState(false);
   const [brandQuery, setBrandQuery] = useState('');
   const [modelQuery, setModelQuery] = useState('');
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
@@ -1308,9 +1342,19 @@ export default function App() {
     }
   };
 
+  const refreshUserVehicles = async (userId: string) => {
+    try {
+      const vehicles = await fetchActiveVehiclesForUser(userId);
+      setUserVehicles(vehicles);
+    } catch {
+      // non-fatal — single-vehicle fallback works
+    }
+  };
+
   const restoreActiveBindingFromApi = async (user: ApiUser) => {
     try {
       const activeBinding = await fetchActiveBindingForUser(user.id);
+      void refreshUserVehicles(user.id);
 
       if (!activeBinding) {
         return null;
@@ -1327,6 +1371,78 @@ export default function App() {
       return binding;
     } catch {
       return null;
+    }
+  };
+
+  const switchToVehicle = async (vehicleEntry: NonNullable<ApiActiveBinding>) => {
+    if (!registeredUser) return;
+    const binding = buildBackendBinding(registeredUser, vehicleEntry);
+    setBackendBinding(binding);
+    setBindingStatus('linked');
+    await safeStorageSet(BACKEND_BINDING_STORAGE_KEY, JSON.stringify(binding));
+    if (binding.catalogKey) {
+      await safeStorageSet(SELECTED_VEHICLE_STORAGE_KEY, binding.catalogKey);
+    }
+    setShowVehicleSwitcher(false);
+    setStep('today');
+  };
+
+  const openDriversModal = async (vehicleId: string, userId: string) => {
+    setShowDriversModal(true);
+    setDriversModalLoading(true);
+    setDriversAccessList([]);
+    setInviteResult(null);
+    setInviteIdentifier('');
+    try {
+      const list = await listVehicleAccess(vehicleId, userId);
+      setDriversAccessList(list);
+    } catch {
+      // show empty state
+    } finally {
+      setDriversModalLoading(false);
+    }
+  };
+
+  const handleCreateInvite = async () => {
+    if (!registeredUser || !backendBinding || !inviteIdentifier.trim()) return;
+    setInviteLoading(true);
+    try {
+      const result = await createVehicleInvite(backendBinding.vehicle.id, registeredUser.id, {
+        identifier: inviteIdentifier.trim(),
+        role: 'driver',
+        permissions: ['add_charge', 'add_trip'],
+      });
+      setInviteResult(result);
+    } catch {
+      // keep form open
+    } finally {
+      setInviteLoading(false);
+    }
+  };
+
+  const handleRevokeAccess = async (accessId: string) => {
+    if (!registeredUser || !backendBinding) return;
+    try {
+      await revokeVehicleAccess(backendBinding.vehicle.id, accessId, registeredUser.id);
+      setDriversAccessList((prev) => prev.filter((a) => a.accessId !== accessId));
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleAcceptInvite = async () => {
+    if (!registeredUser || !acceptToken.trim()) return;
+    setAcceptLoading(true);
+    setAcceptMessage(null);
+    try {
+      await acceptVehicleInvite(acceptToken.trim(), registeredUser.id);
+      setAcceptMessage('Araç erişimi kabul edildi.');
+      setAcceptToken('');
+      void refreshUserVehicles(registeredUser.id);
+    } catch {
+      setAcceptMessage('Davet kabul edilemedi. Token geçersiz veya süresi dolmuş olabilir.');
+    } finally {
+      setAcceptLoading(false);
     }
   };
 
@@ -1469,7 +1585,7 @@ export default function App() {
     if (step === 'assessment') {
       const hasOdometer = parseInt(assessmentOdometerKm, 10) > 0;
       await bindSelectedVehicle();
-      if (hasOdometer) setShowWelcomeModal(true);
+      if (hasOdometer) { setWelcomeModalIsOnboarding(true); setShowWelcomeModal(true); }
       setStep('yolculuk');
       setTripWelcomeVisible(true);
       return;
@@ -2203,6 +2319,15 @@ export default function App() {
 
     const parsed = parseChargeForm(chargeForm);
 
+    let autoPerceivedNeed = chargeForm.perceivedNeed.trim();
+    if (!autoPerceivedNeed && chargeStartedAt) {
+      const diffMs = Date.now() - chargeStartedAt.getTime();
+      const totalMin = Math.max(1, Math.floor(diffMs / 60000));
+      const h = Math.floor(totalMin / 60);
+      const m = totalMin % 60;
+      autoPerceivedNeed = h > 0 ? `${h}sa ${m}dk` : `${m}dk`;
+    }
+
     try {
       const now = new Date().toISOString();
       const chargeSession = await createChargeSession({
@@ -2226,11 +2351,11 @@ export default function App() {
         confidenceScore: parsed.hasDecisionData ? 0.35 : 0.1,
         decisionAt: now,
         ownershipId: backendBinding.ownership.id,
-        perceivedNeed: chargeForm.perceivedNeed.trim() || undefined,
+        perceivedNeed: autoPerceivedNeed || undefined,
         source: 'mobile_manual',
         startSoc: parsed.startSoc,
         targetSoc: parsed.targetSoc,
-        triggerType: chargeForm.perceivedNeed.trim() ? 'user_reported_need' : 'unknown',
+        triggerType: autoPerceivedNeed ? 'user_reported_need' : 'unknown',
         userId: backendBinding.user.id,
         vehicleId: backendBinding.vehicle.id,
       });
@@ -2244,6 +2369,7 @@ export default function App() {
       setLastChargeSession(chargeSession);
       setChargeSummary(summary);
       setChargeForm(emptyChargeForm);
+      setChargeStartedAt(null);
       setChargeMessage('Şarj oturumu ve karar anı kaydedildi. Boş alanlar unknown/tahmini kaldı.');
     } catch {
       setChargeStatus('offline');
@@ -2361,6 +2487,7 @@ export default function App() {
           odometerKm={assessmentOdometerKm}
           purchaseYear={assessmentPurchaseYear}
           city={assessmentCity}
+          language={language}
           onChangeOdometerKm={setAssessmentOdometerKm}
           onChangePurchaseYear={setAssessmentPurchaseYear}
           onChangeCity={setAssessmentCity}
@@ -2371,14 +2498,38 @@ export default function App() {
       <WelcomeAssessmentModal
         visible={showWelcomeModal}
         assessment={latestAssessment}
+        isOnboarding={welcomeModalIsOnboarding}
         vehicle={selectedVehicle}
-        onDismiss={() => setShowWelcomeModal(false)}
+        onDismiss={() => { setShowWelcomeModal(false); setWelcomeModalIsOnboarding(false); }}
+      />
+
+      <VehicleSwitcherModal
+        visible={showVehicleSwitcher}
+        vehicles={userVehicles}
+        activeVehicleId={backendBinding?.vehicle.id ?? null}
+        onSwitch={switchToVehicle}
+        onClose={() => setShowVehicleSwitcher(false)}
+      />
+
+      <DriversModal
+        visible={showDriversModal}
+        vehicleName={backendBinding?.vehicle.displayName ?? ''}
+        accessList={driversAccessList}
+        loading={driversModalLoading}
+        inviteIdentifier={inviteIdentifier}
+        inviteLoading={inviteLoading}
+        inviteResult={inviteResult}
+        onChangeIdentifier={setInviteIdentifier}
+        onCreateInvite={handleCreateInvite}
+        onRevoke={handleRevokeAccess}
+        onClose={() => { setShowDriversModal(false); setInviteResult(null); setInviteIdentifier(''); }}
       />
 
       {step === 'today' ? (
         <SummaryStep
           latestAssessment={latestAssessment}
           language={language}
+          onOpenAssessmentModal={() => setShowWelcomeModal(true)}
           onPlanRange={() => setStep('range')}
           onStartDriving={() => setStep('yolculuk')}
           user={registeredUser}
@@ -2407,8 +2558,24 @@ export default function App() {
           onAppendPoint={appendCurrentTripPoint}
           onCreateShareCard={createShareCardForLastRecap}
           onDestSearch={setTripDestQuery}
+          onDeleteLocation={async (locationId) => {
+            if (!backendBinding) return;
+            await deleteSavedLocation(backendBinding.user.id, locationId);
+            setSavedLocations((prev) => prev.filter((l) => l.id !== locationId));
+          }}
+          onDeleteRoute={async (routeId) => {
+            if (!backendBinding) return;
+            await deleteSavedRoute(backendBinding.user.id, routeId);
+            setSavedRoutes((prev) => prev.filter((r) => r.id !== routeId));
+          }}
           onFinishTrip={finishActiveTrip}
+          onManageLocations={() => setStep('locations')}
           onOpenMap={(mode) => { setMapPickerMode(mode); setMapPickerVisible(true); }}
+          onUpdateLocation={async (locationId, label, kind) => {
+            if (!backendBinding) return;
+            const updated = await updateSavedLocation(backendBinding.user.id, locationId, { label, locationKind: kind });
+            setSavedLocations((prev) => prev.map((l) => l.id === locationId ? updated : l));
+          }}
           onPlaceSelect={selectTripDestinationPlace}
           onStartTrip={startTripRecording}
           onSelectDestination={setSelectedDestinationLocationId}
@@ -2473,11 +2640,14 @@ export default function App() {
       {step === 'sarj' ? (
         <ChargeLoggerStep
           backendBinding={backendBinding}
+          chargeStartedAt={chargeStartedAt}
           form={chargeForm}
           lastChargeSession={lastChargeSession}
           message={chargeMessage}
           onChange={updateChargeForm}
           onSave={saveChargeSession}
+          onStartTimer={() => setChargeStartedAt(new Date())}
+          savedLocations={savedLocations}
           status={chargeStatus}
           summary={chargeSummary}
         />
@@ -2514,8 +2684,15 @@ export default function App() {
       {step === 'arac' ? (
         <AracScreen
           annualReport={annualReport}
+          batteryLifecycle={batteryLifecycle}
+          canManageDrivers={
+            backendBinding?.access?.permissions?.includes('manage_vehicle') === true ||
+            backendBinding?.access?.permissions?.includes('add_driver') === true ||
+            backendBinding?.access?.role === 'owner'
+          }
           language={language}
           latestAssessment={latestAssessment}
+          onOpenAssessmentModal={() => setShowWelcomeModal(true)}
           onAddExternalReport={async (provider: string, reportUrl?: string, sohPercent?: number) => {
             if (!backendBinding?.vehicle.id) return;
             try {
@@ -2546,6 +2723,11 @@ export default function App() {
           }}
           onManageLocations={() => setStep('locations')}
           onLogout={logout}
+          onOpenDrivers={() => {
+            if (backendBinding?.vehicle.id && registeredUser?.id) {
+              void openDriversModal(backendBinding.vehicle.id, registeredUser.id);
+            }
+          }}
           onOpenProfile={() => setStep('profile')}
           premiumReport={premiumReport}
           publicReport={publicReport}
@@ -2559,10 +2741,17 @@ export default function App() {
 
       {step === 'profile' ? (
         <ProfileStep
+          acceptLoading={acceptLoading}
+          acceptMessage={acceptMessage}
+          acceptToken={acceptToken}
           backendBinding={backendBinding}
           message={profileMessage}
+          userVehicles={userVehicles}
+          onAcceptInvite={handleAcceptInvite}
+          onChangeAcceptToken={setAcceptToken}
           onChangePassword={() => setProfileMessage('Şifre değiştirme paneli hazır.')}
           onLogout={logout}
+          onOpenVehicleSwitcher={() => setShowVehicleSwitcher(true)}
           onSelectVehicle={() => setStep('brand')}
           user={registeredUser}
         />
@@ -2641,7 +2830,7 @@ type TopBarProps = {
 
 function TopBar({ canGoBack, canSkip, onBack, onOpenProfile, onSkip, showProfile, title }: TopBarProps) {
   return (
-    <View style={styles.topBar}>
+    <View style={[styles.topBar, { paddingTop: STATUS_BAR_HEIGHT, height: 56 + STATUS_BAR_HEIGHT }]}>
       <Pressable
         accessibilityRole="button"
         disabled={!canGoBack}
@@ -2671,6 +2860,8 @@ function TopBar({ canGoBack, canSkip, onBack, onOpenProfile, onSkip, showProfile
   );
 }
 
+const STATUS_BAR_HEIGHT = Platform.OS === 'android' ? (RNStatusBar.currentHeight ?? 24) : 0;
+
 function MainTopBar({
   title,
   onOpenProfile,
@@ -2683,8 +2874,10 @@ function MainTopBar({
   const initial = (user?.fullName?.[0] ?? user?.username?.[0] ?? 'U').toUpperCase();
   return (
     <View style={styles.mainTopBar}>
-      <Text style={styles.mainTopBarBrand}>DMyC</Text>
-      <Text numberOfLines={1} style={styles.mainTopBarTitle}>{title}</Text>
+      <View style={styles.mainTopBarLeft}>
+        <Text style={styles.mainTopBarBrand}>DMyC</Text>
+        <Text numberOfLines={1} style={styles.mainTopBarTitle}>{title}</Text>
+      </View>
       <Pressable accessibilityLabel="Profil" accessibilityRole="button" onPress={onOpenProfile} style={styles.mainTopBarAvatar}>
         <Text style={styles.mainTopBarAvatarText}>{initial}</Text>
       </Pressable>
@@ -3330,6 +3523,7 @@ function VariantCard({
 function SummaryStep({
   latestAssessment,
   language,
+  onOpenAssessmentModal,
   onPlanRange,
   onStartDriving,
   user,
@@ -3337,6 +3531,7 @@ function SummaryStep({
 }: {
   latestAssessment: ApiAssessment | null;
   language: Locale;
+  onOpenAssessmentModal: () => void;
   onPlanRange: () => void;
   onStartDriving: () => void;
   user: ApiUser | null;
@@ -3376,7 +3571,10 @@ function SummaryStep({
 
         {/* ── ANA METRİK ────────────────────────────────────────────── */}
         <View style={styles.todayCard}>
-          <Text style={styles.todayCardLabel}>BEKLENEN GERÇEK KULLANIM</Text>
+          <View style={styles.todayCardLabelRow}>
+            <Text style={styles.todayCardLabel}>BEKLENEN GERÇEK KULLANIM</Text>
+            <InfoBadge tooltipKey="realRange" />
+          </View>
           <Text style={styles.todayMainValue}>
             {formatRange(firstCard.expectedRealRangeMinKm, firstCard.expectedRealRangeMaxKm)}
           </Text>
@@ -3385,14 +3583,17 @@ function SummaryStep({
 
         {/* ── SPEC GRİD (4 tile) ────────────────────────────────────── */}
         <View style={styles.todaySpecGrid}>
-          {[
-            { label: 'WLTP MENZİLİ', value: formatKm(firstCard.factoryRangeKm) },
-            { label: 'DC ŞARJ',      value: formatKw(firstCard.dcMaxKw) },
-            { label: 'BATARYA',      value: formatKwh(firstCard.batteryCapacityKwh) },
-            { label: 'VERİMLİLİK',   value: formatEfficiency(vehicle.officialEfficiencyWhKm) },
-          ].map((item) => (
+          {([
+            { label: 'WLTP MENZİLİ', value: formatKm(firstCard.factoryRangeKm), tooltipKey: 'wltp' as TooltipKey },
+            { label: 'DC ŞARJ',      value: formatKw(firstCard.dcMaxKw),         tooltipKey: undefined },
+            { label: 'BATARYA',      value: formatKwh(firstCard.batteryCapacityKwh), tooltipKey: undefined },
+            { label: 'VERİMLİLİK',   value: formatEfficiency(vehicle.officialEfficiencyWhKm), tooltipKey: undefined },
+          ] as const).map((item) => (
             <View key={item.label} style={styles.todaySpecTile}>
-              <Text style={styles.todayTileLabel}>{item.label}</Text>
+              <View style={styles.todayTileLabelRow}>
+                <Text style={styles.todayTileLabel}>{item.label}</Text>
+                {item.tooltipKey ? <InfoBadge tooltipKey={item.tooltipKey} /> : null}
+              </View>
               <Text style={styles.todayTileValue}>{item.value}</Text>
             </View>
           ))}
@@ -3418,18 +3619,22 @@ function SummaryStep({
         {latestAssessment ? (
           <View style={styles.todayAssessmentCard}>
             <View style={styles.todayAssessmentHeader}>
-              <Text style={styles.todayAssessmentTitle}>GÜN 0 DEĞERLENDİRME</Text>
-              <View style={[styles.todayScenarioPill, { backgroundColor: '#FFAB00' }]}>
+              <Text style={styles.todayAssessmentTitle}>{translate('mobile.assessment.step')}</Text>
+              <Pressable
+                accessibilityRole="button"
+                onPress={onOpenAssessmentModal}
+                style={[styles.todayScenarioPill, { backgroundColor: scenarioColor(latestAssessment.scenarioId) }]}
+              >
                 <Text style={styles.todayScenarioPillText}>{latestAssessment.scenarioTitle}</Text>
-              </View>
+              </Pressable>
             </View>
             <View style={styles.todayAssessmentGrid}>
-              {[
-                { label: 'YILLIK KM',   value: latestAssessment.annualKm.toLocaleString('tr-TR'), br: true,  bb: true  },
-                { label: 'TAH. DÖNGÜ',  value: String(latestAssessment.estimatedTotalFullCycles ?? '—'), br: false, bb: true  },
-                { label: 'ARAÇ YAŞI',   value: `${latestAssessment.vehicleAgeYears} yıl`, br: true,  bb: false },
-                { label: 'ŞEHİR',       value: latestAssessment.city ?? '—', br: false, bb: false },
-              ].map((tile) => (
+              {([
+                { label: translate('mobile.assessment.metric.annualKm'),      value: latestAssessment.annualKm.toLocaleString('tr-TR'), tooltipKey: undefined,  br: true,  bb: true  },
+                { label: translate('mobile.assessment.metric.estimatedCycle'), value: String(latestAssessment.estimatedTotalFullCycles ?? '—'), tooltipKey: 'efc' as TooltipKey, br: false, bb: true  },
+                { label: translate('mobile.assessment.metric.vehicleAge'),     value: `${latestAssessment.vehicleAgeYears} ${translate('mobile.assessment.unit.years')}`, tooltipKey: undefined, br: true,  bb: false },
+                { label: translate('mobile.assessment.metric.city'),           value: latestAssessment.city ?? '—', tooltipKey: undefined, br: false, bb: false },
+              ]).map((tile) => (
                 <View
                   key={tile.label}
                   style={[
@@ -3438,7 +3643,10 @@ function SummaryStep({
                     tile.bb ? styles.todayTileBorderBottom : null,
                   ]}
                 >
-                  <Text style={styles.todayTileLabel}>{tile.label}</Text>
+                  <View style={styles.todayTileLabelRow}>
+                    <Text style={styles.todayTileLabel}>{tile.label}</Text>
+                    {tile.tooltipKey ? <InfoBadge tooltipKey={tile.tooltipKey} /> : null}
+                  </View>
                   <Text style={styles.todayTileValue}>{tile.value}</Text>
                 </View>
               ))}
@@ -3551,11 +3759,32 @@ function ContextQuestionCard({
   );
 }
 
-function ProfileStep({ backendBinding, message, onChangePassword, onLogout, onSelectVehicle, user }: {
+function ProfileStep({
+  acceptLoading,
+  acceptMessage,
+  acceptToken,
+  backendBinding,
+  message,
+  userVehicles,
+  onAcceptInvite,
+  onChangeAcceptToken,
+  onChangePassword,
+  onLogout,
+  onOpenVehicleSwitcher,
+  onSelectVehicle,
+  user,
+}: {
+  acceptLoading: boolean;
+  acceptMessage: string | null;
+  acceptToken: string;
   backendBinding: BackendBinding | null;
   message: string | null;
+  userVehicles: NonNullable<ApiActiveBinding>[];
+  onAcceptInvite: () => void;
+  onChangeAcceptToken: (v: string) => void;
   onChangePassword: () => void;
   onLogout: () => void;
+  onOpenVehicleSwitcher: () => void;
   onSelectVehicle: () => void;
   user: ApiUser | null;
 }) {
@@ -3570,11 +3799,66 @@ function ProfileStep({ backendBinding, message, onChangePassword, onLogout, onSe
       <View style={styles.bindingPanel}>
         <Text style={styles.label}>AKTİF ARAÇ</Text>
         <Text style={styles.bindingTitle}>{backendBinding?.vehicle.displayName ?? 'Araç bağlı değil'}</Text>
-        <Text style={styles.bindingText}>
-          {backendBinding
-            ? 'Bu araç ana ekranda sabit kalır. Araç değiştirmek istersen yeniden seçim yapabilirsin.'
-            : 'Karne ekranını açmak için önce bir araç seçmelisin.'}
-        </Text>
+        {backendBinding?.ownership.userId ? (
+          <View style={[styles.aracPill, { alignSelf: 'flex-start', marginTop: 6, backgroundColor: roleColor(backendBinding.access?.role ?? 'owner') + '22' }]}>
+            <Text style={[styles.aracPillText, { color: roleColor(backendBinding.access?.role ?? 'owner') }]}>
+              {roleLabel(backendBinding.access?.role ?? 'owner').toUpperCase()}
+            </Text>
+          </View>
+        ) : null}
+      </View>
+
+      {/* Araçlarım — çoklu araç listesi */}
+      {userVehicles.length > 1 ? (
+        <View style={styles.card}>
+          <View style={styles.rowBetween}>
+            <Text style={styles.cardLabel}>ARAÇLARIM</Text>
+            <Text style={[styles.signalCaption, { marginBottom: 0 }]}>{userVehicles.length} araç</Text>
+          </View>
+          {userVehicles.slice(0, 3).map((v) => {
+            const isActive = v.vehicle.id === backendBinding?.vehicle.id;
+            const role = v.access?.role ?? 'owner';
+            return (
+              <View key={v.vehicle.id} style={[styles.rowBetween, { marginTop: 8 }]}>
+                <Text style={[styles.bindingText, { flex: 1 }]} numberOfLines={1}>{v.vehicle.displayName}</Text>
+                <View style={[styles.aracPill, { backgroundColor: isActive ? colors.cyan + '22' : roleColor(role) + '22', marginLeft: 8 }]}>
+                  <Text style={[styles.aracPillText, { color: isActive ? colors.cyan : roleColor(role) }]}>
+                    {isActive ? 'AKTİF' : roleLabel(role).toUpperCase()}
+                  </Text>
+                </View>
+              </View>
+            );
+          })}
+          <Pressable accessibilityRole="button" onPress={onOpenVehicleSwitcher} style={[styles.secondaryButton, { marginTop: 12 }]}>
+            <Text style={styles.secondaryButtonText}>ARAÇ DEĞIŞTIR</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
+      {/* Davet kabul */}
+      <View style={styles.card}>
+        <Text style={styles.cardLabel}>DAVET KABUL ET</Text>
+        <Text style={[styles.signalCaption, { marginBottom: 8 }]}>Bir araç sahibinden davet aldıysan token'ı buraya yapıştır.</Text>
+        <TextInput
+          style={styles.formInput}
+          placeholder="Davet token'ı"
+          value={acceptToken}
+          onChangeText={onChangeAcceptToken}
+          autoCapitalize="none"
+        />
+        {acceptMessage ? (
+          <Text style={[styles.signalCaption, { marginTop: 6, color: acceptMessage.includes('kabul edildi') ? '#22c55e' : '#ef4444' }]}>
+            {acceptMessage}
+          </Text>
+        ) : null}
+        <Pressable
+          accessibilityRole="button"
+          style={[styles.secondaryButton, { marginTop: 8, opacity: acceptLoading ? 0.5 : 1 }]}
+          onPress={onAcceptInvite}
+          disabled={acceptLoading}
+        >
+          <Text style={styles.secondaryButtonText}>{acceptLoading ? 'KONTROL EDİLİYOR...' : 'KABUL ET'}</Text>
+        </Pressable>
       </View>
 
       {message ? <Text style={styles.tripMessage}>{message}</Text> : null}
@@ -3583,9 +3867,11 @@ function ProfileStep({ backendBinding, message, onChangePassword, onLogout, onSe
         <Pressable accessibilityRole="button" onPress={onChangePassword} style={styles.secondaryButton}>
           <Text style={styles.secondaryButtonText}>ŞİFRE DEĞİŞTİR</Text>
         </Pressable>
-        <Pressable accessibilityRole="button" onPress={onSelectVehicle} style={styles.secondaryButton}>
-          <Text style={styles.secondaryButtonText}>ARAÇ DEĞİŞTİR</Text>
-        </Pressable>
+        {userVehicles.length <= 1 ? (
+          <Pressable accessibilityRole="button" onPress={onSelectVehicle} style={styles.secondaryButton}>
+            <Text style={styles.secondaryButtonText}>ARAÇ DEĞİŞTİR</Text>
+          </Pressable>
+        ) : null}
         <Pressable accessibilityRole="button" onPress={onLogout} style={styles.logoutButton}>
           <Text style={styles.logoutButtonText}>HESAPTAN ÇIKIŞ YAP</Text>
         </Pressable>
@@ -3594,22 +3880,26 @@ function ProfileStep({ backendBinding, message, onChangePassword, onLogout, onSe
   );
 }
 
+// Android navigation bar height varies: gesture nav ~24dp, 3-button ~48dp, Samsung ~56dp
+// Proper fix via useSafeAreaInsets() comes with next build (react-native-safe-area-context)
+const BOTTOM_NAV_INSET = Platform.OS === 'android' ? 48 : 34;
+
 function BottomNav({ activeStep, onNavigate }: { activeStep: Step; onNavigate: (step: Step) => void }) {
-  const items: Array<{ label: string; icon: string; step: Step }> = [
-    { label: 'BUGÜN',    icon: '⊙', step: 'today'    },
-    { label: 'YOLCULUK', icon: '⌁', step: 'yolculuk' },
-    { label: 'ŞARJ',     icon: '⚡', step: 'sarj'     },
-    { label: 'KARNE',    icon: '★', step: 'karne'    },
-    { label: 'ARAÇ',     icon: '⬡', step: 'arac'     },
+  const items: Array<{ label: string; icon: React.ComponentProps<typeof MaterialIcons>['name']; step: Step }> = [
+    { label: 'GARAJ',    icon: 'speed',         step: 'today'    },
+    { label: 'YOLCULUK', icon: 'route',          step: 'yolculuk' },
+    { label: 'ŞARJ',     icon: 'bolt',           step: 'sarj'     },
+    { label: 'KARNE',    icon: 'military-tech',  step: 'karne'    },
+    { label: 'ARAÇ',     icon: 'directions-car', step: 'arac'     },
   ];
 
   const activeTab =
     activeStep === 'range'     ? 'yolculuk' :
-    activeStep === 'locations' ? 'arac'     :
+    activeStep === 'locations' ? 'yolculuk' :
     activeStep === 'profile'   ? 'arac'     : activeStep;
 
   return (
-    <View style={styles.bottomNav}>
+    <View style={[styles.bottomNav, { height: 64 + BOTTOM_NAV_INSET, paddingBottom: BOTTOM_NAV_INSET }]}>
       {items.map((item) => {
         const selected = item.step === activeTab;
 
@@ -3620,7 +3910,8 @@ function BottomNav({ activeStep, onNavigate }: { activeStep: Step; onNavigate: (
             onPress={() => onNavigate(item.step)}
             style={styles.bottomNavItem}
           >
-            <Text style={[styles.bottomNavIcon, selected ? styles.bottomNavIconActive : null]}>{item.icon}</Text>
+            {selected && <View style={styles.bottomNavActiveBar} />}
+            <MaterialIcons name={item.icon} size={24} color={selected ? colors.cyan : colors.muted} />
             <Text style={[styles.bottomNavLabel, selected ? styles.bottomNavLabelActive : null]}>{item.label}</Text>
           </Pressable>
         );
@@ -3677,7 +3968,11 @@ function KarneScreen({ batteryLifecycle, communityBenchmark, monthlyReport, usag
         </View>
       )}
 
-      {/* ── BU AY ──────────────────────────────────────────────────────── */}
+      {/* ── VERİ KARTLARI (space-y-sm = 12px gap) ─────────────────────── */}
+      {hasAny && (
+      <View style={styles.karneDataStack}>
+
+      {/* ── BU AY ─────────────────────────────────────────────────────── */}
       {showMonthly && (
         <View style={styles.karneCard}>
           <View style={styles.karneCardHeader}>
@@ -3777,6 +4072,9 @@ function KarneScreen({ batteryLifecycle, communityBenchmark, monthlyReport, usag
         </View>
       )}
 
+      </View>
+      )}
+
     </ScrollView>
   );
 }
@@ -3797,6 +4095,8 @@ function KarneDataItem({ label, value, unit, accent }: { label: string; value: s
 
 type AracScreenProps = {
   annualReport: ApiAnnualReport | null;
+  batteryLifecycle: ApiBatteryLifecycle | null;
+  canManageDrivers: boolean;
   language: Locale;
   latestAssessment: ApiAssessment | null;
   onAddExternalReport: (provider: string, reportUrl?: string, sohPercent?: number) => void;
@@ -3805,6 +4105,8 @@ type AracScreenProps = {
   onGeneratePublicReport: () => void;
   onManageLocations: () => void;
   onLogout: () => void;
+  onOpenAssessmentModal: () => void;
+  onOpenDrivers: () => void;
   onOpenProfile: () => void;
   premiumReport: ApiPremiumReport | null;
   publicReport: ApiPublicReport | null;
@@ -3816,13 +4118,18 @@ type AracScreenProps = {
 };
 
 function AracScreen({
+  batteryLifecycle,
+  canManageDrivers,
   language,
+  latestAssessment,
   onAddExternalReport,
   onAddServiceVisit,
   onGeneratePremiumReport,
   onGeneratePublicReport,
   onManageLocations,
   onLogout,
+  onOpenAssessmentModal,
+  onOpenDrivers,
   onOpenProfile,
   premiumReport,
   publicReport,
@@ -3832,13 +4139,14 @@ function AracScreen({
   user,
   vehicle,
 }: AracScreenProps) {
+  const translate = createTranslator(language);
   const vehicleImage = vehicle?.imageUrl ?? vehicle?.brandImageUrl ?? HERO_IMAGE;
 
   const serviceTiles = [
-    { label: 'TOPLAM',    value: serviceCompliance ? String(serviceCompliance.total) : '—', br: true,  bb: true  },
-    { label: 'ZAMANINDA', value: serviceCompliance?.rate !== null && serviceCompliance !== null ? `%${serviceCompliance.rate}` : '—', br: false, bb: true  },
-    { label: 'SONRAKİ',   value: serviceCompliance?.nextServiceKm !== null && serviceCompliance !== null ? `${(serviceCompliance.nextServiceKm ?? 0).toLocaleString('tr-TR')} km` : '—', br: true,  bb: false },
-    { label: 'ARALIK',    value: serviceCompliance ? `${serviceCompliance.serviceIntervalKm.toLocaleString('tr-TR')} km` : '—', br: false, bb: false },
+    { label: translate('mobile.service.metric.total'),    value: serviceCompliance ? String(serviceCompliance.total) : '—', br: true,  bb: true  },
+    { label: translate('mobile.service.metric.onTime'),   value: serviceCompliance?.rate !== null && serviceCompliance !== null ? `%${serviceCompliance.rate}` : '—', br: false, bb: true  },
+    { label: translate('mobile.service.metric.next'),     value: serviceCompliance?.nextServiceKm !== null && serviceCompliance !== null ? `${(serviceCompliance.nextServiceKm ?? 0).toLocaleString('tr-TR')} km` : '—', br: true,  bb: false },
+    { label: translate('mobile.service.metric.interval'), value: serviceCompliance ? `${serviceCompliance.serviceIntervalKm.toLocaleString('tr-TR')} km` : '—', br: false, bb: false },
   ];
 
   const karneTiles = [
@@ -3868,6 +4176,81 @@ function AracScreen({
           <Text style={styles.aracHeroStatusText}>AKTİF DURUM: İYİ</Text>
         </View>
       </View>
+
+      {/* ── GÜN 0 DEĞERLENDİRME ───────────────────────────────────────── */}
+      {latestAssessment ? (
+        <View style={styles.aracCard}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={onOpenAssessmentModal}
+            style={styles.aracAssessmentHeader}
+          >
+            <Text style={styles.aracCardTitle}>{translate('mobile.assessment.step')}</Text>
+            <Text style={[styles.aracAssessmentScenario, { color: scenarioColor(latestAssessment.scenarioId) }]}>
+              {latestAssessment.scenarioTitle}  ›
+            </Text>
+          </Pressable>
+          <View style={styles.aracDataGrid}>
+            {[
+              { label: translate('mobile.assessment.metric.annualKm'),      value: latestAssessment.annualKm.toLocaleString('tr-TR'), br: true,  bb: true  },
+              { label: translate('mobile.assessment.metric.estimatedCycle'), value: String(latestAssessment.estimatedTotalFullCycles ?? '—'), br: false, bb: true  },
+              { label: translate('mobile.assessment.metric.vehicleAge'),     value: `${latestAssessment.vehicleAgeYears} ${translate('mobile.assessment.unit.years')}`, br: true,  bb: false },
+              { label: translate('mobile.assessment.metric.city'),           value: latestAssessment.city ?? '—', br: false, bb: false },
+            ].map((t) => (
+              <View
+                key={t.label}
+                style={[
+                  styles.aracDataTile,
+                  t.br ? styles.aracTileBorderRight  : null,
+                  t.bb ? styles.aracTileBorderBottom : null,
+                ]}
+              >
+                <Text style={styles.aracDataTileLabel}>{t.label}</Text>
+                <Text style={styles.aracDataTileValue}>{t.value}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      ) : null}
+
+      {/* ── BATARYA YAŞAM DÖNGÜSÜ ──────────────────────────────────────── */}
+      {batteryLifecycle ? (
+        <View style={styles.aracCard}>
+          <View style={styles.aracCardHeader}>
+            <Text style={styles.aracCardTitle}>BATARYA YAŞAM DÖNGÜSÜ</Text>
+            <View style={[styles.aracPill, { backgroundColor: '#0d1515' }]}>
+              <Text style={[styles.aracPillText, { color: colors.cyan }]}>
+                {batteryUsageGradeLabel(batteryLifecycle.batteryUsageGrade, language)}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.aracDataGrid}>
+            {([
+              { label: 'TOPLAM EFC',    value: batteryLifecycle.totalEfc.toFixed(2),                                                                                  tooltipKey: 'efc'         as TooltipKey, br: true,  bb: true,  accent: true  },
+              { label: 'STRES DÖNGÜ',   value: batteryLifecycle.totalStressAdjustedCycles.toFixed(2),                                                                  tooltipKey: 'stressScore' as TooltipKey, br: false, bb: true,  accent: false },
+              { label: 'DC ŞARJ ORANI', value: batteryLifecycle.dcChargeRatio !== null ? `%${Math.round(batteryLifecycle.dcChargeRatio * 100)}` : '—',                 tooltipKey: 'dcRatio'     as TooltipKey, br: true,  bb: false, accent: false },
+              { label: 'GÜVEN ENDEKSİ', value: batteryLifecycle.confidenceScore !== null ? `%${Math.round(batteryLifecycle.confidenceScore * 100)}` : '—',             tooltipKey: 'confidence'  as TooltipKey, br: false, bb: false, accent: false },
+            ] as const).map((t) => (
+              <View
+                key={t.label}
+                style={[
+                  styles.aracDataTile,
+                  t.br ? styles.aracTileBorderRight  : null,
+                  t.bb ? styles.aracTileBorderBottom : null,
+                ]}
+              >
+                <View style={styles.aracDataTileLabelRow}>
+                  <Text style={styles.aracDataTileLabel}>{t.label}</Text>
+                  <InfoBadge tooltipKey={t.tooltipKey} />
+                </View>
+                <Text style={[styles.aracDataTileValue, t.accent ? { color: colors.cyan } : null]}>
+                  {t.value}
+                </Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      ) : null}
 
       {/* ── SERVİS GEÇMİŞİ ────────────────────────────────────────────── */}
       <View style={styles.aracCard}>
@@ -3952,7 +4335,7 @@ function AracScreen({
       {/* ── PREMIUM RAPOR ──────────────────────────────────────────────── */}
       <View style={styles.aracCard}>
         <View style={styles.aracCardHeader}>
-          <Text style={styles.aracCardTitle}>PREMIUM RAPOR</Text>
+          <Text style={styles.aracCardTitle}>{translate('mobile.premium.report.title')}</Text>
           {premiumReport ? (
             <View style={[styles.aracPill, { backgroundColor: colors.cyan }]}>
               <Text style={[styles.aracPillText, { color: '#004f54' }]}>
@@ -3978,10 +4361,24 @@ function AracScreen({
         ) : null}
         <View style={styles.aracCardFooter}>
           <Pressable accessibilityRole="button" onPress={onGeneratePremiumReport} style={styles.aracOutlineButton}>
-            <Text style={styles.aracOutlineButtonText}>PREMIUM RAPOR OLUŞTUR</Text>
+            <Text style={styles.aracOutlineButtonText}>{translate('mobile.premium.report.generate')}</Text>
           </Pressable>
         </View>
       </View>
+
+      {/* ── SÜRÜCÜLER ──────────────────────────────────────────────────── */}
+      {canManageDrivers ? (
+        <View style={styles.aracCard}>
+          <View style={styles.aracCardHeader}>
+            <Text style={styles.aracCardTitle}>SÜRÜCÜLER</Text>
+          </View>
+          <View style={styles.aracCardFooter}>
+            <Pressable accessibilityRole="button" onPress={onOpenDrivers} style={styles.aracOutlineButton}>
+              <Text style={styles.aracOutlineButtonText}>ERİŞİM YÖNETİMİ</Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
 
       {/* ── DİĞER LİSTE ────────────────────────────────────────────────── */}
       <View style={styles.aracListSection}>
@@ -4233,6 +4630,7 @@ function MapLocationPicker({
 
         {/* MAP — native only, fills entire screen */}
         {Platform.OS !== 'web' && MapView ? (
+          <MapErrorBoundary>
           <MapView
             ref={mapRef}
             initialRegion={ISTANBUL}
@@ -4242,10 +4640,11 @@ function MapLocationPicker({
               setPinRegion(region);
               if (pinLabel) setPinLabel('');
             }}
-            showsUserLocation
+            showsUserLocation={Platform.OS === 'ios'}
             showsMyLocationButton={false}
             style={styles.mapPickerMap}
           />
+          </MapErrorBoundary>
         ) : (
           <View style={styles.mapPickerMapPlaceholder}>
             <Text style={styles.mapPickerPlaceholderText}>Harita telefon uygulamasında görünür</Text>
@@ -4589,26 +4988,111 @@ function openChargeStopNavigation(candidate: ApiChargeStopPoiCandidate) {
 
 type ChargeLoggerStepProps = {
   backendBinding: BackendBinding | null;
+  chargeStartedAt: Date | null;
   form: ChargeForm;
   lastChargeSession: ApiChargeSession | null;
   message: string | null;
   onChange: (field: keyof ChargeForm, value: string) => void;
   onSave: () => void;
+  onStartTimer: () => void;
+  savedLocations: ApiSavedLocation[];
   status: 'idle' | 'saving' | 'offline';
   summary: ApiChargeSummary | null;
 };
 
+function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function elapsedLabel(startedAt: Date) {
+  const diffMs = Date.now() - startedAt.getTime();
+  const totalMin = Math.max(0, Math.floor(diffMs / 60000));
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  return h > 0 ? `${h}sa ${m}dk` : `${m}dk`;
+}
+
 function ChargeLoggerStep({
   backendBinding,
+  chargeStartedAt,
   form,
   lastChargeSession,
   message,
   onChange,
   onSave,
+  onStartTimer,
+  savedLocations,
   status,
   summary,
 }: ChargeLoggerStepProps) {
   const disabled = status === 'saving' || !backendBinding;
+
+  const [detectStatus, setDetectStatus] = useState<'idle' | 'detecting' | 'done' | 'error'>('idle');
+  const [detectNote, setDetectNote] = useState<string | null>(null);
+  const [elapsed, setElapsed] = useState('');
+
+  useEffect(() => {
+    if (!chargeStartedAt) { setElapsed(''); return; }
+    setElapsed(elapsedLabel(chargeStartedAt));
+    const id = setInterval(() => setElapsed(elapsedLabel(chargeStartedAt)), 15000);
+    return () => clearInterval(id);
+  }, [chargeStartedAt]);
+
+  async function detectLocation() {
+    setDetectStatus('detecting');
+    setDetectNote(null);
+    try {
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (permission.status !== Location.PermissionStatus.GRANTED) {
+        setDetectStatus('error');
+        setDetectNote('Konum izni verilmedi.');
+        return;
+      }
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const { latitude, longitude } = pos.coords;
+
+      // Ev kontrolü: kayıtlı 'home' konumlarına mesafe
+      const homeLocation = savedLocations.find((l) => l.locationKind === 'home');
+      const distToHome = homeLocation
+        ? haversineKm(latitude, longitude, homeLocation.latitude, homeLocation.longitude)
+        : Infinity;
+
+      if (distToHome < 0.2) {
+        onChange('locationType', 'home');
+        onChange('stationName', 'Ev Şarjı');
+        setDetectNote(`Ev konumuna ${Math.round(distToHome * 1000)}m yakınsın.`);
+        setDetectStatus('done');
+        if (!chargeStartedAt) onStartTimer();
+        return;
+      }
+
+      // İstasyon arama
+      const result = await fetchNearbyEvStations(latitude, longitude);
+      const nearest = result.stations[0];
+
+      if (nearest) {
+        const distKm = haversineKm(latitude, longitude, nearest.latitude, nearest.longitude);
+        const isDc = nearest.maxDcKw !== null && nearest.maxDcKw >= 22;
+        onChange('locationType', isDc ? 'public_dc' : 'public_ac');
+        onChange('stationName', nearest.stationName);
+        setDetectNote(`${nearest.stationName} — ${Math.round(distKm * 1000)}m`);
+      } else {
+        onChange('locationType', 'public_ac');
+        onChange('stationName', '');
+        setDetectNote('Yakında istasyon bulunamadı, tipi manuel seç.');
+      }
+
+      setDetectStatus('done');
+      if (!chargeStartedAt) onStartTimer();
+    } catch {
+      setDetectStatus('error');
+      setDetectNote('Konum alınamadı. Tekrar dene.');
+    }
+  }
 
   // Segment state derived from form.locationType
   const locationSeg: 'home' | 'station' =
@@ -4681,6 +5165,38 @@ function ChargeLoggerStep({
         </View>
 
         <View style={styles.sarjLogBody}>
+
+          {/* GPS TESPİT BUTONU */}
+          <Pressable
+            disabled={detectStatus === 'detecting'}
+            onPress={detectLocation}
+            style={styles.sarjDetectButton}
+          >
+            <MaterialIcons
+              color={detectStatus === 'detecting' ? colors.muted : colors.cyan}
+              name="my-location"
+              size={16}
+            />
+            <Text style={[styles.sarjDetectText, detectStatus === 'detecting' ? { color: colors.muted } : null]}>
+              {detectStatus === 'detecting' ? 'ALGILANIYOR...' : 'KONUMU TESPİT ET'}
+            </Text>
+          </Pressable>
+
+          {/* TESPİT NOTU */}
+          {detectNote ? (
+            <Text style={[styles.sarjDetectNote, detectStatus === 'error' ? { color: '#e05252' } : null]}>
+              {detectNote}
+            </Text>
+          ) : null}
+
+          {/* SAYAÇ — şarj başladıysa göster */}
+          {chargeStartedAt ? (
+            <View style={styles.sarjTimerRow}>
+              <MaterialIcons color={colors.cyan} name="timer" size={14} />
+              <Text style={styles.sarjTimerText}>ŞARJ SÜRÜYOR: {elapsed}</Text>
+            </View>
+          ) : null}
+
           {/* Segmented Controls */}
           <View style={styles.sarjSegGroup}>
             <View style={styles.sarjSegRow}>
@@ -4699,29 +5215,50 @@ function ChargeLoggerStep({
                 ))}
               </View>
             </View>
-            <View style={styles.sarjSegRow}>
-              <Text style={styles.sarjSegLabel}>TİP</Text>
-              <View style={styles.sarjSegPills}>
-                {(['ac', 'dc'] as const).map((seg) => (
-                  <Pressable
-                    key={seg}
-                    onPress={() => setType(seg)}
-                    style={[styles.sarjSegPill, typeSeg === seg ? styles.sarjSegPillActive : null]}
-                  >
-                    <Text style={[styles.sarjSegPillText, typeSeg === seg ? styles.sarjSegPillTextActive : null]}>
-                      {seg.toUpperCase()}
-                    </Text>
-                  </Pressable>
-                ))}
+            {locationSeg === 'station' ? (
+              <View style={styles.sarjSegRow}>
+                <Text style={styles.sarjSegLabel}>TİP</Text>
+                <View style={styles.sarjSegPills}>
+                  {(['ac', 'dc'] as const).map((seg) => (
+                    <Pressable
+                      key={seg}
+                      onPress={() => setType(seg)}
+                      style={[styles.sarjSegPill, typeSeg === seg ? styles.sarjSegPillActive : null]}
+                    >
+                      <Text style={[styles.sarjSegPillText, typeSeg === seg ? styles.sarjSegPillTextActive : null]}>
+                        {seg.toUpperCase()}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
               </View>
-            </View>
+            ) : null}
+
+            {/* İSTASYON ADI */}
+            {locationSeg === 'station' ? (
+              <View style={styles.sarjStationRow}>
+                <MaterialIcons color={colors.muted} name="ev-station" size={14} />
+                <TextInput
+                  onChangeText={(v) => onChange('stationName', v)}
+                  placeholder="İstasyon adı (opsiyonel)"
+                  placeholderTextColor={colors.muted}
+                  style={styles.sarjStationInput}
+                  value={form.stationName}
+                />
+              </View>
+            ) : null}
           </View>
 
           {/* Input Grid */}
           <View style={styles.sarjInputGrid}>
-            <SarjInput label="BAŞLANGIÇ SOC" value={form.startSoc} onChange={(v) => onChange('startSoc', v)} placeholder="%" />
-            <SarjInput label="BİTİŞ SOC" value={form.endSoc} onChange={(v) => onChange('endSoc', v)} placeholder="%" />
-            <SarjInput label="SÜRE" value={form.perceivedNeed} onChange={(v) => onChange('perceivedNeed', v)} placeholder="1sa 20dk" />
+            <SarjInput label="BAŞLANGIÇ SOC" value={form.startSoc} onChange={(v) => onChange('startSoc', v)} placeholder="%" tooltipKey="soc" />
+            <SarjInput label="BİTİŞ SOC" value={form.endSoc} onChange={(v) => onChange('endSoc', v)} placeholder="%" tooltipKey="soc" />
+            <SarjInput
+              label={chargeStartedAt && !form.perceivedNeed ? `SÜRE (${elapsed || '0dk'})` : 'SÜRE'}
+              value={form.perceivedNeed}
+              onChange={(v) => onChange('perceivedNeed', v)}
+              placeholder={chargeStartedAt ? 'otomatik' : '1sa 20dk'}
+            />
             <SarjInput label="MALİYET" value={form.costAmount} onChange={(v) => onChange('costAmount', v)} placeholder="₺" accent />
           </View>
 
@@ -4786,16 +5323,21 @@ function SarjInput({
   onChange,
   placeholder,
   accent,
+  tooltipKey,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   placeholder: string;
   accent?: boolean;
+  tooltipKey?: TooltipKey;
 }) {
   return (
     <View style={styles.sarjInputBlock}>
-      <Text style={styles.sarjInputLabel}>{label}</Text>
+      <View style={styles.sarjInputLabelRow}>
+        <Text style={styles.sarjInputLabel}>{label}</Text>
+        {tooltipKey ? <InfoBadge tooltipKey={tooltipKey} /> : null}
+      </View>
       <TextInput
         onChangeText={onChange}
         placeholder={placeholder}
@@ -5020,7 +5562,11 @@ type TripRecorderStepProps = {
   onCreateShareCard: () => void;
   onDestSearch: (query: string) => void;
   onFinishTrip: () => void;
+  onDeleteLocation: (locationId: string) => void;
+  onDeleteRoute: (routeId: string) => void;
+  onManageLocations: () => void;
   onOpenMap: (mode: 'origin' | 'destination') => void;
+  onUpdateLocation: (locationId: string, label: string, kind: string) => void;
   onPlaceSelect: (prediction: ApiPlacePrediction) => void;
   onStartTrip: () => void;
   onSelectDestination: (id: string) => void;
@@ -5058,9 +5604,13 @@ function TripRecorderStep({
   message,
   onAppendPoint: _onAppendPoint,
   onCreateShareCard: _onCreateShareCard,
+  onDeleteLocation,
+  onDeleteRoute,
   onDestSearch,
   onFinishTrip,
+  onManageLocations: _onManageLocations,
   onOpenMap,
+  onUpdateLocation,
   onPlaceSelect,
   onStartTrip,
   onSelectDestination,
@@ -5290,7 +5840,153 @@ function TripRecorderStep({
         />
       </View>
 
+      {/* ── KAYITLI KONUMLAR YÖNETİMİ ──────────────────────────────────── */}
+      {(savedLocations.length > 0 || savedRoutes.length > 0) && (
+        <SavedLocationsManager
+          locations={savedLocations}
+          routes={savedRoutes}
+          onDeleteLocation={onDeleteLocation}
+          onDeleteRoute={onDeleteRoute}
+          onUpdateLocation={onUpdateLocation}
+        />
+      )}
+
     </ScrollView>
+  );
+}
+
+const KIND_ICONS: Record<string, string> = { home: 'home', work: 'work', school: 'school', custom: 'location-on' };
+const KIND_LABELS: Record<string, string> = { home: 'Ev', work: 'İş', school: 'Okul', custom: 'Özel' };
+const KIND_OPTIONS = ['home', 'work', 'school', 'custom'] as const;
+
+class MapErrorBoundary extends Component<{ children: React.ReactNode }, { crashed: boolean; reason: string }> {
+  state = { crashed: false, reason: '' };
+  static getDerivedStateFromError(e: unknown) {
+    return { crashed: true, reason: e instanceof Error ? e.message : String(e) };
+  }
+  componentDidCatch(e: unknown) {
+    console.warn('[MapErrorBoundary]', e);
+  }
+  render() {
+    if (this.state.crashed) {
+      return (
+        <View style={{ flex: 1, backgroundColor: '#1a2424', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <Text style={{ color: '#849495', fontSize: 13, textAlign: 'center' }}>Harita bu build'de kullanılamıyor.</Text>
+          {this.state.reason ? (
+            <Text style={{ color: '#849495', fontSize: 10, marginTop: 6, textAlign: 'center', opacity: 0.6 }}>{this.state.reason}</Text>
+          ) : null}
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function SavedLocationsManager({
+  locations,
+  routes,
+  onDeleteLocation,
+  onDeleteRoute,
+  onUpdateLocation,
+}: {
+  locations: ApiSavedLocation[];
+  routes: ApiSavedRoute[];
+  onDeleteLocation: (id: string) => void;
+  onDeleteRoute: (id: string) => void;
+  onUpdateLocation: (id: string, label: string, kind: string) => void;
+}) {
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editLabel, setEditLabel] = useState('');
+  const [editKind, setEditKind] = useState('custom');
+
+  const startEdit = (loc: ApiSavedLocation) => {
+    setEditingId(loc.id);
+    setEditLabel(loc.label);
+    setEditKind(loc.locationKind);
+  };
+
+  const confirmEdit = () => {
+    if (editingId && editLabel.trim()) {
+      onUpdateLocation(editingId, editLabel.trim(), editKind);
+    }
+    setEditingId(null);
+  };
+
+  return (
+    <View style={styles.locMgrWrap}>
+      <Text style={styles.locMgrTitle}>KAYITLI KONUMLAR</Text>
+
+      {locations.map((loc) => (
+        <View key={loc.id} style={styles.locMgrCard}>
+          {editingId === loc.id ? (
+            <View style={styles.locMgrEditWrap}>
+              <TextInput
+                autoFocus
+                onChangeText={setEditLabel}
+                style={styles.locMgrEditInput}
+                value={editLabel}
+              />
+              <View style={styles.locMgrKindRow}>
+                {KIND_OPTIONS.map((k) => (
+                  <Pressable
+                    accessibilityRole="button"
+                    key={k}
+                    onPress={() => setEditKind(k)}
+                    style={[styles.locMgrKindBtn, editKind === k && styles.locMgrKindBtnActive]}
+                  >
+                    <Text style={[styles.locMgrKindBtnText, editKind === k && styles.locMgrKindBtnTextActive]}>
+                      {KIND_LABELS[k]}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+              <View style={styles.locMgrEditActions}>
+                <Pressable accessibilityRole="button" onPress={() => setEditingId(null)} style={styles.locMgrCancelBtn}>
+                  <Text style={styles.locMgrCancelBtnText}>VAZGEÇ</Text>
+                </Pressable>
+                <Pressable accessibilityRole="button" onPress={confirmEdit} style={styles.locMgrSaveBtn}>
+                  <Text style={styles.locMgrSaveBtnText}>KAYDET</Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : (
+            <View style={styles.locMgrRow}>
+              <MaterialIcons name={(KIND_ICONS[loc.locationKind] ?? 'location-on') as any} size={20} color={colors.cyan} />
+              <View style={styles.locMgrInfo}>
+                <Text style={styles.locMgrLabel}>{loc.label}</Text>
+                <Text style={styles.locMgrKind}>{KIND_LABELS[loc.locationKind] ?? loc.locationKind}</Text>
+              </View>
+              <Pressable accessibilityRole="button" onPress={() => startEdit(loc)} style={styles.locMgrAction}>
+                <MaterialIcons name="edit" size={18} color={colors.muted} />
+              </Pressable>
+              <Pressable accessibilityRole="button" onPress={() => onDeleteLocation(loc.id)} style={styles.locMgrAction}>
+                <MaterialIcons name="delete-outline" size={18} color="#ff5252" />
+              </Pressable>
+            </View>
+          )}
+        </View>
+      ))}
+
+      {routes.length > 0 && (
+        <>
+          <Text style={[styles.locMgrTitle, { marginTop: 16 }]}>KAYITLI ROTALAR</Text>
+          {routes.map((route) => (
+            <View key={route.id} style={styles.locMgrCard}>
+              <View style={styles.locMgrRow}>
+                <MaterialIcons name="route" size={20} color={colors.cyan} />
+                <View style={styles.locMgrInfo}>
+                  <Text style={styles.locMgrLabel}>{route.label}</Text>
+                  <Text style={styles.locMgrKind}>{route.originLabel} → {route.destinationLabel}</Text>
+                </View>
+                <Pressable accessibilityRole="button" onPress={() => onDeleteRoute(route.id)} style={styles.locMgrAction}>
+                  <MaterialIcons name="delete-outline" size={18} color="#ff5252" />
+                </Pressable>
+              </View>
+            </View>
+          ))}
+        </>
+      )}
+    </View>
   );
 }
 
@@ -5329,10 +6025,46 @@ function MiniSpec({ label, value }: { label: string; value: string }) {
   );
 }
 
-function MetricTile({ label, value }: { label: string; value: string }) {
+function InfoBadge({ tooltipKey, locale = 'tr' }: { tooltipKey: TooltipKey; locale?: 'tr' | 'en' }) {
+  const [visible, setVisible] = useState(false);
+  const { title, body } = getTooltip(tooltipKey, locale);
+  return (
+    <>
+      <Pressable
+        accessibilityRole="button"
+        hitSlop={8}
+        onPress={() => setVisible(true)}
+        style={styles.infoBadge}
+      >
+        <Text style={styles.infoBadgeText}>?</Text>
+      </Pressable>
+      <Modal
+        animationType="fade"
+        onRequestClose={() => setVisible(false)}
+        transparent
+        visible={visible}
+      >
+        <Pressable onPress={() => setVisible(false)} style={styles.infoBadgeOverlay}>
+          <View style={styles.infoBadgeSheet}>
+            <Text style={styles.infoBadgeTitle}>{title}</Text>
+            <Text style={styles.infoBadgeBody}>{body}</Text>
+            <Pressable onPress={() => setVisible(false)} style={styles.infoBadgeClose}>
+              <Text style={styles.infoBadgeCloseText}>TAMAM</Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
+    </>
+  );
+}
+
+function MetricTile({ label, value, tooltipKey, locale }: { label: string; value: string; tooltipKey?: TooltipKey; locale?: 'tr' | 'en' }) {
   return (
     <View style={styles.metricTile}>
-      <Text style={styles.label}>{label}</Text>
+      <View style={styles.metricTileHeader}>
+        <Text style={styles.label}>{label}</Text>
+        {tooltipKey ? <InfoBadge tooltipKey={tooltipKey} locale={locale} /> : null}
+      </View>
       <Text style={styles.metricValue}>{value}</Text>
     </View>
   );
@@ -5586,6 +6318,7 @@ function filterText(items: string[], query: string) {
 
 function buildBackendBinding(user: ApiUser, activeBinding: NonNullable<ApiActiveBinding>): BackendBinding {
   return {
+    access: activeBinding.access,
     catalogKey: activeBinding.catalogKey ?? activeBinding.vehicle.vehicleSpecId,
     ownership: activeBinding.ownership,
     user,
@@ -5848,7 +6581,7 @@ function titleForStep(step: Step, brand: string | null, model: string | null, lo
   }
 
   if (step === 'assessment') {
-    return 'GÜN 0 DEĞERLENDİRME';
+    return translate('mobile.assessment.step');
   }
 
   if (step === 'yolculuk') {
@@ -6088,6 +6821,7 @@ function AssessmentInputStep({
   odometerKm,
   purchaseYear,
   city,
+  language,
   onChangeOdometerKm,
   onChangePurchaseYear,
   onChangeCity,
@@ -6096,11 +6830,13 @@ function AssessmentInputStep({
   odometerKm: string;
   purchaseYear: string;
   city: string;
+  language: Locale;
   onChangeOdometerKm: (v: string) => void;
   onChangePurchaseYear: (v: string) => void;
   onChangeCity: (v: string) => void;
   vehicle: VehicleCatalogItem | null;
 }) {
+  const translate = createTranslator(language);
   const [gpsStatus, setGpsStatus] = useState<'detecting' | 'detected' | 'failed'>('detecting');
 
   useEffect(() => {
@@ -6146,15 +6882,15 @@ function AssessmentInputStep({
 
   const gpsLabel =
     gpsStatus === 'detecting'
-      ? 'Konum algılanıyor...'
+      ? translate('mobile.assessment.gps.detecting')
       : gpsStatus === 'detected'
-        ? `Konumdan algılandı${city ? `: ${city}` : ''}`
-        : 'Konum alınamadı';
+        ? `${translate('mobile.assessment.gps.detected')}${city ? `: ${city}` : ''}`
+        : translate('mobile.assessment.gps.failed');
 
   return (
     <ScrollView contentContainerStyle={styles.content}>
       <View style={styles.successHeader}>
-        <Text style={styles.heading}>Gün 0 Değerlendirme</Text>
+        <Text style={styles.heading}>{translate('mobile.assessment.title')}</Text>
         <Text style={styles.description}>
           {vehicle ? `${vehicle.brand} ${vehicle.model}` : 'Araç'}
           {' '}için mevcut durumu girebilirsin.{'\n'}
@@ -6163,7 +6899,7 @@ function AssessmentInputStep({
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.cardLabel}>GÜNCEL KİLOMETRE</Text>
+        <Text style={styles.cardLabel}>{translate('mobile.assessment.odometerLabel')}</Text>
         <TextInput
           style={styles.formInput}
           keyboardType="numeric"
@@ -6173,7 +6909,7 @@ function AssessmentInputStep({
           maxLength={7}
         />
 
-        <Text style={[styles.cardLabel, { marginTop: 16 }]}>ARACIN SATIN ALINDIĞI YIL</Text>
+        <Text style={[styles.cardLabel, { marginTop: 16 }]}>{translate('mobile.assessment.yearLabel')}</Text>
         <TextInput
           style={styles.formInput}
           keyboardType="numeric"
@@ -6184,7 +6920,7 @@ function AssessmentInputStep({
         />
 
         <View style={[styles.rowBetween, { marginTop: 16 }]}>
-          <Text style={styles.cardLabel}>KULLANIM ŞEHRİ</Text>
+          <Text style={styles.cardLabel}>{translate('mobile.assessment.cityLabel')}</Text>
           <Text style={[styles.signalCaption, { marginBottom: 0 }]}>{gpsLabel}</Text>
         </View>
         <View style={styles.cityPills}>
@@ -6203,7 +6939,7 @@ function AssessmentInputStep({
             style={[styles.cityPill, city !== '' && !ASSESSMENT_CITIES.includes(city) && styles.cityPillActive]}
             onPress={() => onChangeCity('')}
           >
-            <Text style={[styles.cityPillText, city !== '' && !ASSESSMENT_CITIES.includes(city) && styles.cityPillTextActive]}>Diğer</Text>
+            <Text style={[styles.cityPillText, city !== '' && !ASSESSMENT_CITIES.includes(city) && styles.cityPillTextActive]}>{translate('mobile.assessment.city.other')}</Text>
           </Pressable>
         </View>
         <Text style={styles.signalCaption}>
@@ -6211,6 +6947,184 @@ function AssessmentInputStep({
         </Text>
       </View>
     </ScrollView>
+  );
+}
+
+function roleLabel(role: string) {
+  if (role === 'owner')   return 'Sahip';
+  if (role === 'manager') return 'Yönetici';
+  if (role === 'driver')  return 'Sürücü';
+  if (role === 'viewer')  return 'Görüntüleyici';
+  return role;
+}
+
+function roleColor(role: string) {
+  if (role === 'owner')   return colors.cyan;
+  if (role === 'manager') return '#84cc16';
+  if (role === 'driver')  return '#f59e0b';
+  return '#849495';
+}
+
+function VehicleSwitcherModal({
+  visible,
+  vehicles,
+  activeVehicleId,
+  onSwitch,
+  onClose,
+}: {
+  visible: boolean;
+  vehicles: NonNullable<ApiActiveBinding>[];
+  activeVehicleId: string | null;
+  onSwitch: (v: NonNullable<ApiActiveBinding>) => void;
+  onClose: () => void;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.welcomeModalOverlay}>
+        <View style={[styles.welcomeModalSheet, { maxHeight: '70%' }]}>
+          <View style={styles.welcomeModalHandle} />
+          <Pressable accessibilityRole="button" onPress={onClose} style={styles.welcomeModalClose}>
+            <MaterialIcons color={colors.muted} name="close" size={20} />
+          </Pressable>
+          <Text style={[styles.label, { marginHorizontal: 24, marginTop: 12, marginBottom: 8 }]}>ARAÇLARIM</Text>
+          <ScrollView bounces={false} contentContainerStyle={{ paddingBottom: 32, paddingHorizontal: 24 }} showsVerticalScrollIndicator={false}>
+            {vehicles.map((v) => {
+              const isActive = v.vehicle.id === activeVehicleId;
+              const role = v.access?.role ?? 'owner';
+              return (
+                <Pressable
+                  key={v.vehicle.id}
+                  accessibilityRole="button"
+                  onPress={() => onSwitch(v)}
+                  style={[
+                    styles.bindingPanel,
+                    { marginBottom: 8, paddingVertical: 12, paddingHorizontal: 16 },
+                    isActive ? { borderColor: colors.cyan, borderWidth: 1 } : null,
+                  ]}
+                >
+                  <View style={styles.rowBetween}>
+                    <Text style={styles.bindingTitle} numberOfLines={1}>{v.vehicle.displayName}</Text>
+                    <View style={[styles.aracPill, { backgroundColor: roleColor(role) + '22' }]}>
+                      <Text style={[styles.aracPillText, { color: roleColor(role) }]}>{roleLabel(role).toUpperCase()}</Text>
+                    </View>
+                  </View>
+                  {isActive ? (
+                    <Text style={[styles.signalCaption, { color: colors.cyan, marginTop: 4, marginBottom: 0 }]}>● AKTİF</Text>
+                  ) : (
+                    <Text style={[styles.signalCaption, { marginTop: 4, marginBottom: 0 }]}>Geçmek için dokun</Text>
+                  )}
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function DriversModal({
+  visible,
+  vehicleName,
+  accessList,
+  loading,
+  inviteIdentifier,
+  inviteLoading,
+  inviteResult,
+  onChangeIdentifier,
+  onCreateInvite,
+  onRevoke,
+  onClose,
+}: {
+  visible: boolean;
+  vehicleName: string;
+  accessList: ApiVehicleAccess[];
+  loading: boolean;
+  inviteIdentifier: string;
+  inviteLoading: boolean;
+  inviteResult: ApiVehicleInvite | null;
+  onChangeIdentifier: (v: string) => void;
+  onCreateInvite: () => void;
+  onRevoke: (accessId: string) => void;
+  onClose: () => void;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.welcomeModalOverlay}>
+        <View style={[styles.welcomeModalSheet, { maxHeight: '85%' }]}>
+          <View style={styles.welcomeModalHandle} />
+          <Pressable accessibilityRole="button" onPress={onClose} style={styles.welcomeModalClose}>
+            <MaterialIcons color={colors.muted} name="close" size={20} />
+          </Pressable>
+          <Text style={[styles.label, { marginHorizontal: 24, marginTop: 12, marginBottom: 8 }]}>ARAÇ ERİŞİMİ</Text>
+          <Text style={[styles.signalCaption, { marginHorizontal: 24, marginBottom: 12 }]}>{vehicleName}</Text>
+          <ScrollView bounces={false} contentContainerStyle={{ paddingBottom: 32, paddingHorizontal: 24 }} showsVerticalScrollIndicator={false}>
+
+            {/* Mevcut erişim listesi */}
+            {loading ? (
+              <Text style={styles.signalCaption}>Yükleniyor...</Text>
+            ) : accessList.length === 0 ? (
+              <Text style={styles.signalCaption}>Erişim kaydı yok.</Text>
+            ) : (
+              accessList.map((a) => (
+                <View key={a.accessId} style={[styles.rowBetween, { marginBottom: 8, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#1e2a2a' }]}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.cardLabel}>{a.fullName ?? a.username ?? a.userId.slice(0, 8)}</Text>
+                    <View style={[styles.aracPill, { alignSelf: 'flex-start', marginTop: 4, backgroundColor: roleColor(a.role) + '22' }]}>
+                      <Text style={[styles.aracPillText, { color: roleColor(a.role) }]}>{roleLabel(a.role).toUpperCase()}</Text>
+                    </View>
+                  </View>
+                  {a.role !== 'owner' ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={() => onRevoke(a.accessId)}
+                      style={[styles.secondaryButton, { paddingHorizontal: 12, paddingVertical: 6 }]}
+                    >
+                      <Text style={[styles.secondaryButtonText, { fontSize: 11 }]}>İPTAL</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              ))
+            )}
+
+            {/* Davet oluştur */}
+            <Text style={[styles.cardLabel, { marginTop: 20, marginBottom: 8 }]}>SÜRÜCÜ DAVET ET</Text>
+            {inviteResult ? (
+              <View style={styles.card}>
+                <Text style={[styles.signalCaption, { marginBottom: 8 }]}>Davet linki oluşturuldu. Kopyalayıp paylaş:</Text>
+                <Text style={[styles.bindingText, { color: colors.cyan, fontSize: 12 }]} selectable>{inviteResult.webUrl}</Text>
+                <Pressable
+                  accessibilityRole="button"
+                  style={[styles.secondaryButton, { marginTop: 12 }]}
+                  onPress={() => { void Share.share({ message: inviteResult.webUrl, url: inviteResult.webUrl }); }}
+                >
+                  <Text style={styles.secondaryButtonText}>PAYLAŞ</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <View>
+                <TextInput
+                  style={styles.formInput}
+                  placeholder="E-posta veya kullanıcı adı"
+                  value={inviteIdentifier}
+                  onChangeText={onChangeIdentifier}
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                />
+                <Pressable
+                  accessibilityRole="button"
+                  style={[styles.secondaryButton, { marginTop: 8, opacity: inviteLoading ? 0.5 : 1 }]}
+                  onPress={onCreateInvite}
+                  disabled={inviteLoading}
+                >
+                  <Text style={styles.secondaryButtonText}>{inviteLoading ? 'OLUŞTURULUYOR...' : 'DAVET OLUŞTUR'}</Text>
+                </Pressable>
+              </View>
+            )}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -6223,11 +7137,13 @@ function scenarioColor(scenarioId: string) {
 function WelcomeAssessmentModal({
   visible,
   assessment,
+  isOnboarding,
   vehicle,
   onDismiss,
 }: {
   visible: boolean;
   assessment: ApiAssessment | null;
+  isOnboarding?: boolean;
   vehicle: VehicleCatalogItem | null;
   onDismiss: () => void;
 }) {
@@ -6240,81 +7156,100 @@ function WelcomeAssessmentModal({
     >
       <View style={styles.welcomeModalOverlay}>
         <View style={styles.welcomeModalSheet}>
+          {/* Sabit: handle + X butonu */}
           <View style={styles.welcomeModalHandle} />
+          <Pressable
+            accessibilityRole="button"
+            onPress={onDismiss}
+            style={styles.welcomeModalClose}
+          >
+            <MaterialIcons color={colors.muted} name="close" size={20} />
+          </Pressable>
 
-          {assessment === null ? (
-            <View style={styles.welcomeModalLoading}>
-              <ActivityIndicator size="large" color="#fff" />
-              <Text style={styles.welcomeModalLoadingText}>Araç analiz ediliyor...</Text>
-            </View>
-          ) : (
-            <>
-              <Text style={styles.welcomeModalBadge}>GÜN 0 DEĞERLENDİRME</Text>
-              <Text style={styles.welcomeModalTitle}>
-                {vehicle ? `${vehicle.brand} ${vehicle.model}` : 'Aracın'}
-              </Text>
-              <Text style={[styles.welcomeModalScenario, { color: scenarioColor(assessment.scenarioId) }]}>
-                {assessment.scenarioTitle}
-              </Text>
-
-              <View style={styles.metricGrid}>
-                <MetricTile label="YILLIK KM" value={assessment.annualKm.toLocaleString('tr-TR')} />
-                <MetricTile
-                  label="TAH. DÖNGÜ"
-                  value={assessment.estimatedTotalFullCycles !== null
-                    ? String(assessment.estimatedTotalFullCycles)
-                    : '—'}
-                />
-                <MetricTile label="ARAÇ YAŞI" value={`${assessment.vehicleAgeYears} yıl`} />
-                <MetricTile label="ŞEHİR" value={assessment.city ?? '—'} />
+          {/* Kaydırılabilir içerik */}
+          <ScrollView
+            bounces={false}
+            contentContainerStyle={styles.welcomeModalScroll}
+            showsVerticalScrollIndicator={false}
+          >
+            {assessment === null ? (
+              <View style={styles.welcomeModalLoading}>
+                <ActivityIndicator size="large" color="#fff" />
+                <Text style={styles.welcomeModalLoadingText}>Araç analiz ediliyor...</Text>
               </View>
+            ) : (
+              <>
+                <Text style={styles.welcomeModalBadge}>GÜN 0 DEĞERLENDİRME</Text>
+                <Text style={styles.welcomeModalTitle}>
+                  {vehicle ? `${vehicle.brand} ${vehicle.model}` : 'Aracın'}
+                </Text>
+                <Text style={[styles.welcomeModalScenario, { color: scenarioColor(assessment.scenarioId) }]}>
+                  {assessment.scenarioTitle}
+                </Text>
 
-              <Text style={styles.welcomeModalBody}>{assessment.scenarioBody}</Text>
+                <View style={styles.metricGrid}>
+                  <MetricTile label="YILLIK KM" value={assessment.annualKm.toLocaleString('tr-TR')} />
+                  <MetricTile
+                    label="TAH. DÖNGÜ"
+                    tooltipKey="efc"
+                    value={assessment.estimatedTotalFullCycles !== null
+                      ? String(assessment.estimatedTotalFullCycles)
+                      : '—'}
+                  />
+                  <MetricTile label="ARAÇ YAŞI" value={`${assessment.vehicleAgeYears} yıl`} />
+                  <MetricTile label="ŞEHİR" value={assessment.city ?? '—'} />
+                </View>
 
-              <Pressable
-                accessibilityRole="button"
-                style={styles.welcomeModalCta}
-                onPress={onDismiss}
-              >
-                <Text style={styles.welcomeModalCtaText}>KARNEYE BAŞLA</Text>
-              </Pressable>
-            </>
-          )}
+                <Text style={styles.welcomeModalBody}>{assessment.scenarioBody}</Text>
+
+                {isOnboarding ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    style={styles.welcomeModalCta}
+                    onPress={onDismiss}
+                  >
+                    <Text style={styles.welcomeModalCtaText}>KARNEYE BAŞLA</Text>
+                  </Pressable>
+                ) : null}
+              </>
+            )}
+          </ScrollView>
         </View>
       </View>
     </Modal>
   );
 }
 
-function AssessmentResultBlock({ assessment }: { assessment: ApiAssessment }) {
+function AssessmentResultBlock({ assessment, language }: { assessment: ApiAssessment; language: Locale }) {
+  const translate = createTranslator(language);
   const [expanded, setExpanded] = useState(false);
 
   return (
     <View style={styles.learningBlock}>
       <View style={styles.rowBetween}>
-        <Text style={styles.label}>GÜN 0 DEĞERLENDİRME</Text>
+        <Text style={styles.label}>{translate('mobile.assessment.step')}</Text>
         <Text style={[styles.learningPill, { color: scenarioColor(assessment.scenarioId) }]}>
           {assessment.scenarioTitle}
         </Text>
       </View>
       <View style={styles.metricGrid}>
         <MetricTile
-          label="YILLIK KM"
+          label={translate('mobile.assessment.metric.annualKm')}
           value={assessment.annualKm.toLocaleString('tr-TR')}
         />
         <MetricTile
-          label="TAH. DÖNGÜ"
+          label={translate('mobile.assessment.metric.estimatedCycle')}
           value={assessment.estimatedTotalFullCycles !== null
             ? String(assessment.estimatedTotalFullCycles)
             : '—'}
         />
         <MetricTile
-          label="ŞEHİR"
+          label={translate('mobile.assessment.metric.city')}
           value={assessment.city ?? '—'}
         />
         <MetricTile
-          label="ARAÇ YAŞI"
-          value={`${assessment.vehicleAgeYears} yıl`}
+          label={translate('mobile.assessment.metric.vehicleAge')}
+          value={`${assessment.vehicleAgeYears} ${translate('mobile.assessment.unit.years')}`}
         />
       </View>
       <Pressable
@@ -6323,7 +7258,7 @@ function AssessmentResultBlock({ assessment }: { assessment: ApiAssessment }) {
         onPress={() => setExpanded(!expanded)}
       >
         <Text style={styles.secondaryButtonText}>
-          {expanded ? 'DETAYI GİZLE' : 'DEĞERLENDİRMEYİ GÖR'}
+          {expanded ? translate('mobile.assessment.hideScenario') : translate('mobile.assessment.showScenario')}
         </Text>
       </Pressable>
       {expanded ? (
@@ -6346,13 +7281,16 @@ function drivingStyleColor(score: number | null) {
 
 function PremiumReportBlock({
   report,
+  language,
   onGenerate,
   onAddExternalReport,
 }: {
   report: ApiPremiumReport | null;
+  language: Locale;
   onGenerate: () => void;
   onAddExternalReport: (provider: string, reportUrl?: string, sohPercent?: number) => void;
 }) {
+  const translate = createTranslator(language);
   const [driverExpanded, setDriverExpanded] = useState(false);
   const [addExtVisible, setAddExtVisible] = useState(false);
   const [extProvider, setExtProvider] = useState('');
@@ -6367,9 +7305,9 @@ function PremiumReportBlock({
   return (
     <View style={styles.learningBlock}>
       <View style={styles.rowBetween}>
-        <Text style={styles.label}>PREMIUM RAPOR</Text>
+        <Text style={styles.label}>{translate('mobile.premium.report.title')}</Text>
         <Text style={styles.learningPill}>
-          {report ? new Date(report.createdAt).toLocaleDateString('tr-TR') : 'Oluşturulmadı'}
+          {report ? new Date(report.createdAt).toLocaleDateString('tr-TR') : translate('mobile.premium.report.notCreated')}
         </Text>
       </View>
 
@@ -6378,15 +7316,15 @@ function PremiumReportBlock({
           {/* Section 1 – Araç Ön Özeti (from Day 0 assessment) */}
           {d.vehicleSummary ? (
             <View style={styles.metricGrid}>
-              <MetricTile label="SENARYO" value={d.vehicleSummary.scenarioTitle} />
-              <MetricTile label="YILLIK KM" value={d.vehicleSummary.annualKm.toLocaleString('tr-TR')} />
+              <MetricTile label={translate('mobile.premium.report.metric.scenario')} value={d.vehicleSummary.scenarioTitle} />
+              <MetricTile label={translate('mobile.premium.report.metric.annualKm')} value={d.vehicleSummary.annualKm.toLocaleString('tr-TR')} />
               <MetricTile
-                label="TAH. DÖNGÜ"
+                label={translate('mobile.premium.report.metric.estimatedCycle')}
                 value={d.vehicleSummary.estimatedTotalFullCycles !== null
                   ? String(d.vehicleSummary.estimatedTotalFullCycles)
                   : '—'}
               />
-              <MetricTile label="ŞEHİR" value={d.vehicleSummary.city ?? '—'} />
+              <MetricTile label={translate('mobile.premium.report.metric.city')} value={d.vehicleSummary.city ?? '—'} />
             </View>
           ) : null}
 
@@ -6394,7 +7332,7 @@ function PremiumReportBlock({
           {ds ? (
             <>
               <View style={[styles.rowBetween, { marginTop: 12 }]}>
-                <Text style={[styles.cardLabel, { flex: 1 }]}>ŞOFÖR PROFİLİ</Text>
+                <Text style={[styles.cardLabel, { flex: 1 }]}>{translate('mobile.premium.report.driverProfile')}</Text>
                 <Text style={[styles.learningPill, { color: drivingStyleColor(ds.score) }]}>
                   {ds.label}
                   {ds.score !== null ? ` (${ds.score}/100)` : ''}
@@ -6402,21 +7340,21 @@ function PremiumReportBlock({
               </View>
               <View style={styles.metricGrid}>
                 <MetricTile
-                  label="DC ŞARJ"
+                  label={translate('mobile.premium.report.metric.dcCharge')}
                   value={ds.signals.dcFastChargeRatio !== null ? `%${ds.signals.dcFastChargeRatio}` : '—'}
                 />
                 <MetricTile
-                  label="TÜKETİM SAPMA"
+                  label={translate('mobile.premium.report.metric.consumptionDev')}
                   value={ds.signals.consumptionDeviationPercent !== null
                     ? `%${ds.signals.consumptionDeviationPercent > 0 ? '+' : ''}${ds.signals.consumptionDeviationPercent}`
                     : '—'}
                 />
                 <MetricTile
-                  label="ŞARJ TARZI"
+                  label={translate('mobile.premium.report.metric.chargingStyle')}
                   value={d.driverUsageProfile.chargingStyle.label}
                 />
                 <MetricTile
-                  label="BATARYA"
+                  label={translate('mobile.premium.report.metric.battery')}
                   value={ds.signals.batteryUsageGrade ?? '—'}
                 />
               </View>
@@ -6426,7 +7364,7 @@ function PremiumReportBlock({
                 onPress={() => setDriverExpanded(!driverExpanded)}
               >
                 <Text style={styles.secondaryButtonText}>
-                  {driverExpanded ? 'ÖZETİ GİZLE' : 'ŞOFÖR ÖZETİNİ GÖR'}
+                  {driverExpanded ? translate('mobile.premium.report.hideDriverSummary') : translate('mobile.premium.report.showDriverSummary')}
                 </Text>
               </Pressable>
               {driverExpanded ? (
@@ -6440,22 +7378,22 @@ function PremiumReportBlock({
           {/* Section 3 – Ekonomik Özet */}
           {eco ? (
             <>
-              <Text style={[styles.cardLabel, { marginTop: 12 }]}>EKONOMİK ÖZET</Text>
+              <Text style={[styles.cardLabel, { marginTop: 12 }]}>{translate('mobile.premium.report.economicSummary')}</Text>
               <View style={styles.metricGrid}>
                 <MetricTile
-                  label="TOPLAM kWh"
+                  label={translate('mobile.premium.report.metric.totalKwh')}
                   value={eco.totalKwh !== null ? `${Math.round(eco.totalKwh)} kWh` : '—'}
                 />
                 <MetricTile
-                  label="GÜNCEL MALİYET"
+                  label={translate('mobile.premium.report.metric.currentCost')}
                   value={eco.currentTariffCost !== null ? `${eco.currentTariffCost.toLocaleString('tr-TR')} ₺` : '—'}
                 />
                 <MetricTile
-                  label="BENZİNLİ MUADİL"
+                  label={translate('mobile.premium.report.metric.fossilEquiv')}
                   value={eco.fossilEquivCost !== null ? `${Math.round(eco.fossilEquivCost).toLocaleString('tr-TR')} ₺` : '—'}
                 />
                 <MetricTile
-                  label="TASARRUF"
+                  label={translate('mobile.premium.report.metric.savings')}
                   value={eco.estimatedSavingsTl !== null ? `${Math.round(eco.estimatedSavingsTl).toLocaleString('tr-TR')} ₺` : '—'}
                 />
               </View>
@@ -6465,7 +7403,7 @@ function PremiumReportBlock({
           {/* Section 4 – Dış Batarya Raporları */}
           {ext.length > 0 ? (
             <>
-              <Text style={[styles.cardLabel, { marginTop: 12 }]}>DIŞ BATARYA RAPORLARI</Text>
+              <Text style={[styles.cardLabel, { marginTop: 12 }]}>{translate('mobile.premium.report.externalBattery')}</Text>
               {ext.map((r) => (
                 <Text key={r.id} style={styles.signalCaption} numberOfLines={2}>
                   {r.provider}{r.reportType ? ` · ${r.reportType}` : ''}{r.reportDate ? ` · ${r.reportDate}` : ''}
@@ -6480,20 +7418,20 @@ function PremiumReportBlock({
             <View style={{ marginTop: 12, gap: 8 }}>
               <TextInput
                 style={styles.formInput}
-                placeholder="Sağlayıcı (örn. TÜV Rheinland)"
+                placeholder={translate('mobile.premium.report.providerPlaceholder')}
                 value={extProvider}
                 onChangeText={setExtProvider}
               />
               <TextInput
                 style={styles.formInput}
-                placeholder="Rapor URL (opsiyonel)"
+                placeholder={translate('mobile.premium.report.urlPlaceholder')}
                 value={extUrl}
                 onChangeText={setExtUrl}
                 autoCapitalize="none"
               />
               <TextInput
                 style={styles.formInput}
-                placeholder="SOH % (opsiyonel, örn. 92)"
+                placeholder={translate('mobile.premium.report.sohPlaceholder')}
                 value={extSoh}
                 onChangeText={setExtSoh}
                 keyboardType="numeric"
@@ -6515,7 +7453,7 @@ function PremiumReportBlock({
                   setAddExtVisible(false);
                 }}
               >
-                <Text style={styles.secondaryButtonText}>RAPORU BAĞLA</Text>
+                <Text style={styles.secondaryButtonText}>{translate('mobile.premium.report.linkReport')}</Text>
               </Pressable>
             </View>
           ) : (
@@ -6524,17 +7462,17 @@ function PremiumReportBlock({
               style={[styles.secondaryButton, { marginTop: 8 }]}
               onPress={() => setAddExtVisible(true)}
             >
-              <Text style={styles.secondaryButtonText}>DIŞ RAPOR EKLE</Text>
+              <Text style={styles.secondaryButtonText}>{translate('mobile.premium.report.addExternal')}</Text>
             </Pressable>
           )}
         </>
       ) : (
         <>
           <Text style={styles.signalCaption}>
-            4 bölümlü premium rapor: araç ön özeti, şoför kullanım profili, ekonomik özet ve QR doğrulaması.
+            {translate('mobile.premium.report.generateDescription')}
           </Text>
           <Pressable accessibilityRole="button" style={styles.secondaryButton} onPress={onGenerate}>
-            <Text style={styles.secondaryButtonText}>PREMIUM RAPOR OLUŞTUR</Text>
+            <Text style={styles.secondaryButtonText}>{translate('mobile.premium.report.generate')}</Text>
           </Pressable>
         </>
       )}
@@ -6958,11 +7896,11 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 20,
-    paddingBottom: 120,
+    paddingBottom: 160,
   },
   contentWithBottomAction: {
     padding: 20,
-    paddingBottom: 148,
+    paddingBottom: 180,
   },
   accountPanel: {
     backgroundColor: colors.panel,
@@ -7368,9 +8306,9 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     bottom: 0,
     flexDirection: 'row',
-    height: 64,
     justifyContent: 'space-around',
     left: 0,
+    minHeight: 64,
     paddingHorizontal: 12,
     position: 'absolute',
     right: 0,
@@ -7378,17 +8316,20 @@ const styles = StyleSheet.create({
   bottomNavItem: {
     alignItems: 'center',
     flex: 1,
-    gap: 4,
+    gap: 3,
     justifyContent: 'center',
+    paddingTop: 4,
+  },
+  bottomNavActiveBar: {
+    position: 'absolute',
+    top: 0,
+    width: 24,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: colors.cyan,
   },
   bottomNavItemActive: {},
-  bottomNavIcon: {
-    color: colors.muted,
-    fontSize: 20,
-  },
-  bottomNavIconActive: {
-    color: colors.cyan,
-  },
+  bottomNavIconActive: {},
   bottomNavLabel: {
     color: colors.muted,
     fontSize: 10,
@@ -7708,11 +8649,73 @@ const styles = StyleSheet.create({
     padding: 14,
     width: '47%',
   },
+  metricTileHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 2,
+  },
   metricValue: {
     color: colors.text,
     fontSize: 16,
     fontWeight: '900',
     lineHeight: 22,
+  },
+  // InfoBadge
+  infoBadge: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#2e3637',
+    borderColor: colors.muted,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  infoBadgeText: {
+    color: colors.muted,
+    fontSize: 9,
+    fontWeight: '700',
+    lineHeight: 11,
+  },
+  infoBadgeOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  infoBadgeSheet: {
+    backgroundColor: '#1e2d2e',
+    borderColor: colors.line,
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 20,
+    gap: 10,
+  },
+  infoBadgeTitle: {
+    color: colors.cyan,
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  infoBadgeBody: {
+    color: '#c0cbcb',
+    fontSize: 13,
+    lineHeight: 20,
+  },
+  infoBadgeClose: {
+    alignSelf: 'flex-end',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderColor: colors.line,
+    borderWidth: 1,
+    marginTop: 4,
+  },
+  infoBadgeCloseText: {
+    color: colors.muted,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1.5,
   },
   chargeRecommendation: {
     gap: 2,
@@ -7873,9 +8876,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.panel,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
+    maxHeight: '85%',
+    paddingTop: 12,
+  },
+  welcomeModalScroll: {
     paddingBottom: 40,
     paddingHorizontal: 24,
-    paddingTop: 12,
   },
   welcomeModalHandle: {
     alignSelf: 'center',
@@ -7884,6 +8890,13 @@ const styles = StyleSheet.create({
     height: 4,
     marginBottom: 24,
     width: 40,
+  },
+  welcomeModalClose: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    padding: 6,
+    zIndex: 1,
   },
   welcomeModalLoading: {
     alignItems: 'center',
@@ -8031,7 +9044,7 @@ const styles = StyleSheet.create({
   yolculukScroll: {
     paddingHorizontal: 20,
     paddingTop: 20,
-    paddingBottom: 100,
+    paddingBottom: 140,
     gap: 16,
   },
   // Status row
@@ -8260,6 +9273,22 @@ const styles = StyleSheet.create({
     letterSpacing: 1.5,
   },
   // Saved routes
+  yolculukSavedHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  yolculukManageBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  yolculukManageBtnText: {
+    color: colors.cyan,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1.5,
+  },
   yolculukSavedSection: {
     gap: 8,
   },
@@ -8373,11 +9402,116 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
 
+  // ── Kayıtlı Konumlar Yönetimi ─────────────────────────────────────────
+  locMgrWrap: {
+    gap: 8,
+    paddingTop: 8,
+  },
+  locMgrTitle: {
+    color: colors.muted,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1.5,
+    marginBottom: 4,
+  },
+  locMgrCard: {
+    backgroundColor: '#192122',
+    borderColor: colors.line,
+    borderWidth: 1,
+    borderRadius: 4,
+    padding: 12,
+  },
+  locMgrRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  locMgrInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  locMgrLabel: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  locMgrKind: {
+    color: colors.muted,
+    fontSize: 11,
+  },
+  locMgrAction: {
+    padding: 4,
+  },
+  locMgrEditWrap: {
+    gap: 10,
+  },
+  locMgrEditInput: {
+    backgroundColor: colors.background,
+    borderColor: colors.cyan,
+    borderWidth: 1,
+    borderRadius: 4,
+    color: colors.text,
+    fontSize: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  locMgrKindRow: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  locMgrKindBtn: {
+    borderColor: colors.line,
+    borderWidth: 1,
+    borderRadius: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  locMgrKindBtnActive: {
+    borderColor: colors.cyan,
+    backgroundColor: 'rgba(0,240,255,0.08)',
+  },
+  locMgrKindBtnText: {
+    color: colors.muted,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  locMgrKindBtnTextActive: {
+    color: colors.cyan,
+  },
+  locMgrEditActions: {
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'flex-end',
+  },
+  locMgrCancelBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderColor: colors.line,
+    borderWidth: 1,
+    borderRadius: 4,
+  },
+  locMgrCancelBtnText: {
+    color: colors.muted,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  locMgrSaveBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: colors.cyan,
+    borderRadius: 4,
+  },
+  locMgrSaveBtnText: {
+    color: '#002022',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+
   // ── Şarj ─────────────────────────────────────────────────────────────
   sarjScroll: {
     paddingHorizontal: 20,
     paddingTop: 20,
-    paddingBottom: 100,
+    paddingBottom: 140,
     gap: 24,
   },
   // Summary Row: grid grid-cols-3 gap-xs (no radius)
@@ -8443,7 +9577,62 @@ const styles = StyleSheet.create({
   },
   sarjLogBody: {
     padding: 16,
-    gap: 24,
+    gap: 16,
+  },
+  sarjDetectButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#0d1515',
+    borderColor: colors.cyan,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    alignSelf: 'flex-start',
+  },
+  sarjDetectText: {
+    color: colors.cyan,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1.5,
+  },
+  sarjDetectNote: {
+    color: colors.muted,
+    fontSize: 12,
+    marginTop: -8,
+  },
+  sarjTimerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#0a1e1e',
+    borderColor: colors.cyan,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  sarjTimerText: {
+    color: colors.cyan,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1,
+  },
+  sarjStationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#0d1515',
+    borderColor: colors.line,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginTop: 4,
+  },
+  sarjStationInput: {
+    flex: 1,
+    color: '#dce4e5',
+    fontSize: 13,
+    padding: 0,
   },
   // Segmented controls
   sarjSegGroup: {
@@ -8495,12 +9684,17 @@ const styles = StyleSheet.create({
     width: '47%',
     flexGrow: 1,
   },
+  sarjInputLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginLeft: 4,
+  },
   sarjInputLabel: {
     color: colors.muted,
     fontSize: 10,
     fontWeight: '700',
     letterSpacing: 1.5,
-    marginLeft: 4,
   },
   // Input: bg-background border (no radius) px-md py-3
   sarjInput: {
@@ -8627,12 +9821,16 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  // ── Karne ────────────────────────────────────────────────────────────
+  // ── Karne — pt-20 pb-24 px-edge-margin space-y-md ───────────────────
   karneScroll: {
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 100,
     gap: 16,
+  },
+  // Inner card stack: space-y-sm (12px gap)
+  karneDataStack: {
+    gap: 12,
   },
   karneLearnCard: {
     backgroundColor: 'rgba(26,28,31,0.8)',
@@ -8807,35 +10005,44 @@ const styles = StyleSheet.create({
     backgroundColor: colors.cyan,
   },
 
-  // ── MainTopBar (Ana sekmeler) ──────────────────────────────────────
+  // ── MainTopBar — h-16 bg-background/80 border-b border-outline-variant
   mainTopBar: {
     alignItems: 'center',
-    backgroundColor: 'rgba(17, 19, 23, 0.96)',
+    backgroundColor: 'rgba(13,21,21,0.85)',
     borderBottomColor: colors.line,
     borderBottomWidth: 1,
     flexDirection: 'row',
-    height: 64,
+    height: 56 + STATUS_BAR_HEIGHT,
+    justifyContent: 'space-between',
     paddingHorizontal: 20,
+    paddingTop: STATUS_BAR_HEIGHT,
   },
+  // Left group: DMyC brand + vehicle title (gap-xs = 8px)
+  mainTopBarLeft: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    flex: 1,
+  },
+  // "DMyC" replacing menu icon — text-primary-container color (cyan)
   mainTopBarBrand: {
     color: colors.cyan,
-    fontSize: 15,
-    fontWeight: '700',
-    letterSpacing: 1.5,
-    width: 52,
-  },
-  mainTopBarTitle: {
-    color: colors.text,
-    flex: 1,
     fontSize: 14,
     fontWeight: '700',
     letterSpacing: 1.5,
-    textAlign: 'center',
+  },
+  // Vehicle name — font-label-caps text-primary (#dbfcff)
+  mainTopBarTitle: {
+    color: '#dbfcff',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1.5,
+    flexShrink: 1,
   },
   mainTopBarAvatar: {
     alignItems: 'center',
     backgroundColor: colors.panelHigh,
-    borderColor: colors.line,
+    borderColor: 'rgba(0,240,255,0.2)',
     borderRadius: 18,
     borderWidth: 1,
     height: 36,
@@ -8852,7 +10059,7 @@ const styles = StyleSheet.create({
   aracScroll: {
     paddingHorizontal: 20,
     paddingTop: 16,
-    paddingBottom: 100,
+    paddingBottom: 140,
     gap: 24,
   },
   // Identity section: label + h1 + subtitle
@@ -8896,7 +10103,7 @@ const styles = StyleSheet.create({
   aracHeroGradient: {
     position: 'absolute',
     bottom: 0, left: 0, right: 0,
-    height: '60%',
+    height: '20%',
     backgroundColor: 'rgba(13,21,21,0.85)',
   },
   // Status pill at bottom-left
@@ -8939,6 +10146,17 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     lineHeight: 28,
   },
+  aracAssessmentHeader: {
+    padding: 16,
+    borderBottomColor: colors.line,
+    borderBottomWidth: 1,
+    gap: 4,
+  },
+  aracAssessmentScenario: {
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+  },
   // Pill: bg-surface-container-highest text-outline rounded-full
   aracPill: {
     backgroundColor: '#2e3637',
@@ -8969,6 +10187,11 @@ const styles = StyleSheet.create({
   aracTileBorderBottom: {
     borderBottomColor: colors.line,
     borderBottomWidth: 1,
+  },
+  aracDataTileLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   aracDataTileLabel: {
     color: colors.muted,
@@ -9101,7 +10324,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#0d1515',
   },
   todayScroll: {
-    paddingBottom: 100,
+    paddingBottom: 140,
   },
   // Hero: h-[335px] — hero section below top bar
   todayHero: {
@@ -9124,7 +10347,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: '60%',
+    height: '20%',
     backgroundColor: 'rgba(13,21,21,0.9)',
   },
   // Badge: bg-primary-container, rounded-sm (2px), font-label-caps 9px
@@ -9171,6 +10394,11 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 8,
   },
+  todayCardLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   // Label: font-label-caps text-primary-container (cyan)
   todayCardLabel: {
     color: colors.cyan,
@@ -9211,6 +10439,11 @@ const styles = StyleSheet.create({
   },
   todaySpecTileBorderRight: {},
   todaySpecTileBorderBottom: {},
+  todayTileLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
   // Tile label: font-label-caps 10px text-outline
   todayTileLabel: {
     color: colors.muted,

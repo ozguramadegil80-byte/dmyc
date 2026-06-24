@@ -91,6 +91,15 @@ export class AppController {
     return this.googleMaps.placeDetails(placeId, language);
   }
 
+  @Get('maps/places/nearby-ev')
+  nearbyEvStations(
+    @Query('latitude') latitude?: string,
+    @Query('longitude') longitude?: string,
+    @Query('language') language?: string,
+  ) {
+    return this.googleMaps.searchEvChargingStations(Number(latitude), Number(longitude), language);
+  }
+
   @Post('maps/route-preview')
   previewRoute(@Body() body: Parameters<GoogleMapsService['routePreview']>[0]) {
     return this.googleMaps.routePreview(body);
@@ -258,6 +267,16 @@ export class AppController {
     return this.vehicles.getActiveBindingForUser(id);
   }
 
+  @Get('users/:id/vehicles')
+  getActiveVehiclesForUser(@Param('id') id: string) {
+    return this.vehicles.getActiveVehiclesForUser(id);
+  }
+
+  @Get('users/:id/vehicle-context')
+  getCurrentVehicleContext(@Param('id') id: string) {
+    return this.vehicles.getCurrentVehicleContext(id);
+  }
+
   @Get('users/:id/premium-access')
   getPremiumAccess(@Param('id') id: string) {
     return this.premiumAccess.getAccess(id);
@@ -281,12 +300,37 @@ export class AppController {
     return this.savedLocations.listRoutes(id);
   }
 
+  @Patch('users/:id/saved-locations/:locationId')
+  updateSavedLocation(
+    @Param('id') id: string,
+    @Param('locationId') locationId: string,
+    @Body() body: Parameters<SavedLocationsService['updateLocation']>[2],
+  ) {
+    return this.savedLocations.updateLocation(id, locationId, body);
+  }
+
+  @Delete('users/:id/saved-locations/:locationId')
+  deleteSavedLocation(
+    @Param('id') id: string,
+    @Param('locationId') locationId: string,
+  ) {
+    return this.savedLocations.deleteLocation(id, locationId);
+  }
+
   @Post('users/:id/saved-routes')
   createSavedRoute(
     @Param('id') id: string,
     @Body() body: Parameters<SavedLocationsService['createRoute']>[1],
   ) {
     return this.savedLocations.createRoute(id, body);
+  }
+
+  @Delete('users/:id/saved-routes/:routeId')
+  deleteSavedRoute(
+    @Param('id') id: string,
+    @Param('routeId') routeId: string,
+  ) {
+    return this.savedLocations.deleteRoute(id, routeId);
   }
 
   @Post('vehicles')
@@ -524,6 +568,54 @@ export class AppController {
     return this.vehicleRegistry.createStateSnapshot({ ...body, vehicleId: id });
   }
 
+  // ── Vehicle access (rol/izin) ─────────────────────────────────────────────
+
+  @Get('vehicles/:vehicleId/access/me')
+  getMyVehicleAccess(
+    @Param('vehicleId') vehicleId: string,
+    @Query('userId') userId: string,
+  ) {
+    return this.vehicles.getMyVehicleAccess(userId, vehicleId);
+  }
+
+  @Get('vehicles/:vehicleId/access')
+  listVehicleAccess(
+    @Param('vehicleId') vehicleId: string,
+    @Query('userId') userId: string,
+  ) {
+    return this.vehicles.listVehicleAccess(userId, vehicleId);
+  }
+
+  @Post('vehicles/:vehicleId/access/:accessId/revoke')
+  revokeVehicleAccess(
+    @Param('vehicleId') vehicleId: string,
+    @Param('accessId') accessId: string,
+    @Query('userId') userId: string,
+  ) {
+    return this.vehicles.revokeVehicleAccess(userId, vehicleId, accessId);
+  }
+
+  // ── Vehicle access invites ────────────────────────────────────────────────
+
+  @Post('vehicles/:vehicleId/invites')
+  createVehicleInvite(
+    @Param('vehicleId') vehicleId: string,
+    @Query('userId') userId: string,
+    @Body() body: { identifier: string; role?: string; permissions?: string[] },
+  ) {
+    return this.vehicles.createVehicleInvite(userId, vehicleId, body);
+  }
+
+  @Post('vehicle-invites/:token/accept')
+  acceptVehicleInvite(
+    @Param('token') token: string,
+    @Body() body: { userId: string },
+  ) {
+    return this.vehicles.acceptVehicleInvite(token, body.userId);
+  }
+
+  // ── Legacy vehicle drivers (vehicle_drivers tablosu — sonra deprecate edilecek) ──
+
   @Get('vehicles/:id/drivers')
   listDrivers(@Param('id') id: string) {
     return this.vehicleRegistry.listDrivers(id);
@@ -657,8 +749,8 @@ export class AppController {
   }
 
   @Get('vehicles/:id/assessment/latest')
-  getLatestAssessment(@Param('id') id: string) {
-    return this.evAssessment.getLatestAssessment(id);
+  getLatestAssessment(@Param('id') id: string, @Query('language') language?: string) {
+    return this.evAssessment.getLatestAssessment(id, language);
   }
 
   @Post('vehicles/:id/premium-report')

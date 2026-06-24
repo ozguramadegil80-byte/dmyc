@@ -1,5 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { DatabaseService } from './database.service';
+import * as scenariosJson from './assessment-scenarios.json';
+
+type ScenariosFile = {
+  [locale: string]: {
+    [scenarioId: string]: { title: string; body: string | string[] };
+  };
+};
+
+const scenarios = scenariosJson as ScenariosFile;
 
 type CityProfile = { trafficClass: string; usageLoadMultiplier: number };
 
@@ -17,6 +26,7 @@ export type AssessmentInput = {
   purchaseYear?: number | null;
   city?: string | null;
   usageType?: string | null;
+  language?: string | null;
 };
 
 type ComputedAssessment = {
@@ -113,7 +123,11 @@ export class EvAssessmentService {
     return 'NORMAL_USAGE';
   }
 
-  private renderTemplate(scenarioId: ScenarioId, c: ComputedAssessment): { title: string; body: string } {
+  private renderTemplate(scenarioId: ScenarioId, c: ComputedAssessment, language = 'tr'): { title: string; body: string } {
+    const locale = language.startsWith('en') ? 'en' : 'tr';
+    const localeScenarios = scenarios[locale] ?? scenarios['tr'];
+    const template = localeScenarios[scenarioId] ?? scenarios['tr'][scenarioId];
+
     const vars: Record<string, string> = {
       vehicleAgeYears: String(c.vehicleAgeYears),
       odometer_km: c.odometerKm.toLocaleString('tr-TR'),
@@ -127,65 +141,10 @@ export class EvAssessmentService {
         c.estimatedTotalFullCycles !== null ? String(c.estimatedTotalFullCycles) : '—',
     };
 
-    const fill = (t: string) =>
-      t.replace(/\{(\w+)\}/g, (_, k: string) => vars[k] ?? `{${k}}`);
+    const fill = (t: string) => t.replace(/\{(\w+)\}/g, (_, k: string) => vars[k] ?? `{${k}}`);
 
-    if (scenarioId === 'UNDER_USED_CLEAN') {
-      return {
-        title: 'Değerinin altında / temiz kullanılmış',
-        body: fill(
-          'Aracınız {vehicleAgeYears} yılda {odometer_km} km yapmış görünüyor.\n' +
-          'Bu yıllık ortalama {annualKm} km, aylık yaklaşık {monthlyKm} km kullanım\n' +
-          'anlamına gelir. {city} kullanım koşulları dikkate alındığında bu değer\n' +
-          'aracın yaşına göre düşük/temiz kullanım bandındadır.\n\n' +
-          'Fabrika verisindeki yaklaşık {practicalRangeKm} km pratik menzil üzerinden\n' +
-          'hesaplandığında araç ayda ortalama {estimatedMonthlyFullCycles} tam şarj\n' +
-          'eşdeğeri kullanmış görünür. Toplam tahmini batarya döngüsü\n' +
-          '{estimatedTotalFullCycles} civarındadır.\n\n' +
-          'Bu tablo, aracın batarya ve genel kullanım açısından değerinin altında\n' +
-          'kullanılmış olabileceğini gösterir. Yine de gerçek batarya sağlığı için\n' +
-          'tam şarj sonrası menzil, servis batarya ölçümü ve hızlı şarj geçmişi\n' +
-          'ayrıca kontrol edilmelidir.',
-        ),
-      };
-    }
-
-    if (scenarioId === 'HEAVY_USED_WORN') {
-      return {
-        title: 'Yüksek kullanım',
-        body: fill(
-          'Aracınız {vehicleAgeYears} yılda {odometer_km} km yapmış görünüyor.\n' +
-          'Bu yıllık ortalama {annualKm} km, aylık yaklaşık {monthlyKm} km kullanım\n' +
-          'anlamına gelir. {city} koşulları dikkate alınsa bile bu değer aracın\n' +
-          'yaşına göre yüksek kullanım bandındadır.\n\n' +
-          'Fabrika verisindeki yaklaşık {practicalRangeKm} km pratik menzil üzerinden\n' +
-          'hesaplandığında araç ayda ortalama {estimatedMonthlyFullCycles} tam şarj\n' +
-          'eşdeğeri kullanmış görünür. Toplam tahmini batarya döngüsü\n' +
-          '{estimatedTotalFullCycles} civarındadır.\n\n' +
-          'Bu tablo aracın yoğun kullanılmış olabileceğini gösterir. Yalnızca km\'ye\n' +
-          'bakmak bu aşamada yeterli değildir; tam şarj sonrası gerçek menzil,\n' +
-          'batarya sağlık raporu, hızlı şarj oranı ve servis kayıtları mutlaka\n' +
-          'kontrol edilmelidir.',
-        ),
-      };
-    }
-
-    return {
-      title: 'Orta / normal kullanım',
-      body: fill(
-        'Aracınız {vehicleAgeYears} yılda {odometer_km} km yapmış görünüyor.\n' +
-        'Bu yıllık ortalama {annualKm} km, aylık yaklaşık {monthlyKm} km kullanım\n' +
-        'anlamına gelir. {city} gibi trafik yükü yüksek bir şehir için bu kullanım\n' +
-        'ortalamanın biraz üzerinde görünse de tek başına yıpratıcı kabul edilmez.\n\n' +
-        'Fabrika verisindeki yaklaşık {practicalRangeKm} km pratik menzil üzerinden\n' +
-        'bakıldığında araç ayda ortalama {estimatedMonthlyFullCycles} tam şarj eşdeğeri\n' +
-        'kullanmış olur. Toplam tahmini batarya döngüsü {estimatedTotalFullCycles}\n' +
-        'civarındadır.\n\n' +
-        'Bu değerler aracın çok az kullanılmamış olduğunu, ancak batarya açısından\n' +
-        'ağır yıpranmış sınıfa da girmediğini gösterir. Mevcut verilerle araç\n' +
-        'orta / normal kullanım bandında değerlendirilir.',
-      ),
-    };
+    const rawBody = Array.isArray(template.body) ? template.body.join('\n\n') : template.body;
+    return { title: template.title, body: fill(rawBody) };
   }
 
   async createAssessment(vehicleId: string, ownershipId: string | null, input: AssessmentInput) {
@@ -200,7 +159,7 @@ export class EvAssessmentService {
     const practicalRangeKm = await this.fetchPracticalRange(vehicleId);
     const computed = this.compute(input, practicalRangeKm);
     const scenarioId = this.selectScenario(computed);
-    const { title, body } = this.renderTemplate(scenarioId, computed);
+    const { title, body } = this.renderTemplate(scenarioId, computed, input.language ?? 'tr');
 
     const res = await this.db.query(
       `INSERT INTO vehicle_assessments (
@@ -258,7 +217,7 @@ export class EvAssessmentService {
     return res.rows[0];
   }
 
-  async getLatestAssessment(vehicleId: string) {
+  async getLatestAssessment(vehicleId: string, language = 'tr') {
     const res = await this.db.query(
       `SELECT
         id,
@@ -287,6 +246,33 @@ export class EvAssessmentService {
        LIMIT 1`,
       [vehicleId],
     );
-    return (res.rows[0] ?? null) as Record<string, unknown> | null;
+
+    const row = res.rows[0] ?? null;
+    if (!row) return null;
+
+    // Always re-render from JSON so edits to assessment-scenarios.json take effect immediately.
+    const scenarioId = row['scenarioId'] as ScenarioId;
+    if (scenarioId) {
+      const computed: ComputedAssessment = {
+        vehicleAgeYears:              Number(row['vehicleAgeYears'])              || 0,
+        annualKm:                     Number(row['annualKm'])                     || 0,
+        monthlyKm:                    Number(row['monthlyKm'])                    || 0,
+        practicalRangeKm:             row['practicalRangeKm'] != null ? Number(row['practicalRangeKm']) : null,
+        estimatedTotalFullCycles:     row['estimatedTotalFullCycles'] != null ? Number(row['estimatedTotalFullCycles']) : null,
+        estimatedMonthlyFullCycles:   row['estimatedMonthlyFullCycles'] != null ? Number(row['estimatedMonthlyFullCycles']) : null,
+        cityTrafficClass:             String(row['cityTrafficClass'] ?? ''),
+        usageLoadMultiplier:          Number(row['usageLoadMultiplier']) || 1,
+        usageLoadAdjustedAnnualKm:    Number(row['usageLoadAdjustedAnnualKm']) || 0,
+        confidence:                   String(row['confidence'] ?? ''),
+        city:                         String(row['city'] ?? ''),
+        odometerKm:                   Number(row['odometerKm'])                   || 0,
+        purchaseYear:                 row['purchaseYear'] != null ? Number(row['purchaseYear']) : null,
+      };
+      const { title, body } = this.renderTemplate(scenarioId, computed, language);
+      row['scenarioTitle'] = title;
+      row['scenarioBody']  = body;
+    }
+
+    return row as Record<string, unknown>;
   }
 }

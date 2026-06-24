@@ -1,5 +1,5 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
-import { randomBytes, scryptSync, timingSafeEqual } from 'crypto';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'crypto';
 import { DatabaseService } from './database.service';
 import { FirstCardService } from './first-card.service';
 import { PremiumAccessService } from './premium-access.service';
@@ -302,11 +302,65 @@ export class VehiclesService {
     return this.usageProfile.getByVehicle(vehicleId);
   }
 
-  async getActiveBindingForUser(userId: string) {
+  private buildVehicleBinding(row: Record<string, unknown>) {
+    return {
+      catalogKey:
+        makeCatalogKey(row.brand as string, row.model as string, row.variant as string) ??
+        (row.canonical_key as string) ??
+        (row.vehicle_spec_id as string),
+      ownership: {
+        id: row.ownership_id as string,
+        ownershipStatus: row.ownership_status as string,
+        startedAt: row.started_at as string,
+        userId: row.user_id as string,
+        vehicleId: row.vehicle_id as string,
+      },
+      vehicle: {
+        canonicalVehicleId: row.canonical_vehicle_id as string,
+        createdAt: row.vehicle_created_at as string,
+        displayName: row.display_name as string,
+        id: row.vehicle_id as string,
+        vehicleSpecId: row.vehicle_spec_id as string,
+        vin: row.vin as string | null,
+      },
+    };
+  }
+
+  private vehicleBindingQuery = `
+    SELECT
+      vo.id AS ownership_id,
+      vo.vehicle_id,
+      vo.user_id,
+      vo.started_at,
+      vo.ownership_status,
+      v.vehicle_spec_id,
+      v.canonical_vehicle_id,
+      v.vin,
+      v.display_name,
+      v.created_at AS vehicle_created_at,
+      cv.canonical_key,
+      vs.brand,
+      vs.model,
+      vs.variant
+    FROM vehicle_ownerships vo
+    INNER JOIN vehicles v ON v.id = vo.vehicle_id
+    LEFT JOIN vehicle_specs vs ON vs.id = v.vehicle_spec_id
+    LEFT JOIN canonical_vehicles cv ON cv.id = COALESCE(vs.canonical_vehicle_id, v.canonical_vehicle_id)
+    WHERE vo.user_id = $1
+      AND vo.ownership_status = 'active'
+    ORDER BY vo.started_at DESC
+  `;
+
+  // Returns all vehicles the user can access (own + driver/viewer roles via vehicle_user_access).
+  // Falls back to ownership-only query for vehicles that have no access rows yet (pre-migration).
+  async getActiveVehiclesForUser(userId: string) {
     const result = await this.db.query(
       `
-        SELECT
-          vo.id AS ownership_id,
+        SELECT DISTINCT ON (v.id)
+          vua.id              AS access_id,
+          vua.role            AS user_role,
+          vua.permissions     AS user_permissions,
+          vo.id               AS ownership_id,
           vo.vehicle_id,
           vo.user_id,
           vo.started_at,
@@ -315,47 +369,276 @@ export class VehiclesService {
           v.canonical_vehicle_id,
           v.vin,
           v.display_name,
-          v.created_at AS vehicle_created_at,
+          v.created_at        AS vehicle_created_at,
           cv.canonical_key,
           vs.brand,
           vs.model,
           vs.variant
-        FROM vehicle_ownerships vo
-        INNER JOIN vehicles v ON v.id = vo.vehicle_id
-        LEFT JOIN vehicle_specs vs ON vs.id = v.vehicle_spec_id
-        LEFT JOIN canonical_vehicles cv ON cv.id = COALESCE(vs.canonical_vehicle_id, v.canonical_vehicle_id)
-        WHERE vo.user_id = $1
+        FROM vehicle_user_access vua
+        INNER JOIN vehicles v ON v.id = vua.vehicle_id
+        LEFT JOIN vehicle_ownerships vo
+          ON vo.vehicle_id = v.id
           AND vo.ownership_status = 'active'
-        ORDER BY vo.started_at DESC
+          AND vo.user_id = vua.user_id
+        LEFT JOIN vehicle_specs vs ON vs.id = v.vehicle_spec_id
+        LEFT JOIN canonical_vehicles cv
+          ON cv.id = COALESCE(vs.canonical_vehicle_id, v.canonical_vehicle_id)
+        WHERE vua.user_id = $1
+          AND vua.access_status = 'active'
+        ORDER BY v.id, vo.started_at DESC
+      `,
+      [userId],
+    );
+    return result.rows.map((row) => ({
+      ...this.buildVehicleBinding(row),
+      access: {
+        id: row.access_id as string,
+        role: row.user_role as string,
+        permissions: (row.user_permissions as string[]) ?? [],
+      },
+    }));
+  }
+
+  async getCurrentVehicleContext(userId: string) {
+    // Primary vehicle = most recently started active ownership where user is owner.
+    // Falls back to any active access if no ownership exists.
+    const result = await this.db.query(
+      `
+        SELECT
+          vua.id              AS access_id,
+          vua.role            AS user_role,
+          vua.permissions     AS user_permissions,
+          vo.id               AS ownership_id,
+          vo.vehicle_id,
+          vo.user_id,
+          vo.started_at,
+          vo.ownership_status,
+          v.vehicle_spec_id,
+          v.canonical_vehicle_id,
+          v.vin,
+          v.display_name,
+          v.created_at        AS vehicle_created_at,
+          cv.canonical_key,
+          vs.brand,
+          vs.model,
+          vs.variant
+        FROM vehicle_user_access vua
+        INNER JOIN vehicles v ON v.id = vua.vehicle_id
+        LEFT JOIN vehicle_ownerships vo
+          ON vo.vehicle_id = v.id
+          AND vo.ownership_status = 'active'
+          AND vo.user_id = vua.user_id
+        LEFT JOIN vehicle_specs vs ON vs.id = v.vehicle_spec_id
+        LEFT JOIN canonical_vehicles cv
+          ON cv.id = COALESCE(vs.canonical_vehicle_id, v.canonical_vehicle_id)
+        WHERE vua.user_id = $1
+          AND vua.access_status = 'active'
+        ORDER BY
+          CASE WHEN vua.role = 'owner' THEN 0 ELSE 1 END,
+          vo.started_at DESC NULLS LAST
         LIMIT 1
       `,
       [userId],
     );
-
     const row = result.rows[0];
-
-    if (!row) {
-      return null;
-    }
-
+    if (!row) return null;
     return {
-      catalogKey: makeCatalogKey(row.brand, row.model, row.variant) ?? row.canonical_key ?? row.vehicle_spec_id,
-      ownership: {
-        id: row.ownership_id,
-        ownershipStatus: row.ownership_status,
-        startedAt: row.started_at,
-        userId: row.user_id,
-        vehicleId: row.vehicle_id,
-      },
-      vehicle: {
-        canonicalVehicleId: row.canonical_vehicle_id,
-        createdAt: row.vehicle_created_at,
-        displayName: row.display_name,
-        id: row.vehicle_id,
-        vehicleSpecId: row.vehicle_spec_id,
-        vin: row.vin,
+      ...this.buildVehicleBinding(row),
+      access: {
+        id: row.access_id as string,
+        role: row.user_role as string,
+        permissions: (row.user_permissions as string[]) ?? [],
       },
     };
+  }
+
+  // Backward-compatible alias kept for existing mobile clients.
+  async getActiveBindingForUser(userId: string) {
+    return this.getCurrentVehicleContext(userId);
+  }
+
+  async getVehicleAccessForUser(userId: string, vehicleId: string) {
+    const result = await this.db.query<{
+      id: string; role: string; permissions: string[]; access_status: string;
+    }>(
+      `SELECT id, role, permissions, access_status
+       FROM vehicle_user_access
+       WHERE user_id = $1 AND vehicle_id = $2
+       ORDER BY CASE role WHEN 'owner' THEN 0 WHEN 'manager' THEN 1 WHEN 'driver' THEN 2 ELSE 3 END
+       LIMIT 1`,
+      [userId, vehicleId],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  async canAccessVehicle(userId: string, vehicleId: string): Promise<boolean> {
+    const access = await this.getVehicleAccessForUser(userId, vehicleId);
+    return access !== null && access.access_status === 'active';
+  }
+
+  async canUseVehiclePermission(
+    userId: string,
+    vehicleId: string,
+    permission: string,
+  ): Promise<boolean> {
+    const access = await this.getVehicleAccessForUser(userId, vehicleId);
+    if (!access || access.access_status !== 'active') return false;
+    const perms: string[] = Array.isArray(access.permissions) ? access.permissions : [];
+    return perms.includes(permission);
+  }
+
+  // GET /vehicles/:vehicleId/access/me
+  async getMyVehicleAccess(userId: string, vehicleId: string) {
+    const access = await this.getVehicleAccessForUser(userId, vehicleId);
+    if (!access || access.access_status !== 'active') {
+      throw new ForbiddenException('Bu araca erişiminiz yok.');
+    }
+    return {
+      vehicleId,
+      role: access.role,
+      permissions: (access.permissions as string[]) ?? [],
+      accessStatus: access.access_status,
+    };
+  }
+
+  // GET /vehicles/:vehicleId/access  (owner / manager görür)
+  async listVehicleAccess(userId: string, vehicleId: string) {
+    const allowed = await this.canUseVehiclePermission(userId, vehicleId, 'manage_vehicle');
+    if (!allowed) throw new ForbiddenException('Sürücü listesini görme izniniz yok.');
+
+    const result = await this.db.query(
+      `SELECT
+         vua.id            AS "accessId",
+         vua.user_id       AS "userId",
+         u.username,
+         u.full_name       AS "fullName",
+         vua.role,
+         vua.permissions,
+         vua.access_status AS "accessStatus",
+         vua.created_at    AS "createdAt"
+       FROM vehicle_user_access vua
+       LEFT JOIN users u ON u.id = vua.user_id
+       WHERE vua.vehicle_id = $1
+         AND vua.access_status = 'active'
+       ORDER BY
+         CASE vua.role WHEN 'owner' THEN 0 WHEN 'manager' THEN 1 WHEN 'driver' THEN 2 ELSE 3 END,
+         vua.created_at ASC`,
+      [vehicleId],
+    );
+    return result.rows;
+  }
+
+  // POST /vehicles/:vehicleId/access/:accessId/revoke
+  async revokeVehicleAccess(userId: string, vehicleId: string, accessId: string) {
+    const allowed = await this.canUseVehiclePermission(userId, vehicleId, 'manage_vehicle');
+    if (!allowed) throw new ForbiddenException('Erişim kapatma izniniz yok.');
+
+    const result = await this.db.query(
+      `UPDATE vehicle_user_access
+       SET access_status = 'revoked', revoked_at = now(), updated_at = now()
+       WHERE id = $1 AND vehicle_id = $2 AND role != 'owner'
+       RETURNING id, access_status AS "accessStatus"`,
+      [accessId, vehicleId],
+    );
+    if (!result.rows[0]) throw new NotFoundException('Erişim kaydı bulunamadı veya owner kaldırılamaz.');
+    return result.rows[0];
+  }
+
+  // POST /vehicles/:vehicleId/invites
+  async createVehicleInvite(
+    userId: string,
+    vehicleId: string,
+    body: { identifier: string; role?: string; permissions?: string[] },
+  ) {
+    const allowed = await this.canUseVehiclePermission(userId, vehicleId, 'add_driver');
+    if (!allowed) throw new ForbiddenException('Sürücü davet etme izniniz yok.');
+
+    const role = body.role ?? 'driver';
+    if (!['driver', 'viewer', 'manager'].includes(role)) {
+      throw new BadRequestException('Geçersiz rol.');
+    }
+    const permissions: string[] =
+      body.permissions ?? (role === 'driver' ? ['add_charge', 'add_drive', 'view_card'] : ['view_card']);
+
+    const token = randomBytes(32).toString('hex');
+    const tokenHash = createHash('sha256').update(token).digest('hex');
+
+    // Davet edileni sistemde ara (var/yok bilgisini dışarı sızdırma)
+    const inviteeRes = await this.db.query<{ id: string }>(
+      `SELECT id FROM users WHERE lower(email) = lower($1) OR phone = $1 LIMIT 1`,
+      [body.identifier],
+    );
+    const inviteeUserId = inviteeRes.rows[0]?.id ?? null;
+
+    await this.db.query(
+      `INSERT INTO vehicle_access_invites
+         (vehicle_id, invited_by_user_id, invitee_identifier, invitee_user_id,
+          role, permissions, invite_token_hash)
+       VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7)`,
+      [vehicleId, userId, body.identifier, inviteeUserId, role, JSON.stringify(permissions), tokenHash],
+    );
+
+    return {
+      status: 'PENDING',
+      shareUrl: `dmyc://vehicle-invite/${token}`,
+      webUrl: `https://dmyc.app/invite/${token}`,
+    };
+  }
+
+  // POST /vehicle-invites/:token/accept
+  async acceptVehicleInvite(token: string, currentUserId: string) {
+    const tokenHash = createHash('sha256').update(token).digest('hex');
+
+    const inviteRes = await this.db.query<{
+      id: string; vehicle_id: string; invited_by_user_id: string;
+      role: string; permissions: string[]; status: string; expires_at: string;
+    }>(
+      `SELECT id, vehicle_id, invited_by_user_id, role, permissions, status, expires_at
+       FROM vehicle_access_invites
+       WHERE invite_token_hash = $1
+       LIMIT 1`,
+      [tokenHash],
+    );
+    const invite = inviteRes.rows[0];
+
+    if (!invite) throw new NotFoundException('Davet bulunamadı.');
+    if (invite.status !== 'PENDING') throw new BadRequestException('Bu davet artık geçerli değil.');
+    if (new Date(invite.expires_at) < new Date()) {
+      await this.db.query(
+        `UPDATE vehicle_access_invites SET status = 'EXPIRED', updated_at = now() WHERE id = $1`,
+        [invite.id],
+      );
+      throw new BadRequestException('Davet süresi dolmuş.');
+    }
+
+    // İzin kontrol: aynı kullanıcı bu araçta zaten owner olamaz
+    const existingOwner = await this.db.query(
+      `SELECT id FROM vehicle_user_access
+       WHERE vehicle_id = $1 AND user_id = $2 AND role = 'owner' AND access_status = 'active'
+       LIMIT 1`,
+      [invite.vehicle_id, currentUserId],
+    );
+    if (existingOwner.rows[0]) {
+      throw new BadRequestException('Bu aracın sahibi daveti kabul edemez.');
+    }
+
+    await this.db.query(
+      `UPDATE vehicle_access_invites
+       SET status = 'ACCEPTED', invitee_user_id = $1, accepted_at = now(), updated_at = now()
+       WHERE id = $2`,
+      [currentUserId, invite.id],
+    );
+
+    await this.db.query(
+      `INSERT INTO vehicle_user_access
+         (vehicle_id, user_id, role, permissions, access_status, invited_by_user_id, accepted_at)
+       VALUES ($1, $2, $3, $4::jsonb, 'active', $5, now())
+       ON CONFLICT (vehicle_id, user_id, role) DO UPDATE
+         SET access_status = 'active', accepted_at = now(), updated_at = now()`,
+      [invite.vehicle_id, currentUserId, invite.role, JSON.stringify(invite.permissions), invite.invited_by_user_id],
+    );
+
+    return { vehicleId: invite.vehicle_id, role: invite.role, accessStatus: 'active' };
   }
 
   async listAdminUsers() {

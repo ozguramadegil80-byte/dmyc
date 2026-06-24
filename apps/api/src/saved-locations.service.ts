@@ -177,6 +177,45 @@ export class SavedLocationsService {
     return result.rows.map(normalizeRoute);
   }
 
+  async deleteLocation(userId: string, locationId: string) {
+    await this.db.query(
+      `DELETE FROM user_saved_locations WHERE id = $1 AND user_id = $2`,
+      [locationId, userId],
+    );
+  }
+
+  async updateLocation(userId: string, locationId: string, body: { label?: string; locationKind?: string }) {
+    const label = body.label?.trim();
+    const kind = normalizeLocationKind(body.locationKind);
+
+    if (!label) throw new BadRequestException('Konum adı gerekli.');
+
+    const result = await this.db.query<SavedLocationRow>(
+      `
+        UPDATE user_saved_locations
+        SET label = $3, location_kind = $4, updated_at = now()
+        WHERE id = $1 AND user_id = $2
+        RETURNING
+          id, user_id AS "userId", label, location_kind AS "locationKind",
+          address, google_place_id AS "googlePlaceId",
+          ST_Y(location::geometry)::text AS latitude,
+          ST_X(location::geometry)::text AS longitude,
+          source, created_at AS "createdAt", updated_at AS "updatedAt"
+      `,
+      [locationId, userId, label, kind],
+    );
+
+    if (!result.rows[0]) throw new BadRequestException('Konum bulunamadı.');
+    return normalizeLocation(result.rows[0]);
+  }
+
+  async deleteRoute(userId: string, routeId: string) {
+    await this.db.query(
+      `DELETE FROM user_saved_routes WHERE id = $1 AND user_id = $2`,
+      [routeId, userId],
+    );
+  }
+
   async createRoute(userId: string, body: CreateSavedRouteBody) {
     const originLocationId = body.originLocationId?.trim();
     const destinationLocationId = body.destinationLocationId?.trim();
