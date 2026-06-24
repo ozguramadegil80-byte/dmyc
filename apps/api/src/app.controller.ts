@@ -6,6 +6,7 @@ import { BatteryLifecycleService } from './battery-lifecycle.service';
 import { MonthlyReportService } from './monthly-report.service';
 import { ChargingIntelligenceService } from './charging-intelligence.service';
 import { DriverIntelligenceService } from './driver-intelligence.service';
+import { PushNotificationService } from './push-notification.service';
 import { ElectricityTariffService } from './electricity-tariff.service';
 import { EvAssessmentService } from './ev-assessment.service';
 import { ChargingService } from './charging.service';
@@ -39,6 +40,7 @@ export class AppController {
     private readonly monthlyReports: MonthlyReportService,
     private readonly chargingIntelligence: ChargingIntelligenceService,
     private readonly driverIntelligence: DriverIntelligenceService,
+    private readonly pushNotification: PushNotificationService,
     private readonly electricityTariff: ElectricityTariffService,
     private readonly evAssessment: EvAssessmentService,
     private readonly charging: ChargingService,
@@ -411,6 +413,11 @@ export class AppController {
   @Get('users/:userId/driver-profile/:vehicleId')
   getDriverProfile(@Param('userId') userId: string, @Param('vehicleId') vehicleId: string) {
     return this.tripBehavior.getDriverProfile(userId, vehicleId);
+  }
+
+  @Post('users/:userId/push-token')
+  savePushToken(@Param('userId') userId: string, @Body() body: { token: string }) {
+    return this.pushNotification.savePushToken(userId, body.token);
   }
 
   @Get('route-fingerprints/:id/behavior')

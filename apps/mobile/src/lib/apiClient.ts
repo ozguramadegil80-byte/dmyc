@@ -802,6 +802,68 @@ export async function createTripShareCard(recapId: string, cardType: 'story' | '
   });
 }
 
+export type ApiTripBehaviorSummary = {
+  tripId: string;
+  hardBrakeCount: number;
+  rapidAccelCount: number;
+  totalEventCount: number;
+  hardBrakePer10km: number | null;
+  rapidAccelPer10km: number | null;
+  ecoScore: number | null;
+  analysisQuality: number | null;
+};
+
+export async function fetchTripBehaviorSummary(tripId: string): Promise<ApiTripBehaviorSummary | null> {
+  try {
+    return await fetchJson<ApiTripBehaviorSummary>(`/trips/${tripId}/behavior`);
+  } catch {
+    return null;
+  }
+}
+
+export type ApiWeeklySnapshot = {
+  routeFingerprintId: string;
+  weekStart: string;
+  tripCount: number;
+  totalDistanceKm: number;
+  actualEnergyKwh: number | null;
+  actualWhPerKm: number | null;
+  wltpWhPerKm: number;
+  ecoScoreAvg: number | null;
+  recoverableEnergyKwh: number | null;
+  recoverableRangeKm: number | null;
+  recoverableCostTry: number | null;
+  electricityRateTryPerKwh: number | null;
+  dominantBehaviorIssue: string | null;
+  energySource: string;
+};
+
+export type ApiDriverIntelligence = {
+  userId: string;
+  vehicleId: string;
+  driverProfile: Omit<ApiDriverProfile, 'userId' | 'vehicleId' | 'hasEnoughData'> & {
+    last20TripScore: number | null;
+  } | null;
+  weeklySnapshots: ApiWeeklySnapshot[];
+};
+
+export async function fetchDriverIntelligence(vehicleId: string, userId: string): Promise<ApiDriverIntelligence | null> {
+  try {
+    return await fetchJson<ApiDriverIntelligence>(`/vehicles/${vehicleId}/driver-intelligence?userId=${userId}`);
+  } catch {
+    return null;
+  }
+}
+
+export async function registerPushToken(userId: string, token: string): Promise<void> {
+  try {
+    await fetchJson<void>(`/users/${userId}/push-token`, {
+      method: 'POST',
+      body: JSON.stringify({ token }),
+    });
+  } catch { /* push token kaydı opsiyonel, hata sessizce yutulur */ }
+}
+
 export async function fetchTripSummary(vehicleId: string) {
   return fetchJson<ApiTripSummary>(`/vehicles/${vehicleId}/trip-summary`);
 }

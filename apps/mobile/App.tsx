@@ -102,6 +102,11 @@ import {
   confirmTripHvac,
   fetchDriverProfile,
   type ApiDriverProfile,
+  fetchTripBehaviorSummary,
+  type ApiTripBehaviorSummary,
+  fetchDriverIntelligence,
+  type ApiWeeklySnapshot,
+  registerPushToken,
   finishTrip,
   loginUser,
   API_BASE_URL,
@@ -407,6 +412,8 @@ export default function App() {
   const [showHvacModal, setShowHvacModal] = useState(false);
   const [pendingHvacTrip, setPendingHvacTrip] = useState<{ id: string; tempC: number; type: 'cooling' | 'heating' } | null>(null);
   const [driverProfile, setDriverProfile] = useState<ApiDriverProfile | null>(null);
+  const [weeklySnapshots, setWeeklySnapshots] = useState<ApiWeeklySnapshot[]>([]);
+  const [lastTripBehavior, setLastTripBehavior] = useState<ApiTripBehaviorSummary | null>(null);
   const [activeTrip, setActiveTrip] = useState<ApiTrip | null>(null);
   const [lastCompletedTrip, setLastCompletedTrip] = useState<ApiTrip | null>(null);
   const [lastTripRecap, setLastTripRecap] = useState<ApiTripRecap | null>(null);
@@ -743,9 +750,19 @@ export default function App() {
     };
   }, [autoTripEnabled, backendBinding?.ownership.id, backendBinding?.user.id, backendBinding?.vehicle.id]);
 
-  // Bildirim izni + notification tap handler
+  // Bildirim izni + push token kaydı + notification tap handler
   useEffect(() => {
-    Notifications.requestPermissionsAsync().catch(() => {});
+    Notifications.requestPermissionsAsync().then(({ status }) => {
+      if (status === 'granted') {
+        Notifications.getExpoPushTokenAsync({ projectId: '17ef6b8f-edce-468b-ab75-58f16c17f406' })
+          .then(({ data: token }) => {
+            if (registeredUser?.id) {
+              registerPushToken(registeredUser.id, token).catch(() => {});
+            }
+          })
+          .catch(() => {});
+      }
+    }).catch(() => {});
 
     const sub = Notifications.addNotificationResponseReceivedListener((response) => {
       const data = response.notification.request.content.data as Record<string, unknown>;
@@ -814,7 +831,10 @@ export default function App() {
       });
     fetchLatestTripAdvisories(backendBinding.vehicle.id).then(setPremiumGuidance).catch(() => setPremiumGuidance(null));
     refreshSavedLocationData(backendBinding.user.id);
-    fetchDriverProfile(backendBinding.user.id, backendBinding.vehicle.id).then(setDriverProfile).catch(() => {});
+    fetchDriverIntelligence(backendBinding.vehicle.id, backendBinding.user.id).then((intel) => {
+      if (intel?.driverProfile) setDriverProfile({ ...intel.driverProfile, userId: backendBinding.user.id, vehicleId: backendBinding.vehicle.id, hasEnoughData: intel.driverProfile.analyzedTripCount >= 3 });
+      setWeeklySnapshots(intel?.weeklySnapshots ?? []);
+    }).catch(() => {});
   }, [backendBinding]);
 
   useEffect(() => {
@@ -1217,6 +1237,7 @@ export default function App() {
     setLastCompletedTrip(null);
     setLastTripRecap(null);
     setLastTripShareCard(null);
+    setLastTripBehavior(null);
     setTripPoints([]);
     setTripRouteProgress(null);
     setTripSummary(null);
@@ -1422,6 +1443,7 @@ export default function App() {
     } catch {
       setLastTripRecap(null);
       setLastTripShareCard(null);
+      setLastTripBehavior(null);
       return null;
     }
   };
@@ -1780,6 +1802,7 @@ export default function App() {
       setLastCompletedTrip(null);
       setLastTripRecap(null);
       setLastTripShareCard(null);
+      setLastTripBehavior(null);
       setTripPoints([firstPoint]);
       setTripMessage(source === 'auto' ? t('mobile.autoTrip.message.started') : 'Yolculuk başladı. Sürücü bilinmiyorsa unknown kalacak.');
       const progress = await refreshTripRouteProgress(trip.id);
@@ -1859,8 +1882,12 @@ export default function App() {
       refreshAnnualReport(binding.vehicle.id);
       void refreshVehicleRoutes(binding.vehicle.id);
       if (registeredUser) {
-        fetchDriverProfile(registeredUser.id, binding.vehicle.id).then(setDriverProfile).catch(() => {});
+        fetchDriverIntelligence(binding.vehicle.id, registeredUser.id).then((intel) => {
+          if (intel?.driverProfile) setDriverProfile({ ...intel.driverProfile, userId: registeredUser.id, vehicleId: binding.vehicle.id, hasEnoughData: intel.driverProfile.analyzedTripCount >= 3 });
+          setWeeklySnapshots(intel?.weeklySnapshots ?? []);
+        }).catch(() => {});
       }
+      fetchTripBehaviorSummary(completedTrip.id).then(setLastTripBehavior).catch(() => {});
       const recapResult = await refreshTripRecap(completedTrip.id);
 
       if (completedTrip.hvacInferred === 'cooling' || completedTrip.hvacInferred === 'heating') {
@@ -2856,6 +2883,7 @@ export default function App() {
           originPredictions={tripOriginPredictions}
           originQuery={tripOriginQuery}
           lastCompletedTrip={lastCompletedTrip}
+          lastTripBehavior={lastTripBehavior}
           lastTripRecap={lastTripRecap}
           lastTripShareCard={lastTripShareCard}
           language={language}
@@ -3053,6 +3081,7 @@ export default function App() {
           user={registeredUser}
           vehicle={selectedVehicle}
           vehicleRoutes={vehicleRoutes}
+          weeklySnapshots={weeklySnapshots}
         />
       ) : null}
 
@@ -4719,6 +4748,7 @@ type SurucuScreenProps = {
   user: ApiUser | null;
   vehicle: VehicleCatalogItem | null;
   vehicleRoutes: ApiRouteFingerprint[];
+  weeklySnapshots: ApiWeeklySnapshot[];
 };
 
 function SurucuScreen({
@@ -4730,6 +4760,7 @@ function SurucuScreen({
   user,
   vehicle,
   vehicleRoutes,
+  weeklySnapshots,
 }: SurucuScreenProps) {
   const initial = (user?.fullName?.[0] ?? user?.username?.[0] ?? 'S').toUpperCase();
   const memberSince = user?.createdAt ? new Date(user.createdAt).getFullYear() : null;
@@ -4803,6 +4834,63 @@ function SurucuScreen({
           </Text>
         </View>
       )}
+
+      {/* ── HAFTALIK KAZANIM ───────────────────────────────────────────── */}
+      {weeklySnapshots.length > 0 ? (() => {
+        const thisWeek = weeklySnapshots[0];
+        const totalRecoverableRange = weeklySnapshots
+          .filter((s) => {
+            const d = new Date(s.weekStart);
+            const now = new Date();
+            const diff = (now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24);
+            return diff <= 7;
+          })
+          .reduce((sum, s) => sum + (s.recoverableRangeKm ?? 0), 0);
+        const totalRecoverableCost = weeklySnapshots
+          .filter((s) => {
+            const d = new Date(s.weekStart);
+            const now = new Date();
+            const diff = (now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24);
+            return diff <= 7;
+          })
+          .reduce((sum, s) => sum + (s.recoverableCostTry ?? 0), 0);
+
+        if (totalRecoverableRange < 0.5 && totalRecoverableCost < 1) return null;
+
+        const issueLabel: Record<string, string> = {
+          hard_brake: 'sert fren',
+          rapid_accel: 'ani hızlanma',
+          high_speed: 'yüksek hız',
+        };
+        const issue = thisWeek.dominantBehaviorIssue ? issueLabel[thisWeek.dominantBehaviorIssue] ?? thisWeek.dominantBehaviorIssue : null;
+
+        return (
+          <View style={styles.aracCard}>
+            <View style={styles.aracCardHeader}>
+              <Text style={styles.aracCardTitle}>BU HAFTA KAZANIM POTANSİYELİ</Text>
+            </View>
+            <View style={{ flexDirection: 'row', gap: 12, marginBottom: 8 }}>
+              {totalRecoverableRange >= 0.5 ? (
+                <View style={{ flex: 1, backgroundColor: 'rgba(0,217,188,0.07)', borderRadius: 10, padding: 10, alignItems: 'center' }}>
+                  <Text style={{ color: colors.cyan, fontSize: 20, fontWeight: '700' }}>+{Math.round(totalRecoverableRange)} km</Text>
+                  <Text style={{ color: colors.muted, fontSize: 11, marginTop: 2 }}>menzil kazanımı</Text>
+                </View>
+              ) : null}
+              {totalRecoverableCost >= 1 ? (
+                <View style={{ flex: 1, backgroundColor: 'rgba(240,165,0,0.07)', borderRadius: 10, padding: 10, alignItems: 'center' }}>
+                  <Text style={{ color: '#f0a500', fontSize: 20, fontWeight: '700' }}>-{Math.round(totalRecoverableCost)} TL</Text>
+                  <Text style={{ color: colors.muted, fontSize: 11, marginTop: 2 }}>enerji tasarrufu</Text>
+                </View>
+              ) : null}
+            </View>
+            {issue ? (
+              <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 17 }}>
+                Bu hafta en çok etkileyen davranış: <Text style={{ color: colors.text }}>{issue}</Text>
+              </Text>
+            ) : null}
+          </View>
+        );
+      })() : null}
 
       {/* ── HATLARIM ───────────────────────────────────────────────────── */}
       {vehicleRoutes.length > 0 ? (
@@ -6059,6 +6147,7 @@ type TripRecorderStepProps = {
   originPredictions: ApiPlacePrediction[];
   originQuery: string;
   lastCompletedTrip: ApiTrip | null;
+  lastTripBehavior: ApiTripBehaviorSummary | null;
   lastTripRecap: ApiTripRecap | null;
   lastTripShareCard: ApiTripShareCard | null;
   language: Locale;
@@ -6103,6 +6192,7 @@ function TripRecorderStep({
   originPredictions,
   originQuery,
   lastCompletedTrip: _lastCompletedTrip,
+  lastTripBehavior,
   lastTripRecap,
   lastTripShareCard: _lastTripShareCard,
   language,
@@ -6325,6 +6415,36 @@ function TripRecorderStep({
               <Text style={styles.yolculukRecapTileValue}>{lastTripRecap.durationMinutes} dk</Text>
             </View>
           </View>
+          {lastTripBehavior && lastTripBehavior.ecoScore !== null ? (
+            <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.line }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                <Text style={{ color: colors.muted, fontSize: 11, letterSpacing: 1 }}>SÜRÜŞ SKORU</Text>
+                <Text style={{
+                  color: lastTripBehavior.ecoScore >= 80 ? colors.cyan : lastTripBehavior.ecoScore >= 60 ? '#f0a500' : '#e05050',
+                  fontSize: 16,
+                  fontWeight: '700',
+                }}>
+                  {Math.round(lastTripBehavior.ecoScore)} / 100
+                </Text>
+              </View>
+              {lastTripBehavior.totalEventCount > 0 ? (
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  {lastTripBehavior.hardBrakeCount > 0 ? (
+                    <View style={{ backgroundColor: 'rgba(224,80,80,0.1)', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 }}>
+                      <Text style={{ color: '#e05050', fontSize: 12 }}>{lastTripBehavior.hardBrakeCount} sert fren</Text>
+                    </View>
+                  ) : null}
+                  {lastTripBehavior.rapidAccelCount > 0 ? (
+                    <View style={{ backgroundColor: 'rgba(240,165,0,0.1)', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 }}>
+                      <Text style={{ color: '#f0a500', fontSize: 12 }}>{lastTripBehavior.rapidAccelCount} ani hızlanma</Text>
+                    </View>
+                  ) : null}
+                </View>
+              ) : (
+                <Text style={{ color: colors.cyan, fontSize: 12 }}>Temiz bir sürüş!</Text>
+              )}
+            </View>
+          ) : null}
         </View>
       ) : null}
 

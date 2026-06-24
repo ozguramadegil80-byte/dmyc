@@ -6,6 +6,7 @@ import { AnnualReportService } from './annual-report.service';
 import { RouteFingerprintService } from './route-fingerprint.service';
 import { ServiceVisitService } from './service-visit.service';
 import { TripBehaviorService } from './trip-behavior.service';
+import { PushNotificationService } from './push-notification.service';
 import { WeatherService } from './weather.service';
 
 import { TripContextService } from './trip-context.service';
@@ -77,6 +78,7 @@ export class TripsService {
     private readonly routeFingerprints: RouteFingerprintService,
     private readonly serviceVisit: ServiceVisitService,
     private readonly tripBehavior: TripBehaviorService,
+    private readonly pushNotification: PushNotificationService,
     private readonly weather: WeatherService,
     private readonly tripContext: TripContextService,
     private readonly usageProfile: UsageProfileService,
@@ -232,7 +234,15 @@ export class TripsService {
 
     if (trip?.id) {
       await this.routeFingerprints.refreshForTrip(trip.id);
-      await this.tripBehavior.analyzeTrip(trip.id);
+      const behaviorResult = await this.tripBehavior.analyzeTrip(trip.id);
+      if (trip.userId && behaviorResult.ecoScore !== null && behaviorResult.ecoScore < 70) {
+        const summary = await this.tripBehavior.getTripBehaviorSummary(trip.id);
+        void this.pushNotification.sendBehaviorAlert(trip.userId, {
+          ecoScore: behaviorResult.ecoScore,
+          hardBrakeCount: summary.hardBrakeCount,
+          rapidAccelCount: summary.rapidAccelCount,
+        });
+      }
     }
 
     let weatherResult: { tempC: number; hvacInferred: string } | null = null;
