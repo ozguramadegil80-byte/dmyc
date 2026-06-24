@@ -5046,7 +5046,7 @@ function MapLocationPicker({
           </MapErrorBoundary>
         ) : (
           <View style={styles.mapPickerMapPlaceholder}>
-            <Text style={styles.mapPickerPlaceholderText}>{`RNMaps: ${typeof RNMaps} | MV: ${typeof MapView} | OS: ${Platform.OS}`}</Text>
+            <Text style={styles.mapPickerPlaceholderText}>Harita bu cihazda yüklenemedi</Text>
           </View>
         )}
 
