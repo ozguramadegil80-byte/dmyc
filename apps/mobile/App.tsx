@@ -166,7 +166,7 @@ const HERO_IMAGE =
   'https://lh3.googleusercontent.com/aida-public/AB6AXuBZlRjiGpz87gR2N5N0JbCeMaHDkL5FEy17bu2WXRrnfobOqireWsbn5foynK2wnPeiAI7oSXwiaBBNBFXlfaFq434Fn0CZlxKjhLhmOcaRdPhzEuESlYuODjpmbQBDhQmBxNzcao-dAOK7SyvWv1EY0PYNYLUfhTtiQiWBTmG_wSyO8cAv0j37TzhHpzhqhhvioR1YteqYuqTTAeC59SuZ8CbcGweqUSLn2pE7nGT4-HrJM-781mypqH_U0O1Kkme4KJZc8UKICj7f';
 
 type Step = 'login' | 'register' | 'tracking' | 'brand' | 'model' | 'variant' | 'assessment'
-          | 'today' | 'yolculuk' | 'sarj' | 'karne' | 'arac'
+          | 'today' | 'yolculuk' | 'sarj' | 'karne' | 'arac' | 'surucu'
           | 'range' | 'locations' | 'profile';
 type TrackingMode = 'basic' | 'advanced' | 'precise';
 type MarketCode = 'TR' | 'GB';
@@ -761,6 +761,9 @@ export default function App() {
           type: data.hvacType as 'cooling' | 'heating',
         });
         setShowHvacModal(true);
+      }
+      if (data?.type === 'eco_alert' || data?.type === 'behavior_alert') {
+        setStep('surucu');
       }
     });
 
@@ -1617,7 +1620,7 @@ export default function App() {
     }
 
     if (step === 'profile') {
-      setStep(backendBinding ? 'arac' : 'brand');
+      setStep(backendBinding ? 'surucu' : 'brand');
       return;
     }
 
@@ -2594,7 +2597,7 @@ export default function App() {
         isMainTab(step) ? (
           <MainTopBar
             title={selectedVehicle ? `${selectedVehicle.brand} ${selectedVehicle.model}`.toUpperCase() : 'EV KARNESİ'}
-            onOpenProfile={() => setStep('arac')}
+            onOpenProfile={() => setStep('surucu')}
             user={registeredUser}
           />
         ) : (
@@ -3024,13 +3027,11 @@ export default function App() {
             } catch { /* ignore */ }
           }}
           onManageLocations={() => setStep('locations')}
-          onLogout={logout}
           onOpenDrivers={() => {
             if (backendBinding?.vehicle.id && registeredUser?.id) {
               void openDriversModal(backendBinding.vehicle.id, registeredUser.id);
             }
           }}
-          onOpenProfile={() => setStep('profile')}
           premiumReport={premiumReport}
           publicReport={publicReport}
           registrySummary={registrySummary}
@@ -3038,8 +3039,20 @@ export default function App() {
           serviceVisits={serviceVisits}
           user={registeredUser}
           vehicle={selectedVehicle}
-          vehicleRoutes={vehicleRoutes}
+        />
+      ) : null}
+
+      {step === 'surucu' ? (
+        <SurucuScreen
           driverProfile={driverProfile}
+          language={language}
+          onLogout={logout}
+          onManageLocations={() => setStep('locations')}
+          onOpenArac={() => setStep('arac')}
+          onOpenProfile={() => setStep('profile')}
+          user={registeredUser}
+          vehicle={selectedVehicle}
+          vehicleRoutes={vehicleRoutes}
         />
       ) : null}
 
@@ -4190,17 +4203,18 @@ const BOTTOM_NAV_INSET = Platform.OS === 'android' ? 48 : 34;
 
 function BottomNav({ activeStep, onNavigate }: { activeStep: Step; onNavigate: (step: Step) => void }) {
   const items: Array<{ label: string; icon: React.ComponentProps<typeof MaterialIcons>['name']; step: Step }> = [
-    { label: 'GARAJ',    icon: 'speed',         step: 'today'    },
-    { label: 'YOLCULUK', icon: 'route',          step: 'yolculuk' },
-    { label: 'ŞARJ',     icon: 'bolt',           step: 'sarj'     },
-    { label: 'KARNE',    icon: 'military-tech',  step: 'karne'    },
-    { label: 'ARAÇ',     icon: 'directions-car', step: 'arac'     },
+    { label: 'GARAJ',    icon: 'speed',          step: 'today'    },
+    { label: 'YOLCULUK', icon: 'route',           step: 'yolculuk' },
+    { label: 'ŞARJ',     icon: 'bolt',            step: 'sarj'     },
+    { label: 'KARNE',    icon: 'military-tech',   step: 'karne'    },
+    { label: 'SÜRÜCÜ',   icon: 'person',          step: 'surucu'   },
   ];
 
   const activeTab =
     activeStep === 'range'     ? 'yolculuk' :
     activeStep === 'locations' ? 'yolculuk' :
-    activeStep === 'profile'   ? 'arac'     : activeStep;
+    activeStep === 'profile'   ? 'surucu'   :
+    activeStep === 'arac'      ? 'surucu'   : activeStep;
 
   return (
     <View style={[styles.bottomNav, { height: 64 + BOTTOM_NAV_INSET, paddingBottom: BOTTOM_NAV_INSET }]}>
@@ -4408,10 +4422,8 @@ type AracScreenProps = {
   onGeneratePremiumReport: () => void;
   onGeneratePublicReport: () => void;
   onManageLocations: () => void;
-  onLogout: () => void;
   onOpenAssessmentModal: () => void;
   onOpenDrivers: () => void;
-  onOpenProfile: () => void;
   premiumReport: ApiPremiumReport | null;
   publicReport: ApiPublicReport | null;
   registrySummary: ApiRegistrySummary | null;
@@ -4419,8 +4431,6 @@ type AracScreenProps = {
   serviceVisits: ApiServiceVisit[];
   user: ApiUser | null;
   vehicle: VehicleCatalogItem | null;
-  vehicleRoutes: ApiRouteFingerprint[];
-  driverProfile: ApiDriverProfile | null;
 };
 
 function AracScreen({
@@ -4433,10 +4443,8 @@ function AracScreen({
   onGeneratePremiumReport,
   onGeneratePublicReport,
   onManageLocations,
-  onLogout,
   onOpenAssessmentModal,
   onOpenDrivers,
-  onOpenProfile,
   premiumReport,
   publicReport,
   registrySummary,
@@ -4444,8 +4452,6 @@ function AracScreen({
   serviceVisits,
   user,
   vehicle,
-  vehicleRoutes,
-  driverProfile,
 }: AracScreenProps) {
   const translate = createTranslator(language);
   const vehicleImage = vehicle?.imageUrl ?? vehicle?.brandImageUrl ?? HERO_IMAGE;
@@ -4688,43 +4694,115 @@ function AracScreen({
         </View>
       ) : null}
 
-      {/* ── SÜRÜCÜ KARNEM ──────────────────────────────────────────────── */}
-      {(() => {
-        const profileScore = driverProfile?.hasEnoughData ? driverProfile.ecoScoreAvg : null;
-        const scoredRoutes = vehicleRoutes.filter((r) => r.behaviorEcoScore !== null);
-        const displayScore = profileScore ?? (scoredRoutes.length > 0
-          ? Math.round(scoredRoutes.reduce((s, r) => s + (r.behaviorEcoScore ?? 0), 0) / scoredRoutes.length)
-          : null);
-        if (displayScore === null) return null;
-        const scoreColor = displayScore >= 80 ? colors.cyan : displayScore >= 60 ? '#f0a500' : '#e05050';
-        const factor = driverProfile?.driverEfficiencyFactor ?? Math.min(1.0, Math.max(0.75, 0.60 + displayScore / 250));
-        const savingsPct = Math.round((1 - factor) * 100);
-        const personalizedRange = vehicle?.wltpRangeKm ? Math.round(vehicle.wltpRangeKm * factor) : null;
-        return (
-          <View style={styles.aracCard}>
-            <View style={styles.aracCardHeader}>
-              <Text style={styles.aracCardTitle}>SÜRÜCÜ KARNEM</Text>
-              <Text style={[styles.aracCardSubtitle, { color: scoreColor, fontWeight: '700' }]}>{Math.round(displayScore)} / 100</Text>
-            </View>
-            {personalizedRange && vehicle?.wltpRangeKm ? (
-              <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6, marginBottom: 6 }}>
-                <Text style={{ color: colors.text, fontSize: 22, fontWeight: '700' }}>{personalizedRange} km</Text>
-                <Text style={{ color: colors.muted, fontSize: 12 }}>gerçekçi menzil tahmini</Text>
-              </View>
-            ) : null}
-            <Text style={[styles.routeMeta, { marginBottom: 4, marginLeft: 2 }]}>
-              {driverProfile?.analyzedTripCount ?? scoredRoutes.length} yolculuktan elde edilen sürüş skoru
-            </Text>
-            {savingsPct > 2 ? (
-              <View style={{ backgroundColor: 'rgba(240,165,0,0.08)', borderRadius: 8, padding: 10, marginTop: 4 }}>
-                <Text style={{ color: '#f0a500', fontSize: 12, lineHeight: 17 }}>
-                  Daha yumuşak sürüşle yaklaşık %{savingsPct} daha az enerji kullanabilirsin.
-                </Text>
-              </View>
+      {/* ── DİĞER LİSTE ────────────────────────────────────────────────── */}
+      <View style={styles.aracListSection}>
+        <Pressable accessibilityRole="button" onPress={onManageLocations} style={styles.aracListRow}>
+          <Text style={styles.aracListIcon}>⊙</Text>
+          <Text style={styles.aracListLabel}>Konumları Yönet</Text>
+          <Text style={styles.aracListChevron}>›</Text>
+        </Pressable>
+      </View>
+
+    </ScrollView>
+  );
+}
+
+// ─── SurucuScreen ─────────────────────────────────────────────────────────────
+
+type SurucuScreenProps = {
+  driverProfile: ApiDriverProfile | null;
+  language: Locale;
+  onLogout: () => void;
+  onManageLocations: () => void;
+  onOpenArac: () => void;
+  onOpenProfile: () => void;
+  user: ApiUser | null;
+  vehicle: VehicleCatalogItem | null;
+  vehicleRoutes: ApiRouteFingerprint[];
+};
+
+function SurucuScreen({
+  driverProfile,
+  onLogout,
+  onManageLocations,
+  onOpenArac,
+  onOpenProfile,
+  user,
+  vehicle,
+  vehicleRoutes,
+}: SurucuScreenProps) {
+  const initial = (user?.fullName?.[0] ?? user?.username?.[0] ?? 'S').toUpperCase();
+  const memberSince = user?.createdAt ? new Date(user.createdAt).getFullYear() : null;
+
+  const profileScore = driverProfile?.hasEnoughData ? driverProfile.ecoScoreAvg : null;
+  const scoredRoutes = vehicleRoutes.filter((r) => r.behaviorEcoScore !== null);
+  const displayScore = profileScore ?? (scoredRoutes.length > 0
+    ? Math.round(scoredRoutes.reduce((s, r) => s + (r.behaviorEcoScore ?? 0), 0) / scoredRoutes.length)
+    : null);
+  const scoreColor = displayScore !== null
+    ? (displayScore >= 80 ? colors.cyan : displayScore >= 60 ? '#f0a500' : '#e05050')
+    : colors.muted;
+  const factor = driverProfile?.driverEfficiencyFactor
+    ?? (displayScore !== null ? Math.min(1.0, Math.max(0.75, 0.60 + displayScore / 250)) : null);
+  const savingsPct = factor !== null ? Math.round((1 - factor) * 100) : 0;
+  const personalizedRange = vehicle?.wltpRangeKm && factor ? Math.round(vehicle.wltpRangeKm * factor) : null;
+
+  return (
+    <ScrollView contentContainerStyle={styles.aracScroll}>
+
+      {/* ── KULLANICI PROFİL ────────────────────────────────────────────── */}
+      <View style={[styles.aracCard, { marginTop: 12 }]}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+          <View style={styles.surucuAvatar}>
+            <Text style={styles.surucuAvatarText}>{initial}</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.surucuName}>{user?.fullName || user?.username || 'Sürücü'}</Text>
+            <Text style={styles.surucuEmail}>{user?.email ?? '—'}</Text>
+            {memberSince ? (
+              <Text style={styles.surucuSince}>{memberSince}'den beri üye</Text>
             ) : null}
           </View>
-        );
-      })()}
+          <Pressable accessibilityRole="button" onPress={onOpenProfile} style={styles.surucuEditBtn}>
+            <MaterialIcons color={colors.cyan} name="edit" size={18} />
+          </Pressable>
+        </View>
+      </View>
+
+      {/* ── SÜRÜCÜ KARNEM ──────────────────────────────────────────────── */}
+      {displayScore !== null ? (
+        <View style={styles.aracCard}>
+          <View style={styles.aracCardHeader}>
+            <Text style={styles.aracCardTitle}>SÜRÜCÜ KARNEM</Text>
+            <Text style={[styles.aracCardSubtitle, { color: scoreColor, fontWeight: '700' }]}>
+              {Math.round(displayScore)} / 100
+            </Text>
+          </View>
+          {personalizedRange && vehicle?.wltpRangeKm ? (
+            <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6, marginBottom: 6 }}>
+              <Text style={{ color: colors.text, fontSize: 22, fontWeight: '700' }}>{personalizedRange} km</Text>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>gerçekçi menzil tahmini</Text>
+            </View>
+          ) : null}
+          <Text style={[styles.routeMeta, { marginBottom: 4, marginLeft: 2 }]}>
+            {driverProfile?.analyzedTripCount ?? scoredRoutes.length} yolculuktan elde edilen sürüş skoru
+          </Text>
+          {savingsPct > 2 ? (
+            <View style={{ backgroundColor: 'rgba(240,165,0,0.08)', borderRadius: 8, padding: 10, marginTop: 4 }}>
+              <Text style={{ color: '#f0a500', fontSize: 12, lineHeight: 17 }}>
+                Daha yumuşak sürüşle yaklaşık %{savingsPct} daha az enerji kullanabilirsin.
+              </Text>
+            </View>
+          ) : null}
+        </View>
+      ) : (
+        <View style={styles.aracCard}>
+          <Text style={styles.aracCardTitle}>SÜRÜCÜ KARNEM</Text>
+          <Text style={[styles.routeMeta, { marginTop: 8 }]}>
+            Sürücü skorun hesaplanmaya başlandı. İlk birkaç yolculuktan sonra görünecek.
+          </Text>
+        </View>
+      )}
 
       {/* ── HATLARIM ───────────────────────────────────────────────────── */}
       {vehicleRoutes.length > 0 ? (
@@ -4769,11 +4847,16 @@ function AracScreen({
         </View>
       ) : null}
 
-      {/* ── DİĞER LİSTE ────────────────────────────────────────────────── */}
+      {/* ── BAĞLANTILAR ────────────────────────────────────────────────── */}
       <View style={styles.aracListSection}>
         <Pressable accessibilityRole="button" onPress={onManageLocations} style={styles.aracListRow}>
           <Text style={styles.aracListIcon}>⊙</Text>
           <Text style={styles.aracListLabel}>Konumları Yönet</Text>
+          <Text style={styles.aracListChevron}>›</Text>
+        </Pressable>
+        <Pressable accessibilityRole="button" onPress={onOpenArac} style={styles.aracListRow}>
+          <Text style={styles.aracListIcon}>⬡</Text>
+          <Text style={styles.aracListLabel}>Araç Detayları</Text>
           <Text style={styles.aracListChevron}>›</Text>
         </Pressable>
         <Pressable accessibilityRole="button" onPress={onOpenProfile} style={styles.aracListRow}>
@@ -6918,7 +7001,7 @@ function isOnboardingStep(step: Step) {
 }
 
 function isMainTab(step: Step) {
-  return step === 'today' || step === 'yolculuk' || step === 'sarj' || step === 'karne' || step === 'arac';
+  return step === 'today' || step === 'yolculuk' || step === 'sarj' || step === 'karne' || step === 'arac' || step === 'surucu';
 }
 
 function isAppMainStep(step: Step) {
@@ -10865,6 +10948,42 @@ const styles = StyleSheet.create({
     color: colors.muted,
     fontSize: 10,
     opacity: 0.4,
+  },
+
+  // ── SurucuScreen ─────────────────────────────────────────────────────
+  surucuAvatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.cyan,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  surucuAvatarText: {
+    color: '#0d1515',
+    fontSize: 22,
+    fontWeight: '700',
+  },
+  surucuName: {
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  surucuEmail: {
+    color: colors.muted,
+    fontSize: 12,
+    marginBottom: 2,
+  },
+  surucuSince: {
+    color: colors.muted,
+    fontSize: 11,
+    opacity: 0.6,
+  },
+  surucuEditBtn: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: 'rgba(0,217,188,0.08)',
   },
 
   // ── Bugün (SummaryStep) — HTML token'larına birebir ─────────────────
