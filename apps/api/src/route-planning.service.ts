@@ -81,7 +81,11 @@ export class RoutePlanningService {
     const batteryKwh = resolveBatteryKwh(context);
     const baseConsumptionWhKm = resolveBaseConsumptionWhKm(context, batteryKwh);
     const multiplier = consumptionMultiplier(input);
-    const estimatedConsumptionWhKm = round(baseConsumptionWhKm * multiplier, 2);
+
+    // Apply driver efficiency factor when user has enough analyzed trips.
+    // Only applied to WLTP-based estimates — no double-penalty when real consumption is used.
+    const driverFactor = body.userId ? await this.resolveDriverFactor(body.userId, vehicleId) : 1.0;
+    const estimatedConsumptionWhKm = round((baseConsumptionWhKm * multiplier) / driverFactor, 2);
     const estimatedEnergyKwh = round((input.distanceKm * estimatedConsumptionWhKm) / 1000, 2);
     const usableEnergyKwh = round(batteryKwh * ((input.startSoc - input.targetArrivalSoc) / 100), 2);
     const energyMarginKwh = round(usableEnergyKwh - estimatedEnergyKwh, 2);
@@ -215,6 +219,18 @@ export class RoutePlanningService {
     );
 
     return result.rows[0] ? this.getPlan(result.rows[0].id) : null;
+  }
+
+  private async resolveDriverFactor(userId: string, vehicleId: string): Promise<number> {
+    const result = await this.db.query<{ factor: string; count: number }>(
+      `SELECT driver_efficiency_factor AS factor, analyzed_trip_count AS count
+       FROM driver_vehicle_profiles
+       WHERE user_id = $1 AND vehicle_id = $2`,
+      [userId, vehicleId],
+    );
+    const row = result.rows[0];
+    if (!row || Number(row.count) < 3) return 1.0;
+    return Math.min(1.0, Math.max(0.75, Number(row.factor)));
   }
 
   private async getContext(vehicleId: string) {
