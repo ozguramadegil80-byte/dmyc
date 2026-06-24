@@ -6,6 +6,8 @@ import { AnnualReportService } from './annual-report.service';
 import { RouteFingerprintService } from './route-fingerprint.service';
 import { ServiceVisitService } from './service-visit.service';
 import { TripBehaviorService } from './trip-behavior.service';
+import { WeatherService } from './weather.service';
+
 import { TripContextService } from './trip-context.service';
 import { UsageProfileService } from './usage-profile.service';
 
@@ -75,6 +77,7 @@ export class TripsService {
     private readonly routeFingerprints: RouteFingerprintService,
     private readonly serviceVisit: ServiceVisitService,
     private readonly tripBehavior: TripBehaviorService,
+    private readonly weather: WeatherService,
     private readonly tripContext: TripContextService,
     private readonly usageProfile: UsageProfileService,
   ) {}
@@ -230,6 +233,27 @@ export class TripsService {
     if (trip?.id) {
       await this.routeFingerprints.refreshForTrip(trip.id);
       await this.tripBehavior.analyzeTrip(trip.id);
+    }
+
+    if (trip?.id && trip?.vehicleId) {
+      const endLat = body.endLocation?.latitude ?? null;
+      const endLng = body.endLocation?.longitude ?? null;
+      if (endLat !== null && endLng !== null) {
+        const w = await this.weather.getWeatherAtLocation(endLat, endLng);
+        if (w) {
+          await this.db.query(
+            `UPDATE trips SET
+               ambient_temp_c = $2,
+               weather_condition = $3,
+               weather_fetched_at = now(),
+               hvac_inferred = $4,
+               hvac_source = 'weather_inferred',
+               hvac_confirmation_status = 'pending'
+             WHERE id = $1`,
+            [trip.id, w.tempC, w.condition, w.hvacInferred],
+          );
+        }
+      }
     }
 
     if (trip?.vehicleId) {
