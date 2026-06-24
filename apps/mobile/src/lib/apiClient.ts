@@ -1414,6 +1414,8 @@ export type ApiRouteFingerprint = {
   confidenceScore: number | null;
   firstSeenAt: string;
   lastSeenAt: string;
+  behaviorEcoScore: number | null;
+  behaviorTripCount: number;
 };
 
 export async function listRouteFingerprints(vehicleId: string): Promise<ApiRouteFingerprint[]> {

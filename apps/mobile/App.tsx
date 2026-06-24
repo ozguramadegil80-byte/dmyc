@@ -4661,6 +4661,34 @@ function AracScreen({
         </View>
       ) : null}
 
+      {/* ── SÜRÜCÜ KARNEM ──────────────────────────────────────────────── */}
+      {(() => {
+        const scoredRoutes = vehicleRoutes.filter((r) => r.behaviorEcoScore !== null);
+        if (scoredRoutes.length === 0) return null;
+        const avgScore = Math.round(scoredRoutes.reduce((s, r) => s + (r.behaviorEcoScore ?? 0), 0) / scoredRoutes.length);
+        const scoreColor = avgScore >= 80 ? colors.cyan : avgScore >= 60 ? '#f0a500' : '#e05050';
+        const factor = Math.min(1.0, Math.max(0.75, 0.60 + avgScore / 250));
+        const savingsPct = Math.round((1 - factor) * 100);
+        return (
+          <View style={styles.aracCard}>
+            <View style={styles.aracCardHeader}>
+              <Text style={styles.aracCardTitle}>SÜRÜCÜ KARNEM</Text>
+              <Text style={[styles.aracCardSubtitle, { color: scoreColor, fontWeight: '700' }]}>{avgScore} / 100</Text>
+            </View>
+            <Text style={[styles.routeMeta, { marginBottom: 4, marginLeft: 2 }]}>
+              {scoredRoutes.length} hattaki ortalama sürüş skoru
+            </Text>
+            {savingsPct > 2 ? (
+              <View style={{ backgroundColor: 'rgba(240,165,0,0.08)', borderRadius: 8, padding: 10, marginTop: 4 }}>
+                <Text style={{ color: '#f0a500', fontSize: 12, lineHeight: 17 }}>
+                  Daha yumuşak sürüşle mevcut rotalarında yaklaşık %{savingsPct} daha az enerji kullanabilirsin.
+                </Text>
+              </View>
+            ) : null}
+          </View>
+        );
+      })()}
+
       {/* ── HATLARIM ───────────────────────────────────────────────────── */}
       {vehicleRoutes.length > 0 ? (
         <View style={styles.aracCard}>
@@ -4673,6 +4701,8 @@ function AracScreen({
             const learned = confidence >= 0.5;
             const distKm = route.normalDistanceM ? (route.normalDistanceM / 1000).toFixed(0) : null;
             const durMin = route.normalDurationSeconds ? Math.round(route.normalDurationSeconds / 60) : null;
+            const ecoScore = route.behaviorEcoScore;
+            const ecoColor = ecoScore === null ? colors.muted : ecoScore >= 80 ? colors.cyan : ecoScore >= 60 ? '#f0a500' : '#e05050';
             return (
               <View key={route.id} style={styles.routeRow}>
                 <View style={styles.routeRowLeft}>
@@ -4686,10 +4716,15 @@ function AracScreen({
                     </Text>
                   </View>
                 </View>
-                <View style={[styles.routeBadge, { backgroundColor: learned ? 'rgba(0,217,188,0.12)' : 'rgba(132,148,149,0.12)' }]}>
-                  <Text style={[styles.routeBadgeText, { color: learned ? colors.cyan : colors.muted }]}>
-                    {learned ? 'TANIMLANDI' : 'ÖĞRENİYOR'}
-                  </Text>
+                <View style={{ alignItems: 'flex-end', gap: 4 }}>
+                  {ecoScore !== null ? (
+                    <Text style={{ color: ecoColor, fontSize: 13, fontWeight: '700' }}>{Math.round(ecoScore)}</Text>
+                  ) : null}
+                  <View style={[styles.routeBadge, { backgroundColor: learned ? 'rgba(0,217,188,0.12)' : 'rgba(132,148,149,0.12)' }]}>
+                    <Text style={[styles.routeBadgeText, { color: learned ? colors.cyan : colors.muted }]}>
+                      {learned ? 'TANIMLANDI' : 'ÖĞRENİYOR'}
+                    </Text>
+                  </View>
                 </View>
               </View>
             );

@@ -16,6 +16,8 @@ type RouteFingerprintRow = {
   confidenceScore: string;
   firstSeenAt: Date;
   lastSeenAt: Date;
+  behaviorEcoScore: string | null;
+  behaviorTripCount: number;
 };
 
 type TripRouteAssignmentRow = {
@@ -272,7 +274,9 @@ export class RouteFingerprintService {
           observed_trip_count AS "observedTripCount",
           confidence_score AS "confidenceScore",
           first_seen_at AS "firstSeenAt",
-          last_seen_at AS "lastSeenAt"
+          last_seen_at AS "lastSeenAt",
+          behavior_eco_score AS "behaviorEcoScore",
+          behavior_trip_count AS "behaviorTripCount"
         FROM route_fingerprints
         WHERE vehicle_id = $1
         ORDER BY observed_trip_count DESC, last_seen_at DESC
@@ -368,6 +372,7 @@ export class RouteFingerprintService {
 }
 
 function mapRouteFingerprint(row: RouteFingerprintRow) {
+  const behaviorTripCount = Number(row.behaviorTripCount ?? 0);
   return {
     id: row.id,
     vehicleId: row.vehicleId,
@@ -383,6 +388,8 @@ function mapRouteFingerprint(row: RouteFingerprintRow) {
     confidenceScore: toNumber(row.confidenceScore),
     firstSeenAt: row.firstSeenAt,
     lastSeenAt: row.lastSeenAt,
+    behaviorEcoScore: behaviorTripCount >= 3 ? toNumber(row.behaviorEcoScore) : null,
+    behaviorTripCount,
   };
 }
 
