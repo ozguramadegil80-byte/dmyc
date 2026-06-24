@@ -4932,15 +4932,35 @@ function MapLocationPicker({
   const mapRef = useRef<any>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [predictions, setPredictions] = useState<ApiPlacePrediction[]>([]);
-  // Region center = current pin location
   const [pinRegion, setPinRegion] = useState(ISTANBUL);
   const [pinLabel, setPinLabel] = useState('');
   const [pinMoving, setPinMoving] = useState(false);
   const [saveMode, setSaveMode] = useState(false);
   const [saveName, setSaveName] = useState('');
   const [saving, setSaving] = useState(false);
+  const [gpsLoading, setGpsLoading] = useState(false);
 
-  // Reset on open
+  const goToCurrentLocation = async () => {
+    setGpsLoading(true);
+    try {
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const region = {
+        latitude: pos.coords.latitude,
+        longitude: pos.coords.longitude,
+        latitudeDelta: 0.008,
+        longitudeDelta: 0.008,
+      };
+      setPinRegion(region);
+      setPinLabel('');
+      mapRef.current?.animateToRegion(region, 400);
+    } catch {
+      // konum alınamadı — harita yerinde kalır
+    } finally {
+      setGpsLoading(false);
+    }
+  };
+
+  // Reset on open; origin mode → auto-center on GPS
   useEffect(() => {
     if (visible) {
       setSearchQuery('');
@@ -4950,7 +4970,11 @@ function MapLocationPicker({
       setPinMoving(false);
       setSaveMode(false);
       setSaveName('');
+      if (mode === 'origin') {
+        goToCurrentLocation();
+      }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
   // Autocomplete debounce
@@ -5030,6 +5054,15 @@ function MapLocationPicker({
         <View style={styles.mapPickerPin} pointerEvents="none">
           <Text style={[styles.mapPickerPinIcon, pinMoving && { opacity: 0.6 }]}>📍</Text>
         </View>
+
+        {/* GPS re-center button — floating, bottom-right above bottom sheet */}
+        <Pressable
+          accessibilityRole="button"
+          onPress={goToCurrentLocation}
+          style={styles.mapPickerGpsBtn}
+        >
+          <MaterialIcons color={gpsLoading ? colors.muted : colors.cyan} name="my-location" size={22} />
+        </Pressable>
 
         {/* TOP: close + search */}
         <View style={styles.mapPickerOverlay}>
@@ -11141,6 +11174,17 @@ const styles = StyleSheet.create({
   },
   mapPickerMap: {
     flex: 1,
+  },
+  mapPickerGpsBtn: {
+    position: 'absolute',
+    bottom: 140,
+    right: 16,
+    zIndex: 20,
+    backgroundColor: colors.background,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: colors.line,
+    padding: 10,
   },
   // Fixed center pin — stays on screen while map scrolls underneath
   mapPickerPin: {
