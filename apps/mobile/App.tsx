@@ -21,14 +21,17 @@ import {
   TextInput,
   View,
 } from 'react-native';
-// react-native-maps: native only. Android requires API key in AndroidManifest (EAS build plugin injects it).
-// Keep Android blocked until a new EAS build is taken — old APK was built without the key, native crash occurs.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let RNMaps: any = null;
 if (Platform.OS === 'ios' || Platform.OS === 'android') {
-  try { RNMaps = require('react-native-maps'); } catch { /* maps not in this build */ }
+  try {
+    RNMaps = require('react-native-maps');
+  } catch (e) {
+    console.warn('[Maps] react-native-maps load failed:', e);
+  }
 }
-const MapView = RNMaps?.default ?? null;
+// react-native-maps may export as ESM (`.default`) or CJS (module itself).
+const MapView = RNMaps?.default ?? RNMaps ?? null;
 const Marker = RNMaps?.Marker ?? null;
 import {
   appendTripPoints,
@@ -5019,7 +5022,7 @@ function MapLocationPicker({
           </MapErrorBoundary>
         ) : (
           <View style={styles.mapPickerMapPlaceholder}>
-            <Text style={styles.mapPickerPlaceholderText}>Harita telefon uygulamasında görünür</Text>
+            <Text style={styles.mapPickerPlaceholderText}>{`RNMaps: ${typeof RNMaps} | MV: ${typeof MapView} | OS: ${Platform.OS}`}</Text>
           </View>
         )}
 
