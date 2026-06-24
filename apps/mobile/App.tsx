@@ -1,6 +1,7 @@
 ﻿import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
+import * as Notifications from 'expo-notifications';
 import { StatusBar } from 'expo-status-bar';
 import React, { Component, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -184,6 +185,18 @@ const AUTO_TRIP_STOP_SPEED_KMH = 2;
 const AUTO_TRIP_STOP_DEBOUNCE_MS = 180000;
 const AUTO_TRIP_WATCH_TIME_INTERVAL_MS = 5000;
 const AUTO_TRIP_WATCH_DISTANCE_INTERVAL_M = 10;
+const UNKNOWN_ROUTE_NOTIFY_MS = 10 * 60 * 1000; // 10 dakika hareketsizlik
+const SAVED_LOCATION_MATCH_RADIUS_M = 300;
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: false,
+    shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
 
 type RegistrationForm = {
   username: string;
@@ -378,6 +391,9 @@ export default function App() {
   const [acceptLoading, setAcceptLoading] = useState(false);
   const [acceptMessage, setAcceptMessage] = useState<string | null>(null);
   const [vehicleRoutes, setVehicleRoutes] = useState<ApiRouteFingerprint[]>([]);
+  const [showRouteSaveModal, setShowRouteSaveModal] = useState(false);
+  const [routeSaveName, setRouteSaveName] = useState('');
+  const [routeSaveOrigin, setRouteSaveOrigin] = useState<{ lat: number; lng: number } | null>(null);
   const [activeTrip, setActiveTrip] = useState<ApiTrip | null>(null);
   const [lastCompletedTrip, setLastCompletedTrip] = useState<ApiTrip | null>(null);
   const [lastTripRecap, setLastTripRecap] = useState<ApiTripRecap | null>(null);
@@ -431,6 +447,7 @@ export default function App() {
   const [destinationSearchStatus, setDestinationSearchStatus] = useState<PlaceSearchStatus>('idle');
   const [routePreview, setRoutePreview] = useState<ApiRoutePreview | null>(null);
   const [savedLocations, setSavedLocations] = useState<ApiSavedLocation[]>([]);
+  const savedLocationsRef = useRef<ApiSavedLocation[]>([]);
   const [savedRoutes, setSavedRoutes] = useState<ApiSavedRoute[]>([]);
   const [savedLocationForm, setSavedLocationForm] = useState<SavedLocationForm>(emptySavedLocationForm);
   const [savedLocationPredictions, setSavedLocationPredictions] = useState<ApiPlacePrediction[]>([]);
@@ -465,6 +482,8 @@ export default function App() {
   const autoTripPointIndexRef = useRef(0);
   const detectedRouteRef = useRef<ApiRouteFingerprint | null>(null);
   const routeMatchCheckedRef = useRef(false);
+  const unknownOriginTripRef = useRef<{ lat: number; lng: number } | null>(null);
+  const unknownRouteNotifyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const brands = useMemo(() => getBrands(catalogItems), [catalogItems]);
   const visibleBrands = useMemo(
@@ -510,6 +529,10 @@ export default function App() {
   useEffect(() => {
     backendBindingRef.current = backendBinding;
   }, [backendBinding]);
+
+  useEffect(() => {
+    savedLocationsRef.current = savedLocations;
+  }, [savedLocations]);
 
   useEffect(() => {
     tripPointsRef.current = tripPoints;
@@ -692,6 +715,22 @@ export default function App() {
       autoTripSubscriptionRef.current = null;
     };
   }, [autoTripEnabled, backendBinding?.ownership.id, backendBinding?.user.id, backendBinding?.vehicle.id]);
+
+  // Bildirim izni + notification tap handler
+  useEffect(() => {
+    Notifications.requestPermissionsAsync().catch(() => {});
+
+    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+      const data = response.notification.request.content.data as Record<string, unknown>;
+      if (data?.type === 'unknown_route' && data?.lat && data?.lng) {
+        setRouteSaveOrigin({ lat: data.lat as number, lng: data.lng as number });
+        setRouteSaveName('');
+        setShowRouteSaveModal(true);
+      }
+    });
+
+    return () => sub.remove();
+  }, []);
 
   useEffect(() => {
     if (!backendBinding) {
@@ -1357,6 +1396,30 @@ export default function App() {
     }
   };
 
+  const scheduleUnknownRouteNotification = (lat: number, lng: number) => {
+    if (unknownRouteNotifyTimerRef.current) {
+      clearTimeout(unknownRouteNotifyTimerRef.current);
+    }
+    unknownRouteNotifyTimerRef.current = setTimeout(async () => {
+      unknownRouteNotifyTimerRef.current = null;
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: 'Yeni rota tespit edildi',
+          body: 'Farklı bir konumdan gittiğinizi görüyorum. Bu yolculuk araç karnesine işlenecektir — rotayı kaydetmek ister misiniz?',
+          data: { type: 'unknown_route', lat, lng },
+        },
+        trigger: null, // hemen gönder
+      });
+    }, UNKNOWN_ROUTE_NOTIFY_MS);
+  };
+
+  const cancelUnknownRouteNotification = () => {
+    if (unknownRouteNotifyTimerRef.current) {
+      clearTimeout(unknownRouteNotifyTimerRef.current);
+      unknownRouteNotifyTimerRef.current = null;
+    }
+  };
+
   const refreshVehicleRoutes = async (vehicleId: string) => {
     try {
       const routes = await listRouteFingerprints(vehicleId);
@@ -1940,25 +2003,40 @@ export default function App() {
           const isFirstMovement = autoTripMovingSinceRef.current === null;
           autoTripMovingSinceRef.current ??= now;
 
-          // On first movement: fire-and-forget route origin match
+          // On first movement: check saved locations (B) + route fingerprints (A36)
           if (isFirstMovement && !routeMatchCheckedRef.current) {
             routeMatchCheckedRef.current = true;
-            const binding = backendBindingRef.current;
-            if (binding) {
-              matchRouteOrigin(binding.vehicle.id, point.latitude, point.longitude)
-                .then((matches) => {
-                  const best = matches.find((m) => (m.confidenceScore ?? 0) >= 0.5);
-                  if (best) {
-                    detectedRouteRef.current = best;
-                    setAutoTripMessage(formatRouteLabel(best) + ' hattı algılandı');
-                  }
-                })
-                .catch(() => {});
+            cancelUnknownRouteNotification();
+
+            // B: kayıtlı konuma yakın mı? → anında tanı
+            const nearSaved = savedLocationsRef.current.find(
+              (loc) => haversineM(point.latitude, point.longitude, loc.latitude, loc.longitude) <= SAVED_LOCATION_MATCH_RADIUS_M,
+            );
+            if (nearSaved) {
+              detectedRouteRef.current = { id: 'saved', routeKey: nearSaved.label } as unknown as ApiRouteFingerprint;
+              setAutoTripMessage(`${nearSaved.label} konumundan hareket algılandı`);
+              unknownOriginTripRef.current = null;
+            } else {
+              unknownOriginTripRef.current = { lat: point.latitude, lng: point.longitude };
+              // A36: route fingerprint match
+              const binding = backendBindingRef.current;
+              if (binding) {
+                matchRouteOrigin(binding.vehicle.id, point.latitude, point.longitude)
+                  .then((matches) => {
+                    const best = matches.find((m) => (m.confidenceScore ?? 0) >= 0.5);
+                    if (best) {
+                      detectedRouteRef.current = best;
+                      unknownOriginTripRef.current = null;
+                      setAutoTripMessage(formatRouteLabel(best) + ' hattı algılandı');
+                    }
+                  })
+                  .catch(() => {});
+              }
             }
           }
 
           const elapsed = now - autoTripMovingSinceRef.current;
-          // Known route: 3s debounce. Unknown: 15s.
+          // Bilinen kaynak (kayıtlı konum veya öğrenilmiş hat): 3s. Bilinmeyen: 15s.
           const debounce = detectedRouteRef.current ? 3000 : AUTO_TRIP_START_DEBOUNCE_MS;
           setAutoTripStatus(elapsed >= debounce ? 'active' : 'moving');
 
@@ -1988,10 +2066,20 @@ export default function App() {
         if (elapsed >= AUTO_TRIP_STOP_DEBOUNCE_MS) {
           await finishTripWithPoint(point, 'auto');
           autoTripStoppedSinceRef.current = null;
+          // Unknown origin → 10dk hareketsizlik sonrası bildirim
+          if (unknownOriginTripRef.current) {
+            scheduleUnknownRouteNotification(
+              unknownOriginTripRef.current.lat,
+              unknownOriginTripRef.current.lng,
+            );
+            unknownOriginTripRef.current = null;
+          }
         }
       } else {
         autoTripStoppedSinceRef.current = null;
         setAutoTripStatus('active');
+        // Hareket devam ediyorsa bildirim timer'ını iptal et
+        cancelUnknownRouteNotification();
       }
     } finally {
       autoTripWorkingRef.current = false;
@@ -2555,6 +2643,51 @@ export default function App() {
         onSwitch={switchToVehicle}
         onClose={() => setShowVehicleSwitcher(false)}
       />
+
+      {/* ── BİLİNMEYEN ROTA KAYDET ─────────────────────────────────── */}
+      <Modal transparent animationType="fade" visible={showRouteSaveModal} onRequestClose={() => setShowRouteSaveModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.routeSaveModal}>
+            <Text style={styles.routeSaveTitle}>ROTAYI KAYDET</Text>
+            <Text style={styles.routeSaveDesc}>Bu başlangıç konumuna bir isim verin. Bir dahaki seferinde otomatik algılanacak.</Text>
+            <TextInput
+              style={styles.routeSaveInput}
+              placeholder="örn. Ev, İş, Spor Salonu..."
+              placeholderTextColor={colors.dimText}
+              value={routeSaveName}
+              onChangeText={setRouteSaveName}
+              autoFocus
+              returnKeyType="done"
+            />
+            <View style={styles.routeSaveActions}>
+              <Pressable accessibilityRole="button" onPress={() => setShowRouteSaveModal(false)} style={styles.routeSaveCancelBtn}>
+                <Text style={styles.routeSaveCancelText}>GEÇ</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                onPress={async () => {
+                  if (!routeSaveName.trim() || !routeSaveOrigin || !registeredUser) return;
+                  try {
+                    const loc = await createSavedLocation(registeredUser.id, {
+                      label: routeSaveName.trim(),
+                      latitude: routeSaveOrigin.lat,
+                      longitude: routeSaveOrigin.lng,
+                      locationKind: 'other',
+                    });
+                    setSavedLocations((prev) => [...prev, loc]);
+                    setShowRouteSaveModal(false);
+                    setRouteSaveName('');
+                    setRouteSaveOrigin(null);
+                  } catch { /* ignore */ }
+                }}
+                style={[styles.routeSaveSaveBtn, !routeSaveName.trim() && { opacity: 0.4 }]}
+              >
+                <Text style={styles.routeSaveSaveText}>KAYDET</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <DriversModal
         visible={showDriversModal}
@@ -6873,6 +7006,14 @@ function toDisplayNumber(value: string | number | null | undefined) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function haversineM(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371000;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 function formatRouteLabel(route: ApiRouteFingerprint): string {
   const [oLat, oLng] = route.originCell.split(',').map(Number);
   const [dLat, dLng] = route.destinationCell.split(',').map(Number);
@@ -10288,6 +10429,66 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '700',
     letterSpacing: 1.2,
+  },
+  routeSaveModal: {
+    backgroundColor: '#192122',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.line,
+    padding: 24,
+    marginHorizontal: 24,
+    gap: 16,
+  },
+  routeSaveTitle: {
+    color: colors.cyan,
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 2,
+  },
+  routeSaveDesc: {
+    color: colors.dimText,
+    fontSize: 13,
+    lineHeight: 20,
+  },
+  routeSaveInput: {
+    backgroundColor: '#0D1515',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.line,
+    color: colors.text,
+    fontSize: 15,
+    padding: 12,
+  },
+  routeSaveActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  routeSaveCancelBtn: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  routeSaveCancelText: {
+    color: colors.dimText,
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 1,
+  },
+  routeSaveSaveBtn: {
+    flex: 2,
+    backgroundColor: colors.cyan,
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  routeSaveSaveText: {
+    color: '#0D1515',
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 1,
   },
   aracAssessmentHeader: {
     padding: 16,
