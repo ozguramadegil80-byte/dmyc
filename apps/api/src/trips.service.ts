@@ -5,6 +5,7 @@ import { MonthlyReportService } from './monthly-report.service';
 import { AnnualReportService } from './annual-report.service';
 import { RouteFingerprintService } from './route-fingerprint.service';
 import { ServiceVisitService } from './service-visit.service';
+import { TripBehaviorService } from './trip-behavior.service';
 import { TripContextService } from './trip-context.service';
 import { UsageProfileService } from './usage-profile.service';
 
@@ -73,6 +74,7 @@ export class TripsService {
     private readonly annualReports: AnnualReportService,
     private readonly routeFingerprints: RouteFingerprintService,
     private readonly serviceVisit: ServiceVisitService,
+    private readonly tripBehavior: TripBehaviorService,
     private readonly tripContext: TripContextService,
     private readonly usageProfile: UsageProfileService,
   ) {}
@@ -227,6 +229,7 @@ export class TripsService {
 
     if (trip?.id) {
       await this.routeFingerprints.refreshForTrip(trip.id);
+      await this.tripBehavior.analyzeTrip(trip.id);
     }
 
     if (trip?.vehicleId) {

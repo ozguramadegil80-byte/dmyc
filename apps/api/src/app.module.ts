@@ -19,6 +19,7 @@ import { PremiumVehicleReportService } from './premium-vehicle-report.service';
 import { PremiumAccessService } from './premium-access.service';
 import { PremiumGuidanceService } from './premium-guidance.service';
 import { RouteFingerprintService } from './route-fingerprint.service';
+import { TripBehaviorService } from './trip-behavior.service';
 import { RouteGeometryService } from './route-geometry.service';
 import { RoutePlanningService } from './route-planning.service';
 import { SavedLocationsService } from './saved-locations.service';
@@ -53,6 +54,7 @@ import { VehiclesService } from './vehicles.service';
     PremiumAccessService,
     PremiumGuidanceService,
     RouteFingerprintService,
+    TripBehaviorService,
     RouteGeometryService,
     RoutePlanningService,
     SavedLocationsService,

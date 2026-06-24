@@ -22,6 +22,7 @@ import { SavedLocationsService } from './saved-locations.service';
 import { ServiceVisitService } from './service-visit.service';
 import { TripContextService } from './trip-context.service';
 import { TripsService } from './trips.service';
+import { TripBehaviorService } from './trip-behavior.service';
 import { TripRecapService } from './trip-recap.service';
 import { VehicleRegistryService } from './vehicle-registry.service';
 import { VehicleSpecsService } from './vehicle-specs.service';
@@ -46,6 +47,7 @@ export class AppController {
     private readonly premiumAccess: PremiumAccessService,
     private readonly premiumGuidance: PremiumGuidanceService,
     private readonly routeFingerprints: RouteFingerprintService,
+    private readonly tripBehavior: TripBehaviorService,
     private readonly routeGeometry: RouteGeometryService,
     private readonly routePlanning: RoutePlanningService,
     private readonly savedLocations: SavedLocationsService,
@@ -390,6 +392,16 @@ export class AppController {
   @Get('trips/:id/route-progress')
   getTripRouteProgress(@Param('id') id: string) {
     return this.trips.getRouteProgress(id);
+  }
+
+  @Get('trips/:id/behavior')
+  getTripBehavior(@Param('id') id: string) {
+    return this.tripBehavior.getTripBehaviorSummary(id);
+  }
+
+  @Get('route-fingerprints/:id/behavior')
+  getRouteBehavior(@Param('id') id: string) {
+    return this.tripBehavior.getRouteBehaviorSummary(id);
   }
 
   @Post('trips/:id/recap')
