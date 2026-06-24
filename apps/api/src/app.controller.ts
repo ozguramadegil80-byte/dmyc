@@ -5,6 +5,7 @@ import { AnnualReportService } from './annual-report.service';
 import { BatteryLifecycleService } from './battery-lifecycle.service';
 import { MonthlyReportService } from './monthly-report.service';
 import { ChargingIntelligenceService } from './charging-intelligence.service';
+import { DriverIntelligenceService } from './driver-intelligence.service';
 import { ElectricityTariffService } from './electricity-tariff.service';
 import { EvAssessmentService } from './ev-assessment.service';
 import { ChargingService } from './charging.service';
@@ -37,6 +38,7 @@ export class AppController {
     private readonly batteryLifecycle: BatteryLifecycleService,
     private readonly monthlyReports: MonthlyReportService,
     private readonly chargingIntelligence: ChargingIntelligenceService,
+    private readonly driverIntelligence: DriverIntelligenceService,
     private readonly electricityTariff: ElectricityTariffService,
     private readonly evAssessment: EvAssessmentService,
     private readonly charging: ChargingService,
@@ -503,6 +505,14 @@ export class AppController {
   @Get('vehicles/:id/route-summary')
   getRouteSummary(@Param('id') id: string) {
     return this.routeFingerprints.getVehicleRouteSummary(id);
+  }
+
+  @Get('vehicles/:id/driver-intelligence')
+  getDriverIntelligence(
+    @Param('id') id: string,
+    @Query('userId') userId?: string,
+  ) {
+    return this.driverIntelligence.getIntelligence(userId ?? '', id);
   }
 
   @Post('vehicles/:id/route-plans')

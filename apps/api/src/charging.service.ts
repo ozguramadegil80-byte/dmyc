@@ -2,6 +2,7 @@ import { ForbiddenException, Injectable } from '@nestjs/common';
 import { AnnualReportService } from './annual-report.service';
 import { BatteryLifecycleService } from './battery-lifecycle.service';
 import { DatabaseService } from './database.service';
+import { DriverIntelligenceService } from './driver-intelligence.service';
 import { MonthlyReportService } from './monthly-report.service';
 import { UsageProfileService } from './usage-profile.service';
 import { VehiclesService } from './vehicles.service';
@@ -61,6 +62,7 @@ export class ChargingService {
     private readonly annualReports: AnnualReportService,
     private readonly db: DatabaseService,
     private readonly batteryLifecycle: BatteryLifecycleService,
+    private readonly driverIntelligence: DriverIntelligenceService,
     private readonly monthlyReports: MonthlyReportService,
     private readonly usageProfile: UsageProfileService,
     private readonly vehicleAccess: VehiclesService,
@@ -163,6 +165,7 @@ export class ChargingService {
 
     if (chargeSession?.id) {
       await this.batteryLifecycle.refreshForChargeSession(chargeSession.id);
+      await this.driverIntelligence.refreshForChargeSession(chargeSession.id);
     }
 
     if (chargeSession?.vehicleId) {

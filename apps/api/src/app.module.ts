@@ -7,6 +7,7 @@ import { MonthlyReportService } from './monthly-report.service';
 import { AdminApiKeyGuard } from './admin-api-key.guard';
 import { ChargingIntelligenceService } from './charging-intelligence.service';
 import { ChargingService } from './charging.service';
+import { DriverIntelligenceService } from './driver-intelligence.service';
 import { ChargeStopPoiService } from './charge-stop-poi.service';
 import { CommunityBenchmarkService } from './community-benchmark.service';
 import { DatabaseService } from './database.service';
@@ -43,6 +44,7 @@ import { VehiclesService } from './vehicles.service';
     AdminApiKeyGuard,
     ChargingIntelligenceService,
     ChargingService,
+    DriverIntelligenceService,
     ChargeStopPoiService,
     CommunityBenchmarkService,
     DatabaseService,
