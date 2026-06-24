@@ -1535,7 +1535,14 @@ async function fetchJson<T>(path: string, init: RequestInit = {}): Promise<T> {
       throw new Error(payload?.message ?? `API request failed with status ${response.status}`);
     }
 
-    return (await response.json()) as T;
+    const contentType = response.headers.get('content-type') ?? '';
+    if (response.status === 204 || !contentType.includes('application/json')) {
+      return undefined as unknown as T;
+    }
+
+    const text = await response.text();
+    if (!text) return undefined as unknown as T;
+    return JSON.parse(text) as T;
   } finally {
     clearTimeout(timeout);
   }
