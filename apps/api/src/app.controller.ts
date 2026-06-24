@@ -406,6 +406,11 @@ export class AppController {
     return this.weather.confirmHvac(id, body.confirmed);
   }
 
+  @Get('users/:userId/driver-profile/:vehicleId')
+  getDriverProfile(@Param('userId') userId: string, @Param('vehicleId') vehicleId: string) {
+    return this.tripBehavior.getDriverProfile(userId, vehicleId);
+  }
+
   @Get('route-fingerprints/:id/behavior')
   getRouteBehavior(@Param('id') id: string) {
     return this.tripBehavior.getRouteBehaviorSummary(id);

@@ -760,6 +760,24 @@ export async function fetchTripRouteProgress(tripId: string) {
   return fetchJson<ApiTripRouteProgress | null>(`/trips/${tripId}/route-progress`);
 }
 
+export type ApiDriverProfile = {
+  userId: string;
+  vehicleId: string;
+  ecoScoreAvg: number | null;
+  driverEfficiencyFactor: number;
+  analyzedTripCount: number;
+  hasEnoughData: boolean;
+  lastAnalyzedAt: string | null;
+};
+
+export async function fetchDriverProfile(userId: string, vehicleId: string): Promise<ApiDriverProfile | null> {
+  try {
+    return await fetchJson<ApiDriverProfile>(`/users/${userId}/driver-profile/${vehicleId}`);
+  } catch {
+    return null;
+  }
+}
+
 export async function confirmTripHvac(tripId: string, confirmed: boolean) {
   return fetchJson<{ learned: boolean }>(`/trips/${tripId}/hvac-confirmation`, {
     method: 'PATCH',

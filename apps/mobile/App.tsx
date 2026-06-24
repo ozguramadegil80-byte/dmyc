@@ -97,6 +97,8 @@ import {
   type ApiRouteFingerprint,
   fetchVehicleSpecs,
   confirmTripHvac,
+  fetchDriverProfile,
+  type ApiDriverProfile,
   finishTrip,
   loginUser,
   API_BASE_URL,
@@ -400,6 +402,7 @@ export default function App() {
   const [routeSaveOrigin, setRouteSaveOrigin] = useState<{ lat: number; lng: number } | null>(null);
   const [showHvacModal, setShowHvacModal] = useState(false);
   const [pendingHvacTrip, setPendingHvacTrip] = useState<{ id: string; tempC: number; type: 'cooling' | 'heating' } | null>(null);
+  const [driverProfile, setDriverProfile] = useState<ApiDriverProfile | null>(null);
   const [activeTrip, setActiveTrip] = useState<ApiTrip | null>(null);
   const [lastCompletedTrip, setLastCompletedTrip] = useState<ApiTrip | null>(null);
   const [lastTripRecap, setLastTripRecap] = useState<ApiTripRecap | null>(null);
@@ -791,6 +794,7 @@ export default function App() {
       });
     fetchLatestTripAdvisories(backendBinding.vehicle.id).then(setPremiumGuidance).catch(() => setPremiumGuidance(null));
     refreshSavedLocationData(backendBinding.user.id);
+    fetchDriverProfile(backendBinding.user.id, backendBinding.vehicle.id).then(setDriverProfile).catch(() => {});
   }, [backendBinding]);
 
   useEffect(() => {
@@ -1834,6 +1838,9 @@ export default function App() {
       refreshMonthlyReport(binding.vehicle.id);
       refreshAnnualReport(binding.vehicle.id);
       void refreshVehicleRoutes(binding.vehicle.id);
+      if (registeredUser) {
+        fetchDriverProfile(registeredUser.id, binding.vehicle.id).then(setDriverProfile).catch(() => {});
+      }
       const recapResult = await refreshTripRecap(completedTrip.id);
 
       if (completedTrip.hvacInferred === 'cooling' || completedTrip.hvacInferred === 'heating') {
@@ -3015,6 +3022,7 @@ export default function App() {
           user={registeredUser}
           vehicle={selectedVehicle}
           vehicleRoutes={vehicleRoutes}
+          driverProfile={driverProfile}
         />
       ) : null}
 
@@ -4395,6 +4403,7 @@ type AracScreenProps = {
   user: ApiUser | null;
   vehicle: VehicleCatalogItem | null;
   vehicleRoutes: ApiRouteFingerprint[];
+  driverProfile: ApiDriverProfile | null;
 };
 
 function AracScreen({
@@ -4419,6 +4428,7 @@ function AracScreen({
   user,
   vehicle,
   vehicleRoutes,
+  driverProfile,
 }: AracScreenProps) {
   const translate = createTranslator(language);
   const vehicleImage = vehicle?.imageUrl ?? vehicle?.brandImageUrl ?? HERO_IMAGE;
@@ -4663,25 +4673,35 @@ function AracScreen({
 
       {/* ── SÜRÜCÜ KARNEM ──────────────────────────────────────────────── */}
       {(() => {
+        const profileScore = driverProfile?.hasEnoughData ? driverProfile.ecoScoreAvg : null;
         const scoredRoutes = vehicleRoutes.filter((r) => r.behaviorEcoScore !== null);
-        if (scoredRoutes.length === 0) return null;
-        const avgScore = Math.round(scoredRoutes.reduce((s, r) => s + (r.behaviorEcoScore ?? 0), 0) / scoredRoutes.length);
-        const scoreColor = avgScore >= 80 ? colors.cyan : avgScore >= 60 ? '#f0a500' : '#e05050';
-        const factor = Math.min(1.0, Math.max(0.75, 0.60 + avgScore / 250));
+        const displayScore = profileScore ?? (scoredRoutes.length > 0
+          ? Math.round(scoredRoutes.reduce((s, r) => s + (r.behaviorEcoScore ?? 0), 0) / scoredRoutes.length)
+          : null);
+        if (displayScore === null) return null;
+        const scoreColor = displayScore >= 80 ? colors.cyan : displayScore >= 60 ? '#f0a500' : '#e05050';
+        const factor = driverProfile?.driverEfficiencyFactor ?? Math.min(1.0, Math.max(0.75, 0.60 + displayScore / 250));
         const savingsPct = Math.round((1 - factor) * 100);
+        const personalizedRange = vehicle?.wltpRangeKm ? Math.round(vehicle.wltpRangeKm * factor) : null;
         return (
           <View style={styles.aracCard}>
             <View style={styles.aracCardHeader}>
               <Text style={styles.aracCardTitle}>SÜRÜCÜ KARNEM</Text>
-              <Text style={[styles.aracCardSubtitle, { color: scoreColor, fontWeight: '700' }]}>{avgScore} / 100</Text>
+              <Text style={[styles.aracCardSubtitle, { color: scoreColor, fontWeight: '700' }]}>{Math.round(displayScore)} / 100</Text>
             </View>
+            {personalizedRange && vehicle?.wltpRangeKm ? (
+              <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6, marginBottom: 6 }}>
+                <Text style={{ color: colors.text, fontSize: 22, fontWeight: '700' }}>{personalizedRange} km</Text>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>gerçekçi menzil tahmini</Text>
+              </View>
+            ) : null}
             <Text style={[styles.routeMeta, { marginBottom: 4, marginLeft: 2 }]}>
-              {scoredRoutes.length} hattaki ortalama sürüş skoru
+              {driverProfile?.analyzedTripCount ?? scoredRoutes.length} yolculuktan elde edilen sürüş skoru
             </Text>
             {savingsPct > 2 ? (
               <View style={{ backgroundColor: 'rgba(240,165,0,0.08)', borderRadius: 8, padding: 10, marginTop: 4 }}>
                 <Text style={{ color: '#f0a500', fontSize: 12, lineHeight: 17 }}>
-                  Daha yumuşak sürüşle mevcut rotalarında yaklaşık %{savingsPct} daha az enerji kullanabilirsin.
+                  Daha yumuşak sürüşle yaklaşık %{savingsPct} daha az enerji kullanabilirsin.
                 </Text>
               </View>
             ) : null}

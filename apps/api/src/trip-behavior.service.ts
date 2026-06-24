@@ -283,6 +283,38 @@ export class TripBehaviorService {
     );
   }
 
+  async getDriverProfile(userId: string, vehicleId: string) {
+    const result = await this.db.query<{
+      ecoScoreAvg: string | null;
+      driverEfficiencyFactor: string;
+      analyzedTripCount: number;
+      lastAnalyzedAt: Date | null;
+    }>(
+      `SELECT
+         eco_score_avg AS "ecoScoreAvg",
+         driver_efficiency_factor AS "driverEfficiencyFactor",
+         analyzed_trip_count AS "analyzedTripCount",
+         last_analyzed_at AS "lastAnalyzedAt"
+       FROM driver_vehicle_profiles
+       WHERE user_id = $1 AND vehicle_id = $2`,
+      [userId, vehicleId],
+    );
+
+    const row = result.rows[0];
+    const analyzedTripCount = row ? Number(row.analyzedTripCount) : 0;
+    const hasEnoughData = analyzedTripCount >= 3;
+
+    return {
+      userId,
+      vehicleId,
+      ecoScoreAvg: hasEnoughData && row?.ecoScoreAvg != null ? Number(row.ecoScoreAvg) : null,
+      driverEfficiencyFactor: row ? Number(row.driverEfficiencyFactor) : 1.0,
+      analyzedTripCount,
+      hasEnoughData,
+      lastAnalyzedAt: row?.lastAnalyzedAt ?? null,
+    };
+  }
+
   async getTripBehaviorSummary(tripId: string) {
     const result = await this.db.query<{ eventType: string; severity: string; count: string }>(
       `SELECT event_type AS "eventType", severity, count(*)::text AS count
