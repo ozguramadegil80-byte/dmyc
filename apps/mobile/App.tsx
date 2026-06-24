@@ -3985,14 +3985,14 @@ function KarneScreen({ batteryLifecycle, communityBenchmark, monthlyReport, usag
           </View>
           <View style={styles.karneDataGrid}>
             <KarneDataItem label="MESAFE" value={`${Math.round(monthlyReport!.totalDistanceM / 1000)}`} unit="km" />
-            <KarneDataItem label="ENERJİ MALİYETİ" value={`₺${monthlyReport!.totalCostAmount.toFixed(0)}`} accent />
-            <KarneDataItem label="BİRİM MALİYET" value={monthlyReport!.costPerKm ? `${(monthlyReport!.costPerKm * 1000).toFixed(1)}` : '—'} unit="kr" />
-            <KarneDataItem label="TASARRUF" value={monthlyReport!.estimatedSavings != null && monthlyReport!.estimatedSavings > 0 ? `₺${monthlyReport!.estimatedSavings.toFixed(0)}` : '—'} accent />
+            <KarneDataItem label="ENERJİ MALİYETİ" value={formatTL(monthlyReport!.totalCostAmount)} accent />
+            <KarneDataItem label="BİRİM MALİYET" value={monthlyReport!.costPerKm ? monthlyReport!.costPerKm.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'} unit="₺/km" />
+            <KarneDataItem label="TASARRUF" value={monthlyReport!.estimatedSavings != null && monthlyReport!.estimatedSavings > 0 ? formatTL(monthlyReport!.estimatedSavings) : '—'} accent />
           </View>
           <View style={styles.karneCardFooter}>
             <Text style={styles.karneFooterLeft}>{monthlyReport!.tripCount} yolculuk</Text>
             <Text style={styles.karneFooterRight}>
-              {`Benzinli: ₺${monthlyReport!.fossilEquivCost?.toFixed(0) ?? '—'}`}
+              {`Benzinli: ${monthlyReport!.fossilEquivCost != null ? formatTL(monthlyReport!.fossilEquivCost) : '—'}`}
             </Text>
           </View>
         </View>
@@ -5151,7 +5151,7 @@ function ChargeLoggerStep({
           <Text style={styles.sarjSummaryLabel}>ORTALAMA</Text>
           <Text style={[styles.sarjSummaryValue, { color: colors.cyan }]}>
             {summary && summary.chargeSessionCount > 0
-              ? `₺${Math.round(summary.totalCostAmount / summary.chargeSessionCount)}`
+              ? formatTL(summary.totalCostAmount / summary.chargeSessionCount)
               : '—'}
           </Text>
         </View>
@@ -5303,7 +5303,7 @@ function ChargeLoggerStep({
               </View>
               <View style={styles.sarjHistoryRight}>
                 <Text style={styles.sarjHistoryCost}>
-                  {lastChargeSession.costAmount !== null ? `₺${Math.round(lastChargeSession.costAmount)}` : '—'}
+                  {lastChargeSession.costAmount !== null ? formatTL(lastChargeSession.costAmount) : '—'}
                 </Text>
               </View>
             </View>
@@ -6789,8 +6789,12 @@ function toDisplayNumber(value: string | number | null | undefined) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function formatTL(value: number, decimals = 0): string {
+  return `₺${value.toLocaleString('tr-TR', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
+}
+
 function formatMoney(value: number | null) {
-  return value === null ? t('mobile.value.unknown') : `${value.toFixed(2)} TRY`;
+  return value === null ? t('mobile.value.unknown') : formatTL(value, 2);
 }
 
 function formatConfidence(value: number | null) {
