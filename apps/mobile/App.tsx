@@ -196,6 +196,7 @@ const HVAC_NOTIFY_DELAY_MS = 10 * 60 * 1000;
 const SAVED_LOCATION_MATCH_RADIUS_M = 300;
 const HVAC_LEARNED_KEY_COOLING = '@dmyc/hvac_cooling_learned';
 const HVAC_LEARNED_KEY_HEATING = '@dmyc/hvac_heating_learned';
+const AUTO_TRIP_ENABLED_KEY = '@dmyc/auto_trip_enabled';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -417,7 +418,7 @@ export default function App() {
   const [tripMessage, setTripMessage] = useState<string | null>(null);
   const [testModeStatus, setTestModeStatus] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
   const [testModeMessage, setTestModeMessage] = useState<string | null>(null);
-  const [autoTripEnabled, setAutoTripEnabled] = useState(false);
+  const [autoTripEnabled, setAutoTripEnabled] = useState(true);
   const [autoTripStatus, setAutoTripStatus] = useState<AutoTripStatus>('off');
   const [autoTripMessage, setAutoTripMessage] = useState<string | null>(null);
   const [chargeForm, setChargeForm] = useState<ChargeForm>(emptyChargeForm);
@@ -534,6 +535,19 @@ export default function App() {
     () => getModelImageUrl(selectedBrand, selectedModel, catalogItems),
     [catalogItems, selectedBrand, selectedModel]
   );
+
+  // Persist auto-trip preference; load on mount (default = true)
+  useEffect(() => {
+    AsyncStorage.getItem(AUTO_TRIP_ENABLED_KEY).then((val) => {
+      if (val === 'false') setAutoTripEnabled(false);
+      // 'true' or null → stays true (default on)
+    }).catch(() => {});
+  }, []);
+
+  const setAutoTripEnabledPersist = (enabled: boolean) => {
+    setAutoTripEnabled(enabled);
+    AsyncStorage.setItem(AUTO_TRIP_ENABLED_KEY, String(enabled)).catch(() => {});
+  };
 
   useEffect(() => {
     activeTripRef.current = activeTrip;
@@ -2868,7 +2882,7 @@ export default function App() {
           onStartTrip={startTripRecording}
           onSelectDestination={setSelectedDestinationLocationId}
           onSelectRoute={setSelectedSavedRouteId}
-          onToggleAutoTrip={setAutoTripEnabled}
+          onToggleAutoTrip={setAutoTripEnabledPersist}
           placePredictions={tripDestPredictions}
           points={tripPoints}
           savedLocations={savedLocations}
