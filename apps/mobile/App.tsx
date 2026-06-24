@@ -6188,7 +6188,7 @@ type TripRecorderStepProps = {
   onDeleteRoute: (routeId: string) => void;
   onManageLocations: () => void;
   onOpenMap: (mode: 'origin' | 'destination') => void;
-  onUpdateLocation: (locationId: string, label: string, kind: string) => void;
+  onUpdateLocation: (locationId: string, label: string, kind: string) => Promise<void>;
   onPlaceSelect: (prediction: ApiPlacePrediction) => void;
   onStartTrip: () => void;
   onSelectDestination: (id: string) => void;
@@ -6554,11 +6554,12 @@ function SavedLocationsManager({
   routes: ApiSavedRoute[];
   onDeleteLocation: (id: string) => void;
   onDeleteRoute: (id: string) => void;
-  onUpdateLocation: (id: string, label: string, kind: string) => void;
+  onUpdateLocation: (id: string, label: string, kind: string) => Promise<void>;
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editLabel, setEditLabel] = useState('');
   const [editKind, setEditKind] = useState('custom');
+  const [editSaving, setEditSaving] = useState(false);
 
   const startEdit = (loc: ApiSavedLocation) => {
     setEditingId(loc.id);
@@ -6566,11 +6567,15 @@ function SavedLocationsManager({
     setEditKind(loc.locationKind);
   };
 
-  const confirmEdit = () => {
-    if (editingId && editLabel.trim()) {
-      onUpdateLocation(editingId, editLabel.trim(), editKind);
+  const confirmEdit = async () => {
+    if (!editingId || !editLabel.trim()) { setEditingId(null); return; }
+    setEditSaving(true);
+    try {
+      await onUpdateLocation(editingId, editLabel.trim(), editKind);
+      setEditingId(null);
+    } finally {
+      setEditSaving(false);
     }
-    setEditingId(null);
   };
 
   return (
@@ -6605,8 +6610,8 @@ function SavedLocationsManager({
                 <Pressable accessibilityRole="button" onPress={() => setEditingId(null)} style={styles.locMgrCancelBtn}>
                   <Text style={styles.locMgrCancelBtnText}>VAZGEÇ</Text>
                 </Pressable>
-                <Pressable accessibilityRole="button" onPress={confirmEdit} style={styles.locMgrSaveBtn}>
-                  <Text style={styles.locMgrSaveBtnText}>KAYDET</Text>
+                <Pressable accessibilityRole="button" disabled={editSaving} onPress={confirmEdit} style={styles.locMgrSaveBtn}>
+                  <Text style={styles.locMgrSaveBtnText}>{editSaving ? '...' : 'KAYDET'}</Text>
                 </Pressable>
               </View>
             </View>
