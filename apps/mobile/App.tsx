@@ -2,12 +2,16 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
+// expo-image-picker native modül — rebuild sonrası aktif
+let ImagePicker: typeof import('expo-image-picker') | null = null;
+try { ImagePicker = require('expo-image-picker'); } catch { ImagePicker = null; }
 import { StatusBar } from 'expo-status-bar';
 import React, { Component, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
   Linking,
+  useWindowDimensions,
   Modal,
   Platform,
   Pressable,
@@ -95,6 +99,21 @@ import {
   revokeVehicleAccess,
   createVehicleInvite,
   acceptVehicleInvite,
+  updateVehicleVin,
+  upsertVehicleInspection,
+  addVehicleServiceEvent,
+  fetchVehicleInspection,
+  fetchMaintenanceStatus,
+  fetchSicilRegistrySnapshot,
+  createInsuranceValueRequest,
+  uploadKaskoPhotos,
+  fetchLatestInsuranceValueRequest,
+  fetchKaskoEstimate,
+  type ApiInspectionRecord,
+  type ApiMaintenanceStatus,
+  type ApiSicilSnapshot,
+  type ApiInsuranceValueRequest,
+  type ApiKaskoEstimate,
   matchRouteOrigin,
   listRouteFingerprints,
   type ApiRouteFingerprint,
@@ -146,6 +165,11 @@ import {
   type ApiVehicle,
   type ApiVehicleAccess,
   type ApiVehicleInvite,
+  type ApiSponsor,
+  type RouteWeatherResult,
+  fetchRouteWeather,
+  fetchSponsor,
+  WEB_BASE_URL,
 } from './src/lib/apiClient';
 import { getTooltip, type TooltipKey } from './src/lib/tooltips';
 import { buildFirstCard } from './src/lib/firstCard';
@@ -170,7 +194,7 @@ const LANGUAGE_STORAGE_KEY = 'dmyc:language';
 const HERO_IMAGE =
   'https://lh3.googleusercontent.com/aida-public/AB6AXuBZlRjiGpz87gR2N5N0JbCeMaHDkL5FEy17bu2WXRrnfobOqireWsbn5foynK2wnPeiAI7oSXwiaBBNBFXlfaFq434Fn0CZlxKjhLhmOcaRdPhzEuESlYuODjpmbQBDhQmBxNzcao-dAOK7SyvWv1EY0PYNYLUfhTtiQiWBTmG_wSyO8cAv0j37TzhHpzhqhhvioR1YteqYuqTTAeC59SuZ8CbcGweqUSLn2pE7nGT4-HrJM-781mypqH_U0O1Kkme4KJZc8UKICj7f';
 
-type Step = 'login' | 'register' | 'tracking' | 'brand' | 'model' | 'variant' | 'assessment'
+type Step = 'login' | 'register' | 'tracking' | 'brand' | 'model' | 'variant' | 'assessment' | 'sicil'
           | 'today' | 'yolculuk' | 'sarj' | 'karne' | 'arac' | 'surucu'
           | 'range' | 'locations' | 'profile';
 type TrackingMode = 'basic' | 'advanced' | 'precise';
@@ -252,7 +276,7 @@ type RoutePlanForm = {
   distanceKm: string;
   passengerCount: string;
   cargoLevel: 'light' | 'normal' | 'heavy';
-  weatherProfile: 'normal' | 'cold' | 'hot' | 'rain';
+  weatherProfile: 'normal' | 'cold' | 'hot' | 'rain' | 'snow';
   roadProfile: 'city' | 'mixed' | 'highway';
   startSoc: string;
   targetArrivalSoc: string;
@@ -378,6 +402,7 @@ const emptyChargeForm: ChargeForm = {
 };
 
 export default function App() {
+  const { width: screenW, height: screenH } = useWindowDimensions();
   const [step, setStep] = useState<Step>('login');
   const [catalogItems, setCatalogItems] = useState<VehicleCatalogItem[]>(vehicleCatalog);
   const [catalogSource, setCatalogSource] = useState<'local' | 'api'>('local');
@@ -405,6 +430,9 @@ export default function App() {
   const [acceptToken, setAcceptToken] = useState('');
   const [acceptLoading, setAcceptLoading] = useState(false);
   const [acceptMessage, setAcceptMessage] = useState<string | null>(null);
+  const [vinInput, setVinInput] = useState('');
+  const [vinStatus, setVinStatus] = useState<'idle' | 'saving' | 'done' | 'error'>('idle');
+  const [vinMessage, setVinMessage] = useState<string | null>(null);
   const [vehicleRoutes, setVehicleRoutes] = useState<ApiRouteFingerprint[]>([]);
   const [showRouteSaveModal, setShowRouteSaveModal] = useState(false);
   const [originSaveName, setOriginSaveName] = useState('');
@@ -418,6 +446,7 @@ export default function App() {
   const [lastCompletedTrip, setLastCompletedTrip] = useState<ApiTrip | null>(null);
   const [lastTripRecap, setLastTripRecap] = useState<ApiTripRecap | null>(null);
   const [lastTripShareCard, setLastTripShareCard] = useState<ApiTripShareCard | null>(null);
+  const [sponsor, setSponsor] = useState<ApiSponsor | null>(null);
   const [tripPoints, setTripPoints] = useState<TripPoint[]>([]);
   const [tripRouteProgress, setTripRouteProgress] = useState<ApiTripRouteProgress | null>(null);
   const [tripSummary, setTripSummary] = useState<ApiTripSummary | null>(null);
@@ -446,9 +475,20 @@ export default function App() {
   const [serviceCompliance, setServiceCompliance] = useState<ApiServiceCompliance | null>(null);
   const [latestAssessment, setLatestAssessment] = useState<ApiAssessment | null>(null);
   const [premiumReport, setPremiumReport] = useState<ApiPremiumReport | null>(null);
+  const [vehicleInspection, setVehicleInspection] = useState<ApiInspectionRecord | null>(null);
+  const [maintenanceStatus, setMaintenanceStatus] = useState<ApiMaintenanceStatus | null>(null);
+  const [sicilSnapshot, setSicilSnapshot] = useState<ApiSicilSnapshot | null>(null);
+  const [insuranceValueRequest, setInsuranceValueRequest] = useState<ApiInsuranceValueRequest | null>(null);
+  const [kaskoEstimate, setKaskoEstimate] = useState<ApiKaskoEstimate | null>(null);
   const [assessmentOdometerKm, setAssessmentOdometerKm] = useState('');
   const [assessmentPurchaseYear, setAssessmentPurchaseYear] = useState('');
   const [assessmentCity, setAssessmentCity] = useState('');
+  const [sicilFirstRegYear, setSicilFirstRegYear] = useState('');
+  const [sicilLastInspectionDate, setSicilLastInspectionDate] = useState('');
+  const [sicilNoInspectionYet, setSicilNoInspectionYet] = useState(false);
+  const [sicilLastServiceKm, setSicilLastServiceKm] = useState('');
+  const [sicilLoading, setSicilLoading] = useState(false);
+  const [sicilReturnStep, setSicilReturnStep] = useState<Step>('assessment');
   const [pendingContextQuestions, setPendingContextQuestions] = useState<ApiContextQuestion[]>([]);
   const [contextQuestionIndex, setContextQuestionIndex] = useState(0);
   const [routePlanForm, setRoutePlanForm] = useState<RoutePlanForm>(emptyRoutePlanForm);
@@ -482,7 +522,8 @@ export default function App() {
   const [tripDestQuery, setTripDestQuery] = useState<string>('');
   const [tripDestPredictions, setTripDestPredictions] = useState<ApiPlacePrediction[]>([]);
   const [mapPickerVisible, setMapPickerVisible] = useState(false);
-  const [mapPickerMode, setMapPickerMode] = useState<'origin' | 'destination'>('destination');
+  const [mapPickerMode, setMapPickerMode] = useState<'origin' | 'destination' | 'location'>('destination');
+  const [mapPickerSource, setMapPickerSource] = useState<'yolculuk' | 'menzil' | 'locations'>('yolculuk');
   const [tripWelcomeVisible, setTripWelcomeVisible] = useState(false);
   const [profileMessage, setProfileMessage] = useState<string | null>(null);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
@@ -591,6 +632,10 @@ export default function App() {
   useEffect(() => {
     loadCatalogFromApi();
   }, [marketCode]);
+
+  useEffect(() => {
+    fetchSponsor().then((s) => setSponsor(s));
+  }, []);
 
   useEffect(() => {
     if (step !== 'range') {
@@ -813,6 +858,7 @@ export default function App() {
     refreshServiceData(backendBinding.vehicle.id);
     refreshLatestAssessment(backendBinding.vehicle.id);
     refreshPremiumReport(backendBinding.vehicle.id);
+    void refreshSicilData(backendBinding.vehicle.id);
     fetchLatestRoutePlan(backendBinding.vehicle.id)
       .then((latestPlan) => {
         setRoutePlan(latestPlan);
@@ -835,6 +881,8 @@ export default function App() {
       if (intel?.driverProfile) setDriverProfile({ ...intel.driverProfile, userId: backendBinding.user.id, vehicleId: backendBinding.vehicle.id, hasEnoughData: intel.driverProfile.analyzedTripCount >= 3 });
       setWeeklySnapshots(intel?.weeklySnapshots ?? []);
     }).catch(() => {});
+    fetchTripSummary(backendBinding.vehicle.id).then(setTripSummary).catch(() => {});
+    fetchChargeSummary(backendBinding.vehicle.id).then(setChargeSummary).catch(() => {});
   }, [backendBinding]);
 
   useEffect(() => {
@@ -1394,6 +1442,24 @@ export default function App() {
     }
   };
 
+  const refreshSicilData = async (vehicleId: string) => {
+    const [insp, maint, snap, kasko, latestReq] = await Promise.allSettled([
+      fetchVehicleInspection(vehicleId),
+      fetchMaintenanceStatus(vehicleId),
+      fetchSicilRegistrySnapshot(vehicleId),
+      fetchKaskoEstimate(vehicleId),
+      fetchLatestInsuranceValueRequest(vehicleId),
+    ]);
+    setVehicleInspection(insp.status === 'fulfilled' ? insp.value : null);
+    setMaintenanceStatus(maint.status === 'fulfilled' ? maint.value : null);
+    setSicilSnapshot(snap.status === 'fulfilled' ? snap.value : null);
+    setKaskoEstimate(kasko.status === 'fulfilled' ? kasko.value : null);
+    if (latestReq.status === 'fulfilled' && latestReq.value) {
+      setInsuranceValueRequest(latestReq.value);
+      if (latestReq.value.registrySnapshot) setSicilSnapshot(latestReq.value.registrySnapshot);
+    }
+  };
+
   const refreshBatteryLifecycle = async (vehicleId: string) => {
     try {
       const lifecycle = await fetchBatteryLifecycle(vehicleId);
@@ -1627,6 +1693,25 @@ export default function App() {
     }
   };
 
+  const handleUpdateVin = async () => {
+    if (!registeredUser || !backendBinding?.vehicle.id || !vinInput.trim()) return;
+    setVinStatus('saving');
+    setVinMessage(null);
+    try {
+      const result = await updateVehicleVin(backendBinding.vehicle.id, registeredUser.id, vinInput.trim());
+      setVinMessage(`Araç kimliği güncellendi: *****${result.vinLast5.slice(-5)}`);
+      setVinStatus('done');
+      setVinInput('');
+      // Binding'i güncelle: vinLast5 + identityLevel yansıtsın
+      setBackendBinding((cur) =>
+        cur ? { ...cur, vehicle: { ...cur.vehicle, vinLast5: result.vinLast5, vinVerifiedAt: result.vinVerifiedAt, identityLevel: result.identityLevel } } : cur,
+      );
+    } catch {
+      setVinMessage('VIN kaydedilemedi. Lütfen kontrol edip tekrar dene.');
+      setVinStatus('error');
+    }
+  };
+
   const goBack = () => {
     if (step === 'tracking') {
       setStep('register');
@@ -1640,6 +1725,11 @@ export default function App() {
 
     if (step === 'assessment') {
       setStep('variant');
+      return;
+    }
+
+    if (step === 'sicil') {
+      setStep(sicilReturnStep);
       return;
     }
 
@@ -1764,8 +1854,52 @@ export default function App() {
     }
 
     if (step === 'assessment') {
-      const hasOdometer = parseInt(assessmentOdometerKm, 10) > 0;
       await bindSelectedVehicle();
+      setSicilReturnStep('assessment');
+      setStep('sicil');
+      return;
+    }
+
+    if (step === 'sicil') {
+      const vehicleId = backendBinding?.vehicle.id;
+      if (vehicleId) {
+        setSicilLoading(true);
+        try {
+          const firstRegYear = parseInt(sicilFirstRegYear, 10) || null;
+          const lastServiceKm = parseInt(sicilLastServiceKm, 10) || null;
+
+          const hasInspectionData = firstRegYear || (sicilLastInspectionDate && !sicilNoInspectionYet);
+          if (hasInspectionData) {
+            await upsertVehicleInspection(vehicleId, {
+              firstRegistrationYear: firstRegYear,
+              lastInspectionDate: sicilNoInspectionYet ? null : (sicilLastInspectionDate || null),
+              result: sicilNoInspectionYet ? 'unknown' : 'passed',
+              sourceType: 'user_input',
+              confidence: 'user_declared',
+            });
+          }
+
+          if (lastServiceKm && lastServiceKm > 0) {
+            await addVehicleServiceEvent(vehicleId, {
+              odometerKm: lastServiceKm,
+              serviceType: 'periodic',
+              sourceType: 'user_input',
+              notes: 'Onboarding sırasında kullanıcı beyanı',
+            });
+          }
+        } catch { /* non-blocking — sicil verisi sonra da girilebilir */ }
+        finally {
+          setSicilLoading(false);
+          void refreshSicilData(vehicleId);
+        }
+      }
+
+      if (sicilReturnStep === 'arac') {
+        setStep('arac');
+        return;
+      }
+
+      const hasOdometer = parseInt(assessmentOdometerKm, 10) > 0;
       if (hasOdometer) { setWelcomeModalIsOnboarding(true); setShowWelcomeModal(true); }
       setStep('yolculuk');
       setTripWelcomeVisible(true);
@@ -2232,6 +2366,16 @@ export default function App() {
     if (field === 'origin') {
       setOriginPredictions([]);
       setOriginSearchStatus('idle');
+      // Koordinatları arka planda çek — hava durumu gösterimi için gerekli
+      fetchPlaceDetails(prediction.placeId, language).then((result) => {
+        if (result.place) {
+          setRoutePlanForm((current) => ({
+            ...current,
+            originLatitude: result.place!.latitude,
+            originLongitude: result.place!.longitude,
+          }));
+        }
+      }).catch(() => {});
     } else {
       setDestinationPredictions([]);
       setDestinationSearchStatus('idle');
@@ -2630,6 +2774,12 @@ export default function App() {
   };
 
   return (
+    <View style={{ flex: 1 }}>
+      <Image
+        source={require('./assets/yolculuk-bg.jpg')}
+        style={{ position: 'absolute', top: 0, left: 0, width: screenW, height: screenH }}
+        resizeMode="cover"
+      />
     <SafeAreaView style={styles.shell}>
       <StatusBar style="light" />
       {step !== 'login' ? (
@@ -2642,15 +2792,15 @@ export default function App() {
         ) : (
           <>
             <TopBar
-              canGoBack={isOnboardingStep(step) ? step !== 'register' : true}
-              canSkip={isOnboardingStep(step) && step !== 'register' && step !== 'tracking' && Boolean(registeredUser)}
+              canGoBack={isOnboardingStep(step, sicilReturnStep) ? step !== 'register' : true}
+              canSkip={isOnboardingStep(step, sicilReturnStep) && step !== 'register' && step !== 'tracking' && Boolean(registeredUser)}
               onBack={goBack}
               onOpenProfile={() => setStep('profile')}
               onSkip={skipToSummary}
               showProfile={false}
               title={titleForStep(step, selectedBrand, selectedModel, language)}
             />
-            {isOnboardingStep(step) ? <StepProgress language={language} step={step} /> : null}
+            {isOnboardingStep(step, sicilReturnStep) ? <StepProgress language={language} step={step} /> : null}
           </>
         )
       ) : null}
@@ -2741,6 +2891,20 @@ export default function App() {
           onChangePurchaseYear={setAssessmentPurchaseYear}
           onChangeCity={setAssessmentCity}
           vehicle={selectedVehicle}
+        />
+      ) : null}
+
+      {step === 'sicil' ? (
+        <SicilOnboardingStep
+          firstRegYear={sicilFirstRegYear}
+          lastInspectionDate={sicilLastInspectionDate}
+          noInspectionYet={sicilNoInspectionYet}
+          lastServiceKm={sicilLastServiceKm}
+          loading={sicilLoading}
+          onChangeFirstRegYear={setSicilFirstRegYear}
+          onChangeLastInspectionDate={setSicilLastInspectionDate}
+          onToggleNoInspection={(v) => { setSicilNoInspectionYet(v); if (v) setSicilLastInspectionDate(''); }}
+          onChangeLastServiceKm={setSicilLastServiceKm}
         />
       ) : null}
 
@@ -2874,8 +3038,7 @@ export default function App() {
           latestAssessment={latestAssessment}
           language={language}
           onOpenAssessmentModal={() => setShowWelcomeModal(true)}
-          onPlanRange={() => setStep('range')}
-          onStartDriving={() => setStep('yolculuk')}
+          onSaveLocations={() => setStep('locations')}
           user={registeredUser}
           vehicle={selectedVehicle}
         />
@@ -2916,7 +3079,8 @@ export default function App() {
           }}
           onFinishTrip={finishActiveTrip}
           onManageLocations={() => setStep('locations')}
-          onOpenMap={(mode) => { setMapPickerMode(mode); setMapPickerVisible(true); }}
+          onOpenMap={(mode) => { setMapPickerSource('yolculuk'); setMapPickerMode(mode); setMapPickerVisible(true); }}
+          onPlanRange={() => setStep('range')}
           onUpdateLocation={async (locationId, label, kind) => {
             if (!backendBinding) return;
             const updated = await updateSavedLocation(backendBinding.user.id, locationId, { label, locationKind: kind });
@@ -2968,6 +3132,7 @@ export default function App() {
           language={language}
           message={routePlanMessage}
           onChange={updateRoutePlanForm}
+          onOpenMap={(mode) => { setMapPickerSource('menzil'); setMapPickerMode(mode); setMapPickerVisible(true); }}
           onSave={saveRoutePlan}
           onSelectPlace={selectRoutePlace}
           onUseCurrentOrigin={useCurrentRouteOrigin}
@@ -2996,6 +3161,7 @@ export default function App() {
           savedLocations={savedLocations}
           status={chargeStatus}
           summary={chargeSummary}
+          vehicle={selectedVehicle}
         />
       ) : null}
 
@@ -3005,6 +3171,7 @@ export default function App() {
           locations={savedLocations}
           message={savedLocationMessage}
           onChange={updateSavedLocationForm}
+          onOpenMap={() => { setMapPickerSource('locations'); setMapPickerMode('location'); setMapPickerVisible(true); }}
           onSaveLocation={saveSavedLocation}
           onSaveRoute={saveSavedRoute}
           onSelectPrediction={selectSavedLocationPrediction}
@@ -3067,12 +3234,27 @@ export default function App() {
               setPublicReport(report);
             } catch { /* ignore */ }
           }}
+          vehicleInspection={vehicleInspection}
+          maintenanceStatus={maintenanceStatus}
+          sicilSnapshot={sicilSnapshot}
+          insuranceValueRequest={insuranceValueRequest}
+          kaskoEstimate={kaskoEstimate}
+          onCreateInsuranceValueRequest={async (photoUrls?: string[]) => {
+            if (!backendBinding?.vehicle.id) return;
+            try {
+              const req = await createInsuranceValueRequest(backendBinding.vehicle.id, premiumReport?.id ?? undefined, photoUrls);
+              setInsuranceValueRequest(req);
+              setSicilSnapshot(req.registrySnapshot);
+            } catch { /* ignore */ }
+          }}
           onManageLocations={() => setStep('locations')}
           onOpenDrivers={() => {
             if (backendBinding?.vehicle.id && registeredUser?.id) {
               void openDriversModal(backendBinding.vehicle.id, registeredUser.id);
             }
           }}
+          onOpenSurucu={() => setStep('surucu')}
+          onOpenSicilEntry={() => { setSicilReturnStep('arac'); setStep('sicil'); }}
           premiumReport={premiumReport}
           publicReport={publicReport}
           registrySummary={registrySummary}
@@ -3085,12 +3267,14 @@ export default function App() {
 
       {step === 'surucu' ? (
         <SurucuScreen
+          chargeSummary={chargeSummary}
           driverProfile={driverProfile}
           language={language}
           onLogout={logout}
           onManageLocations={() => setStep('locations')}
           onOpenArac={() => setStep('arac')}
           onOpenProfile={() => setStep('profile')}
+          tripSummary={tripSummary}
           user={registeredUser}
           vehicle={selectedVehicle}
           vehicleRoutes={vehicleRoutes}
@@ -3106,21 +3290,32 @@ export default function App() {
           backendBinding={backendBinding}
           message={profileMessage}
           userVehicles={userVehicles}
+          vinInput={vinInput}
+          vinMessage={vinMessage}
+          vinStatus={vinStatus}
           onAcceptInvite={handleAcceptInvite}
           onChangeAcceptToken={setAcceptToken}
           onChangePassword={() => setProfileMessage('Şifre değiştirme paneli hazır.')}
+          onChangeVinInput={setVinInput}
           onLogout={logout}
+          onOpenSurucu={() => setStep('surucu')}
           onOpenVehicleSwitcher={() => setShowVehicleSwitcher(true)}
           onSelectVehicle={() => setStep('brand')}
+          onUpdateVin={handleUpdateVin}
           user={registeredUser}
         />
       ) : null}
 
       {isAppMainStep(step) ? (
-        <BottomNav activeStep={step} onNavigate={setStep} />
+        <>
+          {sponsor?.isActive && sponsor.logoUrl ? (
+            <SponsorBanner logoUrl={sponsor.logoUrl} clickUrl={sponsor.clickUrl} />
+          ) : null}
+          <BottomNav activeStep={step} onNavigate={setStep} />
+        </>
       ) : null}
 
-      {isOnboardingStep(step) ? (
+      {isOnboardingStep(step, sicilReturnStep) ? (
         <BottomAction
           disabled={!canContinue(step, selectedBrand, selectedModel, selectedVehicle, trackingMode)}
           label={continueLabel(step, language)}
@@ -3141,17 +3336,46 @@ export default function App() {
       ) : null}
 
       <MapLocationPicker
-        initialCoord={mapPickerMode === 'origin' ? tripOriginLocation : null}
+        initialCoord={
+          mapPickerSource === 'locations' && savedLocationForm.latitude != null && savedLocationForm.longitude != null
+            ? { latitude: savedLocationForm.latitude, longitude: savedLocationForm.longitude }
+            : mapPickerMode === 'origin' ? tripOriginLocation : null
+        }
         language={language}
         mode={mapPickerMode}
         onClose={() => setMapPickerVisible(false)}
         onConfirm={(coord, label) => {
-          if (mapPickerMode === 'origin') {
-            setTripOriginLocation(coord);
-            setTripOriginQuery(label);
-            setTripOriginPredictions([]);
+          if (mapPickerSource === 'locations') {
+            setSavedLocationForm((cur) => ({
+              ...cur,
+              latitude: coord.latitude,
+              longitude: coord.longitude,
+              address: label,
+              searchLabel: label,
+              selectedPlaceId: '',
+            }));
+            setSavedLocationPredictions([]);
+            setSavedLocationSearchStatus('idle');
+            setSavedLocationMessage(null);
+          } else if (mapPickerSource === 'menzil') {
+            if (mapPickerMode === 'origin') {
+              setRoutePlanForm((cur) => ({ ...cur, originLabel: label, originLatitude: coord.latitude, originLongitude: coord.longitude, originPlaceId: '' }));
+              setOriginPredictions([]);
+              setOriginSearchStatus('idle');
+            } else {
+              setRoutePlanForm((cur) => ({ ...cur, destinationLabel: label, destinationPlaceId: '' }));
+              setDestinationPredictions([]);
+              setDestinationSearchStatus('idle');
+            }
+            setRoutePreview(null);
           } else {
-            selectMapLocation(coord, label, null);
+            if (mapPickerMode === 'origin') {
+              setTripOriginLocation(coord);
+              setTripOriginQuery(label);
+              setTripOriginPredictions([]);
+            } else {
+              selectMapLocation(coord, label, null);
+            }
           }
         }}
         onSave={(saveName, coord, label) => saveMapLocation(saveName, coord, label, null)}
@@ -3175,6 +3399,7 @@ export default function App() {
         </Modal>
       ) : null}
     </SafeAreaView>
+    </View>
   );
 }
 
@@ -3235,8 +3460,7 @@ function MainTopBar({
   return (
     <View style={styles.mainTopBar}>
       <View style={styles.mainTopBarLeft}>
-        <Text style={styles.mainTopBarBrand}>DMyC</Text>
-        <Text numberOfLines={1} style={styles.mainTopBarTitle}>{title}</Text>
+        <Image source={require('./assets/yatay-logo.png')} style={{ height: 60, width: 196 }} resizeMode="contain" />
       </View>
       <Pressable accessibilityLabel="Profil" accessibilityRole="button" onPress={onOpenProfile} style={styles.mainTopBarAvatar}>
         <Text style={styles.mainTopBarAvatarText}>{initial}</Text>
@@ -3248,8 +3472,8 @@ function MainTopBar({
 function StepProgress({ language, step }: { language: Locale; step: Step }) {
   const activeIndex = stepIndex(step);
   const labels = language === 'en'
-    ? ['Register', 'Tracking', 'Brand', 'Model', 'Variant', 'Card']
-    : ['Kayıt', 'Takip', 'Marka', 'Model', 'Variant', 'Karne'];
+    ? ['Register', 'Tracking', 'Brand', 'Model', 'Variant', 'Card', 'Registry']
+    : ['Kayıt', 'Takip', 'Marka', 'Model', 'Variant', 'Karne', 'Sicil'];
 
   return (
     <View style={styles.stepBar}>
@@ -3317,12 +3541,14 @@ function LoginStep({ error, form, language, onChange, onChangeLanguage, onOpenRe
       };
 
   return (
-    <ScrollView contentContainerStyle={styles.loginContent} keyboardShouldPersistTaps="handled">
+    <ScrollView contentContainerStyle={styles.loginContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
       <View style={styles.loginHeader}>
         <LanguageFlags language={language} onChange={onChangeLanguage} />
-        <View style={styles.loginLogo}>
-          <Text style={styles.loginLogoText}>D</Text>
-        </View>
+        <Image
+          source={require('./assets/icon.png')}
+          style={styles.loginLogo}
+          resizeMode="contain"
+        />
         <Text style={styles.loginHeading}>{copy.title}</Text>
         <Text style={styles.loginDescription}>{copy.description}</Text>
       </View>
@@ -3455,7 +3681,7 @@ function RegisterStep({ error, form, language, onChange, onChangeLanguage, onOpe
       };
 
   return (
-    <ScrollView contentContainerStyle={styles.content}>
+    <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       <LanguageFlags language={language} onChange={onChangeLanguage} />
       <View style={styles.accountPanel}>
         <Text style={styles.badge}>{copy.badge}</Text>
@@ -3561,7 +3787,7 @@ function TrackingStep({ language, onSelectMode, selectedMode }: TrackingStepProp
       };
 
   return (
-    <ScrollView contentContainerStyle={styles.contentWithBottomAction}>
+    <ScrollView contentContainerStyle={styles.contentWithBottomAction} showsVerticalScrollIndicator={false}>
       <View style={styles.accountPanel}>
         <Text style={styles.badge}>{copy.badge}</Text>
         <Text style={styles.heading}>{copy.title}</Text>
@@ -3632,7 +3858,7 @@ function BrandStep({
   visibleBrands,
 }: BrandStepProps) {
   return (
-    <ScrollView contentContainerStyle={styles.content}>
+    <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       <Text style={styles.label}>HIZLI BUL</Text>
       <TextInput
         onChangeText={setBrandQuery}
@@ -3748,7 +3974,7 @@ function ModelStep({
   visibleModels,
 }: ModelStepProps) {
   return (
-    <ScrollView contentContainerStyle={styles.content}>
+    <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       <View style={styles.heroPanel}>
         <Image source={{ uri: selectedBrandImage ?? HERO_IMAGE }} style={styles.heroImage} />
         <View style={styles.heroShade} />
@@ -3804,7 +4030,7 @@ function VariantStep({
   variants,
 }: VariantStepProps) {
   return (
-    <ScrollView contentContainerStyle={styles.contentWithBottomAction}>
+    <ScrollView contentContainerStyle={styles.contentWithBottomAction} showsVerticalScrollIndicator={false}>
       <View style={styles.heroPanel}>
         <Image source={{ uri: selectedModelImage ?? HERO_IMAGE }} style={styles.heroImage} />
         <View style={styles.heroShade} />
@@ -3884,16 +4110,14 @@ function SummaryStep({
   latestAssessment,
   language,
   onOpenAssessmentModal,
-  onPlanRange,
-  onStartDriving,
+  onSaveLocations,
   user,
   vehicle,
 }: {
   latestAssessment: ApiAssessment | null;
   language: Locale;
   onOpenAssessmentModal: () => void;
-  onPlanRange: () => void;
-  onStartDriving: () => void;
+  onSaveLocations: () => void;
   user: ApiUser | null;
   vehicle: VehicleCatalogItem | null;
 }) {
@@ -3913,7 +4137,7 @@ function SummaryStep({
   const socMax = firstCard.dailySocMax ?? 80;
 
   return (
-    <ScrollView contentContainerStyle={styles.todayScroll} style={styles.todayRoot}>
+    <ScrollView contentContainerStyle={styles.todayScroll} style={styles.todayRoot} showsVerticalScrollIndicator={false}>
 
       {/* ── HERO ──────────────────────────────────────────────────────── */}
       <View style={styles.todayHero}>
@@ -4016,11 +4240,8 @@ function SummaryStep({
 
         {/* ── CTA BUTONLAR ──────────────────────────────────────────── */}
         <View style={styles.todayActions}>
-          <Pressable accessibilityRole="button" onPress={onStartDriving} style={styles.todayPrimaryButton}>
-            <Text style={styles.todayPrimaryButtonText}>YOLCULUK BAŞLAT  ↗</Text>
-          </Pressable>
-          <Pressable accessibilityRole="button" onPress={onPlanRange} style={styles.todaySecondaryButton}>
-            <Text style={styles.todaySecondaryButtonText}>MENZİL PLANLA  ≡</Text>
+          <Pressable accessibilityRole="button" onPress={onSaveLocations} style={styles.todayPrimaryButton}>
+            <Text style={styles.todayPrimaryButtonText}>KONUMLARIMI KAYDET  ⊙</Text>
           </Pressable>
         </View>
 
@@ -4126,12 +4347,18 @@ function ProfileStep({
   backendBinding,
   message,
   userVehicles,
+  vinInput,
+  vinMessage,
+  vinStatus,
   onAcceptInvite,
   onChangeAcceptToken,
   onChangePassword,
+  onChangeVinInput,
   onLogout,
+  onOpenSurucu,
   onOpenVehicleSwitcher,
   onSelectVehicle,
+  onUpdateVin,
   user,
 }: {
   acceptLoading: boolean;
@@ -4140,16 +4367,26 @@ function ProfileStep({
   backendBinding: BackendBinding | null;
   message: string | null;
   userVehicles: NonNullable<ApiActiveBinding>[];
+  vinInput: string;
+  vinMessage: string | null;
+  vinStatus: 'idle' | 'saving' | 'done' | 'error';
   onAcceptInvite: () => void;
   onChangeAcceptToken: (v: string) => void;
   onChangePassword: () => void;
+  onChangeVinInput: (v: string) => void;
   onLogout: () => void;
+  onOpenSurucu: () => void;
   onOpenVehicleSwitcher: () => void;
   onSelectVehicle: () => void;
+  onUpdateVin: () => void;
   user: ApiUser | null;
 }) {
+  const vehicle = backendBinding?.vehicle ?? null;
+  const isOwner = (backendBinding?.access?.role ?? 'owner') === 'owner';
+  const identityLevel = vehicle?.identityLevel ?? 'declared';
+  const vinLast5 = vehicle?.vinLast5 ?? null;
   return (
-    <ScrollView contentContainerStyle={styles.content}>
+    <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       <View style={styles.accountPanel}>
         <Text style={styles.badge}>PROFİL</Text>
         <Text style={styles.heading}>{user?.fullName || user?.username || 'Kullanıcı'}</Text>
@@ -4167,6 +4404,57 @@ function ProfileStep({
           </View>
         ) : null}
       </View>
+
+      {/* Araç Kimliği */}
+      {vehicle ? (
+        <View style={styles.card}>
+          <View style={styles.rowBetween}>
+            <Text style={styles.cardLabel}>ARAÇ KİMLİĞİ</Text>
+            <View style={[styles.aracPill, { backgroundColor: '#78350f22' }]}>
+              <Text style={[styles.aracPillText, { color: '#fbbf24' }]}>BEYAN EDİLMİŞ</Text>
+            </View>
+          </View>
+          {vinLast5 ? (
+            <Text style={[styles.bindingText, { marginTop: 4, letterSpacing: 2 }]}>
+              *****{vinLast5}
+            </Text>
+          ) : (
+            <Text style={[styles.signalCaption, { marginTop: 4, marginBottom: 0 }]}>
+              VIN son 5 karakter girilmemiş
+            </Text>
+          )}
+          {isOwner ? (
+            <View style={{ marginTop: 10 }}>
+              <Text style={[styles.signalCaption, { marginBottom: 6, marginTop: 0 }]}>
+                Ruhsatınızdaki şase numarasının son 5 karakterini girin. Tam şase no kaydedilmez (KVKK).
+              </Text>
+              <TextInput
+                style={styles.formInput}
+                placeholder="Örn: X7F3K"
+                value={vinInput}
+                onChangeText={onChangeVinInput}
+                autoCapitalize="characters"
+                maxLength={17}
+              />
+              {vinMessage ? (
+                <Text style={[styles.signalCaption, { marginTop: 4, marginBottom: 0, color: vinStatus === 'done' ? '#4ade80' : '#ef4444' }]}>
+                  {vinMessage}
+                </Text>
+              ) : null}
+              <Pressable
+                accessibilityRole="button"
+                style={[styles.secondaryButton, { marginTop: 8, opacity: vinStatus === 'saving' ? 0.5 : 1 }]}
+                onPress={onUpdateVin}
+                disabled={vinStatus === 'saving'}
+              >
+                <Text style={styles.secondaryButtonText}>
+                  {vinStatus === 'saving' ? 'KAYDEDİLİYOR...' : 'ŞASE NO KAYDET'}
+                </Text>
+              </Pressable>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
 
       {/* Araçlarım — çoklu araç listesi */}
       {userVehicles.length > 1 ? (
@@ -4221,6 +4509,15 @@ function ProfileStep({
         </Pressable>
       </View>
 
+      {/* Sürücü Karnem shortcut */}
+      <View style={styles.aracListSection}>
+        <Pressable accessibilityRole="button" onPress={onOpenSurucu} style={styles.aracListRow}>
+          <Text style={styles.aracListIcon}>◎</Text>
+          <Text style={styles.aracListLabel}>Sürücü Karnem</Text>
+          <Text style={styles.aracListChevron}>›</Text>
+        </Pressable>
+      </View>
+
       {message ? <Text style={styles.tripMessage}>{message}</Text> : null}
 
       <View style={styles.tripActions}>
@@ -4240,6 +4537,32 @@ function ProfileStep({
   );
 }
 
+function SponsorBanner({ logoUrl, clickUrl }: { logoUrl: string; clickUrl: string | null }) {
+  const navHeight = 64 + BOTTOM_NAV_INSET;
+  return (
+    <Pressable
+      onPress={() => clickUrl && Linking.openURL(clickUrl).catch(() => undefined)}
+      style={{
+        position: 'absolute',
+        bottom: navHeight - 5,
+        left: 0,
+        right: 0,
+        backgroundColor: 'rgba(8,15,16,0.93)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 10,
+        zIndex: 99,
+        elevation: 9,
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(255,255,255,0.06)',
+      }}
+      accessibilityRole="link"
+    >
+      <Image source={{ uri: logoUrl }} style={{ height: 34, width: 180 }} resizeMode="contain" />
+    </Pressable>
+  );
+}
+
 // Android navigation bar height varies: gesture nav ~24dp, 3-button ~48dp, Samsung ~56dp
 // Proper fix via useSafeAreaInsets() comes with next build (react-native-safe-area-context)
 const BOTTOM_NAV_INSET = Platform.OS === 'android' ? 48 : 34;
@@ -4250,14 +4573,14 @@ function BottomNav({ activeStep, onNavigate }: { activeStep: Step; onNavigate: (
     { label: 'YOLCULUK', icon: 'route',           step: 'yolculuk' },
     { label: 'ŞARJ',     icon: 'bolt',            step: 'sarj'     },
     { label: 'KARNE',    icon: 'military-tech',   step: 'karne'    },
-    { label: 'SÜRÜCÜ',   icon: 'person',          step: 'surucu'   },
+    { label: 'ARAÇ',     icon: 'directions-car',  step: 'arac'     },
   ];
 
   const activeTab =
     activeStep === 'range'     ? 'yolculuk' :
     activeStep === 'locations' ? 'yolculuk' :
-    activeStep === 'profile'   ? 'surucu'   :
-    activeStep === 'arac'      ? 'surucu'   : activeStep;
+    activeStep === 'profile'   ? 'arac'     :
+    activeStep === 'surucu'    ? 'arac'     : activeStep;
 
   return (
     <View style={[styles.bottomNav, { height: 64 + BOTTOM_NAV_INSET, paddingBottom: BOTTOM_NAV_INSET }]}>
@@ -4303,7 +4626,7 @@ function KarneScreen({ batteryLifecycle, communityBenchmark, monthlyReport, usag
   const hasAny        = showMonthly || showUsage || showBattery || showRoute || showCommunity;
 
   return (
-    <ScrollView contentContainerStyle={styles.karneScroll}>
+    <ScrollView contentContainerStyle={styles.karneScroll} showsVerticalScrollIndicator={false}>
 
       {/* ── ÖĞRENME DURUMU (veri yokken) ──────────────────────────────── */}
       {!hasAny && (
@@ -4460,6 +4783,11 @@ type AracScreenProps = {
   canManageDrivers: boolean;
   language: Locale;
   latestAssessment: ApiAssessment | null;
+  vehicleInspection: ApiInspectionRecord | null;
+  maintenanceStatus: ApiMaintenanceStatus | null;
+  sicilSnapshot: ApiSicilSnapshot | null;
+  insuranceValueRequest: ApiInsuranceValueRequest | null;
+  kaskoEstimate: ApiKaskoEstimate | null;
   onAddExternalReport: (provider: string, reportUrl?: string, sohPercent?: number) => void;
   onAddServiceVisit: () => void;
   onGeneratePremiumReport: () => void;
@@ -4467,6 +4795,9 @@ type AracScreenProps = {
   onManageLocations: () => void;
   onOpenAssessmentModal: () => void;
   onOpenDrivers: () => void;
+  onOpenSurucu: () => void;
+  onOpenSicilEntry: () => void;
+  onCreateInsuranceValueRequest: (photoUrls?: string[]) => Promise<void>;
   premiumReport: ApiPremiumReport | null;
   publicReport: ApiPublicReport | null;
   registrySummary: ApiRegistrySummary | null;
@@ -4477,10 +4808,16 @@ type AracScreenProps = {
 };
 
 function AracScreen({
+  annualReport,
   batteryLifecycle,
   canManageDrivers,
   language,
   latestAssessment,
+  vehicleInspection,
+  maintenanceStatus,
+  sicilSnapshot,
+  insuranceValueRequest,
+  kaskoEstimate,
   onAddExternalReport,
   onAddServiceVisit,
   onGeneratePremiumReport,
@@ -4488,6 +4825,9 @@ function AracScreen({
   onManageLocations,
   onOpenAssessmentModal,
   onOpenDrivers,
+  onOpenSurucu,
+  onOpenSicilEntry,
+  onCreateInsuranceValueRequest,
   premiumReport,
   publicReport,
   registrySummary,
@@ -4514,7 +4854,7 @@ function AracScreen({
   ];
 
   return (
-    <ScrollView contentContainerStyle={styles.aracScroll}>
+    <ScrollView contentContainerStyle={styles.aracScroll} showsVerticalScrollIndicator={false}>
 
       {/* ── KİMLİK ─────────────────────────────────────────────────────── */}
       <View style={styles.aracIdentity}>
@@ -4609,6 +4949,12 @@ function AracScreen({
         </View>
       ) : null}
 
+      {/* ── TÜVTÜRK MUAYENESİ ─────────────────────────────────────────── */}
+      <InspectionCard inspection={vehicleInspection} onOpenSicilEntry={onOpenSicilEntry} />
+
+      {/* ── ÜRETİCİ BAKIM TAKVİMİ ─────────────────────────────────────── */}
+      <MaintenanceCard maintenanceStatus={maintenanceStatus} onOpenSicilEntry={onOpenSicilEntry} />
+
       {/* ── SERVİS GEÇMİŞİ ────────────────────────────────────────────── */}
       <View style={styles.aracCard}>
         <View style={styles.aracCardHeader}>
@@ -4689,6 +5035,16 @@ function AracScreen({
         </View>
       </View>
 
+      {/* ── ARAÇ SİCİLİ DEĞER TALEBİ ─────────────────────────────────── */}
+      <InsuranceValueCard
+        sicilSnapshot={sicilSnapshot}
+        insuranceValueRequest={insuranceValueRequest}
+        kaskoEstimate={kaskoEstimate}
+        onCreateRequest={onCreateInsuranceValueRequest}
+        onOpenSicilEntry={onOpenSicilEntry}
+        vehicle={vehicle}
+      />
+
       {/* ── PREMIUM RAPOR ──────────────────────────────────────────────── */}
       <View style={styles.aracCard}>
         <View style={styles.aracCardHeader}>
@@ -4696,30 +5052,81 @@ function AracScreen({
           {premiumReport ? (
             <View style={[styles.aracPill, { backgroundColor: colors.cyan }]}>
               <Text style={[styles.aracPillText, { color: '#004f54' }]}>
-                {new Date(premiumReport.createdAt).getFullYear()}
+                {new Date(premiumReport.createdAt).toLocaleDateString('tr-TR', { month: 'short', year: 'numeric' })}
               </Text>
             </View>
           ) : null}
         </View>
-        {premiumReport ? (
-          <View style={styles.aracChevronList}>
-            {[
-              { icon: 'ℹ', label: 'Araç özeti' },
-              { icon: '👤', label: 'Şoför profili' },
-              { icon: '₺', label: 'Ekonomik özet' },
-            ].map((item) => (
-              <View key={item.label} style={styles.aracChevronRow}>
-                <Text style={styles.aracChevronIcon}>{item.icon}</Text>
-                <Text style={styles.aracChevronLabel}>{item.label}</Text>
-                <Text style={styles.aracChevronArrow}>›</Text>
+
+        {/* Ön şart kontrol listesi */}
+        <View style={{ marginBottom: 12, gap: 2 }}>
+          {([
+            {
+              icon: 'ℹ',
+              label: 'Araç Değerlendirmesi',
+              sublabel: latestAssessment ? `${latestAssessment.odometerKm?.toLocaleString('tr-TR') ?? '—'} km · ${latestAssessment.scenarioTitle ?? ''}` : 'Henüz yapılmadı',
+              ok: latestAssessment !== null,
+              onPress: onOpenAssessmentModal,
+            },
+            {
+              icon: '👤',
+              label: 'Şoför Profili',
+              sublabel: batteryLifecycle ? `${batteryLifecycle.batteryUsageGrade ?? '—'} batarya notu · ${batteryLifecycle.totalEfc != null ? `${Math.round(Number(batteryLifecycle.totalEfc))} EFC` : ''}` : 'Şarj/yolculuk verisi bekleniyor',
+              ok: batteryLifecycle !== null,
+              onPress: onOpenSurucu,
+            },
+            {
+              icon: '₺',
+              label: 'Ekonomik Özet',
+              sublabel: annualReport ? `${Math.round(Number(annualReport.totalDistanceM ?? 0) / 1000).toLocaleString('tr-TR')} km · ₺${Math.round(Number(annualReport.estimatedSavings ?? 0)).toLocaleString('tr-TR')} tasarruf` : 'Yıllık rapor henüz oluşmadı',
+              ok: annualReport !== null,
+              onPress: null,
+            },
+          ] as { icon: string; label: string; sublabel: string; ok: boolean; onPress: (() => void) | null }[]).map((item) => (
+            <Pressable
+              key={item.label}
+              accessibilityRole={item.onPress ? 'button' : 'none'}
+              onPress={item.onPress ?? undefined}
+              style={({ pressed }) => [
+                styles.aracChevronRow,
+                { opacity: pressed && item.onPress ? 0.6 : 1, paddingVertical: 8 },
+              ]}
+            >
+              <Text style={[styles.aracChevronIcon, { color: item.ok ? '#4ade80' : colors.muted }]}>
+                {item.ok ? '✓' : '○'}
+              </Text>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.aracChevronLabel, { color: item.ok ? colors.text : colors.muted }]}>
+                  {item.label}
+                </Text>
+                <Text style={[styles.signalCaption, { marginBottom: 0, marginTop: 1 }]} numberOfLines={1}>
+                  {item.sublabel}
+                </Text>
               </View>
-            ))}
-          </View>
-        ) : null}
+              {item.onPress ? <Text style={styles.aracChevronArrow}>›</Text> : null}
+            </Pressable>
+          ))}
+        </View>
+
         <View style={styles.aracCardFooter}>
-          <Pressable accessibilityRole="button" onPress={onGeneratePremiumReport} style={styles.aracOutlineButton}>
-            <Text style={styles.aracOutlineButtonText}>{translate('mobile.premium.report.generate')}</Text>
-          </Pressable>
+          {premiumReport ? (
+            <View style={{ gap: 8, width: '100%' }}>
+              <Pressable
+                accessibilityRole="button"
+                style={styles.aracCyanButton}
+                onPress={() => Linking.openURL(`${WEB_BASE_URL}/reports/premium/${premiumReport.id}`).catch(() => undefined)}
+              >
+                <Text style={styles.aracCyanButtonText}>⬡  EV KARNESİNİ AÇ</Text>
+              </Pressable>
+              <Pressable accessibilityRole="button" onPress={onGeneratePremiumReport} style={styles.aracOutlineButton}>
+                <Text style={styles.aracOutlineButtonText}>{translate('mobile.premium.report.regenerate')}</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <Pressable accessibilityRole="button" onPress={onGeneratePremiumReport} style={styles.aracOutlineButton}>
+              <Text style={styles.aracOutlineButtonText}>{translate('mobile.premium.report.generate')}</Text>
+            </Pressable>
+          )}
         </View>
       </View>
 
@@ -4744,6 +5151,11 @@ function AracScreen({
           <Text style={styles.aracListLabel}>Konumları Yönet</Text>
           <Text style={styles.aracListChevron}>›</Text>
         </Pressable>
+        <Pressable accessibilityRole="button" onPress={onOpenSurucu} style={styles.aracListRow}>
+          <Text style={styles.aracListIcon}>◎</Text>
+          <Text style={styles.aracListLabel}>Şoför Karnesi</Text>
+          <Text style={styles.aracListChevron}>›</Text>
+        </Pressable>
       </View>
 
     </ScrollView>
@@ -4753,12 +5165,14 @@ function AracScreen({
 // ─── SurucuScreen ─────────────────────────────────────────────────────────────
 
 type SurucuScreenProps = {
+  chargeSummary: ApiChargeSummary | null;
   driverProfile: ApiDriverProfile | null;
   language: Locale;
   onLogout: () => void;
   onManageLocations: () => void;
   onOpenArac: () => void;
   onOpenProfile: () => void;
+  tripSummary: ApiTripSummary | null;
   user: ApiUser | null;
   vehicle: VehicleCatalogItem | null;
   vehicleRoutes: ApiRouteFingerprint[];
@@ -4766,11 +5180,13 @@ type SurucuScreenProps = {
 };
 
 function SurucuScreen({
+  chargeSummary,
   driverProfile,
   onLogout,
   onManageLocations,
   onOpenArac,
   onOpenProfile,
+  tripSummary,
   user,
   vehicle,
   vehicleRoutes,
@@ -4793,7 +5209,7 @@ function SurucuScreen({
   const personalizedRange = vehicle?.wltpRangeKm && factor ? Math.round(vehicle.wltpRangeKm * factor) : null;
 
   return (
-    <ScrollView contentContainerStyle={styles.aracScroll}>
+    <ScrollView contentContainerStyle={styles.aracScroll} showsVerticalScrollIndicator={false}>
 
       {/* ── KULLANICI PROFİL ────────────────────────────────────────────── */}
       <View style={[styles.aracCard, { marginTop: 12 }]}>
@@ -4815,39 +5231,158 @@ function SurucuScreen({
       </View>
 
       {/* ── SÜRÜCÜ KARNEM ──────────────────────────────────────────────── */}
-      {displayScore !== null ? (
-        <View style={styles.aracCard}>
-          <View style={styles.aracCardHeader}>
-            <Text style={styles.aracCardTitle}>SÜRÜCÜ KARNEM</Text>
-            <Text style={[styles.aracCardSubtitle, { color: scoreColor, fontWeight: '700' }]}>
-              {Math.round(displayScore)} / 100
-            </Text>
-          </View>
-          {personalizedRange && vehicle?.wltpRangeKm ? (
-            <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6, marginBottom: 6 }}>
-              <Text style={{ color: colors.text, fontSize: 22, fontWeight: '700' }}>{personalizedRange} km</Text>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>gerçekçi menzil tahmini</Text>
+      {(() => {
+        const totalKm = tripSummary && tripSummary.totalDistanceM > 0
+          ? Math.round(tripSummary.totalDistanceM / 1000)
+          : null;
+        const tripCount = tripSummary?.tripCount ?? null;
+        const chargeCount = chargeSummary?.chargeSessionCount ?? null;
+        const energyKwh = chargeSummary && chargeSummary.socBasedEnergyKwh > 0
+          ? chargeSummary.socBasedEnergyKwh
+          : chargeSummary && chargeSummary.totalEnergyKwh > 0
+          ? chargeSummary.totalEnergyKwh
+          : null;
+        const realWhPerKm = energyKwh && totalKm && totalKm > 0
+          ? Math.round((energyKwh * 0.9 * 1000) / totalKm)
+          : null;
+        const wltpWhPerKm = vehicle?.officialEfficiencyWhKm ?? null;
+        const overconsumptionPct = realWhPerKm && wltpWhPerKm
+          ? Math.round(((realWhPerKm - wltpWhPerKm) / wltpWhPerKm) * 100)
+          : null;
+
+        const scoreLabel = displayScore !== null
+          ? displayScore >= 85 ? 'Çok iyi sürüyorsun'
+          : displayScore >= 70 ? 'Ortalama, geliştirme payın var'
+          : displayScore >= 55 ? 'Sert sürüş alışkanlıkların enerji tüketiyor'
+          : 'Sürüş tarzın menzilini ciddi kısıtlıyor'
+          : null;
+
+        const issueMap: Record<string, string> = {
+          hard_brake: 'sert fren',
+          rapid_accel: 'ani hızlanma',
+          high_speed: 'yüksek hız',
+        };
+        const dominantIssue = weeklySnapshots[0]?.dominantBehaviorIssue
+          ? (issueMap[weeklySnapshots[0].dominantBehaviorIssue] ?? null)
+          : null;
+
+        return (
+          <View style={styles.aracCard}>
+            <View style={{ paddingVertical: 10, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: colors.line }}>
+              <Text style={[styles.aracCardTitle, { fontSize: 14, fontWeight: '800' }]}>SÜRÜCÜ KARNEM</Text>
             </View>
-          ) : null}
-          <Text style={[styles.routeMeta, { marginBottom: 4, marginLeft: 2 }]}>
-            {driverProfile?.analyzedTripCount ?? scoredRoutes.length} yolculuktan elde edilen sürüş skoru
-          </Text>
-          {savingsPct > 2 ? (
-            <View style={{ backgroundColor: 'rgba(240,165,0,0.08)', borderRadius: 8, padding: 10, marginTop: 4 }}>
-              <Text style={{ color: '#f0a500', fontSize: 12, lineHeight: 17 }}>
-                Daha yumuşak sürüşle yaklaşık %{savingsPct} daha az enerji kullanabilirsin.
+            <View style={{ padding: 16 }}>
+
+            {displayScore !== null ? (
+              <>
+                {/* Skor + seviye */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 14, marginBottom: 8 }}>
+                  <Text style={{ color: scoreColor, fontSize: 44, fontWeight: '800', lineHeight: 48 }}>
+                    {Math.round(displayScore)}
+                  </Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: colors.muted, fontSize: 12 }}>/ 100</Text>
+                    <Text style={{ color: scoreColor, fontSize: 13, fontWeight: '600', marginTop: 3, lineHeight: 18 }}>{scoreLabel}</Text>
+                  </View>
+                </View>
+                <View style={{ height: 4, backgroundColor: colors.line, borderRadius: 2, marginBottom: 16 }}>
+                  <View style={{ height: 4, width: `${Math.round(displayScore)}%`, backgroundColor: scoreColor, borderRadius: 2 }} />
+                </View>
+
+                {/* Menzil etkisi */}
+                {personalizedRange && vehicle?.wltpRangeKm ? (
+                  <View style={{ borderWidth: 1, borderColor: colors.line, borderRadius: 10, marginBottom: 14 }}>
+                    <View style={{ flexDirection: 'row' }}>
+                      <View style={{ flex: 1, alignItems: 'center', paddingVertical: 12, paddingHorizontal: 8 }}>
+                        <Text style={{ color: colors.muted, fontSize: 10, letterSpacing: 0.8, marginBottom: 6 }}>SENİN MENZİLİN</Text>
+                        <Text style={{ color: colors.text, fontSize: 22, fontWeight: '700' }}>{personalizedRange} km</Text>
+                      </View>
+                      <View style={{ width: 1, backgroundColor: colors.line }} />
+                      <View style={{ flex: 1, alignItems: 'center', paddingVertical: 12, paddingHorizontal: 8 }}>
+                        <Text style={{ color: colors.muted, fontSize: 10, letterSpacing: 0.8, marginBottom: 6 }}>KATALOG</Text>
+                        <Text style={{ color: colors.muted, fontSize: 22, fontWeight: '700' }}>{vehicle.wltpRangeKm} km</Text>
+                      </View>
+                      <View style={{ width: 1, backgroundColor: colors.line }} />
+                      <View style={{ flex: 1, alignItems: 'center', paddingVertical: 12, paddingHorizontal: 8 }}>
+                        <Text style={{ color: colors.muted, fontSize: 10, letterSpacing: 0.8, marginBottom: 6 }}>FARK</Text>
+                        <Text style={{ color: '#e05050', fontSize: 18, fontWeight: '700' }}>
+                          -{vehicle.wltpRangeKm - personalizedRange} km
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                ) : null}
+
+                {/* Ana mesaj */}
+                {dominantIssue ? (
+                  <Text style={{ color: colors.text, fontSize: 13, lineHeight: 21, marginBottom: 4 }}>
+                    En çok etkileyen alışkanlık:{' '}
+                    <Text style={{ color: '#f0a500', fontWeight: '600' }}>{dominantIssue}</Text>.
+                    {savingsPct > 2 ? ` Bunu azaltırsan menzilinden %${savingsPct} daha fazla yararlanabilirsin.` : ''}
+                  </Text>
+                ) : savingsPct > 2 ? (
+                  <Text style={{ color: colors.text, fontSize: 13, lineHeight: 21, marginBottom: 4 }}>
+                    Daha yumuşak sürüşle menzilinden{' '}
+                    <Text style={{ color: colors.cyan, fontWeight: '600' }}>%{savingsPct} daha fazla</Text>{' '}
+                    yararlanabilirsin.
+                  </Text>
+                ) : null}
+              </>
+            ) : (
+              <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 20, marginTop: 10, marginBottom: 4 }}>
+                GPS yolculukları birikince sürüş skorun burada görünecek.
               </Text>
+            )}
+
+            {/* Gerçek tüketim satırı */}
+            {realWhPerKm !== null ? (
+              <>
+                <View style={{ height: 1, backgroundColor: colors.line, marginTop: 12, marginBottom: 12 }} />
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <View>
+                    <Text style={{ color: colors.muted, fontSize: 10, letterSpacing: 0.8, marginBottom: 4 }}>GERÇEK TÜKETİM · ŞARJDAN ÖLÇÜLDÜ</Text>
+                    <Text style={{ color: colors.text, fontSize: 16, fontWeight: '700' }}>{realWhPerKm} Wh/km</Text>
+                  </View>
+                  {wltpWhPerKm && overconsumptionPct !== null && overconsumptionPct > 0 ? (
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={{ color: colors.muted, fontSize: 10, letterSpacing: 0.8, marginBottom: 4 }}>WLTP'YE GÖRE</Text>
+                      <Text style={{ color: '#f0a500', fontSize: 16, fontWeight: '700' }}>+%{overconsumptionPct}</Text>
+                    </View>
+                  ) : null}
+                </View>
+              </>
+            ) : null}
+
+            {/* Küçük istatistikler */}
+            {(totalKm !== null || tripCount !== null || chargeCount !== null) ? (
+              <>
+                <View style={{ height: 1, backgroundColor: colors.line, marginTop: 12, marginBottom: 12 }} />
+                <View style={{ flexDirection: 'row', gap: 0 }}>
+                  {totalKm !== null ? (
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: colors.text, fontSize: 14, fontWeight: '600' }}>{totalKm.toLocaleString('tr-TR')} km</Text>
+                      <Text style={{ color: colors.muted, fontSize: 11, marginTop: 3 }}>toplam mesafe</Text>
+                    </View>
+                  ) : null}
+                  {tripCount !== null ? (
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: colors.text, fontSize: 14, fontWeight: '600' }}>{tripCount} yolculuk</Text>
+                      <Text style={{ color: colors.muted, fontSize: 11, marginTop: 3 }}>kayıtlı</Text>
+                    </View>
+                  ) : null}
+                  {chargeCount !== null ? (
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: colors.text, fontSize: 14, fontWeight: '600' }}>{chargeCount} şarj</Text>
+                      <Text style={{ color: colors.muted, fontSize: 11, marginTop: 3 }}>seansı</Text>
+                    </View>
+                  ) : null}
+                </View>
+              </>
+            ) : null}
             </View>
-          ) : null}
-        </View>
-      ) : (
-        <View style={styles.aracCard}>
-          <Text style={styles.aracCardTitle}>SÜRÜCÜ KARNEM</Text>
-          <Text style={[styles.routeMeta, { marginTop: 8 }]}>
-            Sürücü skorun hesaplanmaya başlandı. İlk birkaç yolculuktan sonra görünecek.
-          </Text>
-        </View>
-      )}
+          </View>
+        );
+      })()}
 
       {/* ── HAFTALIK KAZANIM ───────────────────────────────────────────── */}
       {weeklySnapshots.length > 0 ? (() => {
@@ -4883,6 +5418,7 @@ function SurucuScreen({
             <View style={styles.aracCardHeader}>
               <Text style={styles.aracCardTitle}>BU HAFTA KAZANIM POTANSİYELİ</Text>
             </View>
+            <View style={{ padding: 16 }}>
             <View style={{ flexDirection: 'row', gap: 12, marginBottom: 8 }}>
               {totalRecoverableRange >= 0.5 ? (
                 <View style={{ flex: 1, backgroundColor: 'rgba(0,217,188,0.07)', borderRadius: 10, padding: 10, alignItems: 'center' }}>
@@ -4898,10 +5434,11 @@ function SurucuScreen({
               ) : null}
             </View>
             {issue ? (
-              <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 17 }}>
+              <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 18 }}>
                 Bu hafta en çok etkileyen davranış: <Text style={{ color: colors.text }}>{issue}</Text>
               </Text>
             ) : null}
+            </View>
           </View>
         );
       })() : null}
@@ -4991,6 +5528,7 @@ type RangePlannerStepProps = {
   guidance: ApiPremiumGuidance | null;
   message: string | null;
   onChange: (field: keyof RoutePlanForm, value: string) => void;
+  onOpenMap: (mode: 'origin' | 'destination') => void;
   onSave: () => void;
   onSelectPlace: (field: 'origin' | 'destination', prediction: ApiPlacePrediction) => void;
   onUseCurrentOrigin: () => void;
@@ -5001,12 +5539,44 @@ type RangePlannerStepProps = {
   status: 'idle' | 'saving' | 'offline';
 };
 
-function RangePlannerStep({ backendBinding, chargeStopPois, destinationPredictions, destinationSearchStatus, form, geometry, premiumAccess, guidance, language, message, onChange, onSave, onSelectPlace, onUseCurrentOrigin, originPredictions, originSearchStatus, plan, routePreview, status }: RangePlannerStepProps) {
+function conditionLabel(condition: string): string {
+  const map: Record<string, string> = {
+    clear: 'Açık', cloudy: 'Bulutlu', rain: 'Yağmurlu', snow: 'Karlı', fog: 'Sisli',
+  };
+  return map[condition] ?? condition;
+}
+
+function conditionIcon(condition: string): string {
+  const map: Record<string, string> = {
+    clear: '☀️', cloudy: '⛅', rain: '🌧', snow: '❄️', fog: '🌫',
+  };
+  return map[condition] ?? '🌡';
+}
+
+function RangePlannerStep({ backendBinding, chargeStopPois, destinationPredictions, destinationSearchStatus, form, geometry, premiumAccess, guidance, language, message, onChange, onOpenMap, onSave, onSelectPlace, onUseCurrentOrigin, originPredictions, originSearchStatus, plan, routePreview, status }: RangePlannerStepProps) {
   const translate = createTranslator(language);
   const disabled = status === 'saving' || !backendBinding;
+  const [routeWeather, setRouteWeather] = useState<RouteWeatherResult | null>(null);
+
+  useEffect(() => {
+    const lat = form.originLatitude;
+    const lng = form.originLongitude;
+    if (lat == null || lng == null) { setRouteWeather(null); return; }
+    let cancelled = false;
+    fetchRouteWeather(lat, lng).then((w) => {
+      if (!cancelled) {
+        setRouteWeather(w);
+        if (w?.condition === 'rain') onChange('weatherProfile', 'rain');
+        else if (w?.condition === 'snow') onChange('weatherProfile', 'snow');
+      }
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  // onChange kasıtlı olarak dışarıda — sadece koordinat değiştiğinde çekilir
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.originLatitude, form.originLongitude]);
 
   return (
-    <ScrollView contentContainerStyle={styles.content}>
+    <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       <View style={styles.accountPanel}>
         <Text style={styles.badge}>{translate('mobile.range.badge')}</Text>
         <Text style={styles.heading}>{translate('mobile.range.title')}</Text>
@@ -5020,13 +5590,27 @@ function RangePlannerStep({ backendBinding, chargeStopPois, destinationPredictio
       </View>
 
       <View style={styles.tripPanel}>
-        <RoutePlanInput label={translate('mobile.range.origin')} value={form.originLabel} onChange={(value) => onChange('originLabel', value)} placeholder="İstanbul" />
+        <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8 }}>
+          <View style={{ flex: 1 }}>
+            <RoutePlanInput label={translate('mobile.range.origin')} value={form.originLabel} onChange={(value) => onChange('originLabel', value)} placeholder="İstanbul" />
+          </View>
+          <Pressable accessibilityRole="button" onPress={() => onOpenMap('origin')} style={styles.mapPickBtn}>
+            <Text style={styles.mapPickBtnText}>🗺</Text>
+          </Pressable>
+        </View>
         <Pressable accessibilityRole="button" onPress={onUseCurrentOrigin} style={styles.retryButton}>
           <Text style={styles.retryText}>Buradan</Text>
         </Pressable>
         <PlacePredictionList predictions={originPredictions} onSelect={(prediction) => onSelectPlace('origin', prediction)} />
         <PlaceSearchState status={originSearchStatus} />
-        <RoutePlanInput label={translate('mobile.range.destination')} value={form.destinationLabel} onChange={(value) => onChange('destinationLabel', value)} placeholder="Ankara" />
+        <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8 }}>
+          <View style={{ flex: 1 }}>
+            <RoutePlanInput label={translate('mobile.range.destination')} value={form.destinationLabel} onChange={(value) => onChange('destinationLabel', value)} placeholder="Ankara" />
+          </View>
+          <Pressable accessibilityRole="button" onPress={() => onOpenMap('destination')} style={styles.mapPickBtn}>
+            <Text style={styles.mapPickBtnText}>🗺</Text>
+          </Pressable>
+        </View>
         <PlacePredictionList predictions={destinationPredictions} onSelect={(prediction) => onSelectPlace('destination', prediction)} />
         <PlaceSearchState status={destinationSearchStatus} />
         {routePreview ? <RoutePreviewBanner language={language} routePreview={routePreview} /> : null}
@@ -5037,7 +5621,42 @@ function RangePlannerStep({ backendBinding, chargeStopPois, destinationPredictio
           <RoutePlanInput label={translate('mobile.range.arrivalSoc')} value={form.targetArrivalSoc} onChange={(value) => onChange('targetArrivalSoc', value)} placeholder="15" numeric compact />
         </View>
         <SegmentedOptions label={translate('mobile.range.road')} options={['city', 'mixed', 'highway']} selected={form.roadProfile} translatePrefix="mobile.range.road" language={language} onSelect={(value) => onChange('roadProfile', value as RoutePlanForm['roadProfile'])} />
-        <SegmentedOptions label={translate('mobile.range.weather')} options={['normal', 'cold', 'hot', 'rain']} selected={form.weatherProfile} translatePrefix="mobile.range.weather" language={language} onSelect={(value) => onChange('weatherProfile', value as RoutePlanForm['weatherProfile'])} />
+        {routeWeather ? (
+          <View style={styles.rangeWeatherCard}>
+            <Text style={styles.rangeWeatherTitle}>
+              {conditionIcon(routeWeather.condition)}{'  '}Hava Durumu · Beklenen · {Math.round(routeWeather.tempC)}°C{' '}
+              <Text style={styles.rangeWeatherCondition}>({conditionLabel(routeWeather.condition)})</Text>
+            </Text>
+            {routeWeather.condition === 'rain' ? (
+              <Text style={styles.rangeWeatherHint}>🌧 Yağmurlu profil otomatik seçildi — ıslak yol direnci ve hız kaybı hesaba katıldı.</Text>
+            ) : routeWeather.condition === 'snow' ? (
+              <Text style={styles.rangeWeatherHint}>❄️ Kar profili otomatik seçildi — ciddi hız kaybı, ısıtma ve yol direnci hesaba katıldı.</Text>
+            ) : routeWeather.hvacInferred !== 'none' ? (
+              <>
+                <Text style={styles.rangeWeatherHint}>
+                  {routeWeather.hvacInferred === 'cooling' ? 'Klima kullanacak mısınız?' : 'Isıtma kullanacak mısınız?'}
+                </Text>
+                <View style={styles.rangeWeatherBtns}>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => onChange('weatherProfile', routeWeather.hvacInferred === 'cooling' ? 'hot' : 'cold')}
+                    style={[styles.rangeWeatherBtn, (form.weatherProfile === 'hot' || form.weatherProfile === 'cold') ? styles.rangeWeatherBtnActive : null]}
+                  >
+                    <Text style={[styles.rangeWeatherBtnText, (form.weatherProfile === 'hot' || form.weatherProfile === 'cold') ? styles.rangeWeatherBtnTextActive : null]}>Evet</Text>
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => onChange('weatherProfile', 'normal')}
+                    style={[styles.rangeWeatherBtn, form.weatherProfile === 'normal' ? styles.rangeWeatherBtnActive : null]}
+                  >
+                    <Text style={[styles.rangeWeatherBtnText, form.weatherProfile === 'normal' ? styles.rangeWeatherBtnTextActive : null]}>Hayır</Text>
+                  </Pressable>
+                </View>
+              </>
+            ) : null}
+          </View>
+        ) : null}
+        <SegmentedOptions label={translate('mobile.range.weather')} options={['normal', 'cold', 'hot', 'rain', 'snow']} selected={form.weatherProfile} translatePrefix="mobile.range.weather" language={language} onSelect={(value) => onChange('weatherProfile', value as RoutePlanForm['weatherProfile'])} />
         <SegmentedOptions label={translate('mobile.range.cargo')} options={['light', 'normal', 'heavy']} selected={form.cargoLevel} translatePrefix="mobile.range.cargo" language={language} onSelect={(value) => onChange('cargoLevel', value as RoutePlanForm['cargoLevel'])} />
       </View>
 
@@ -5123,7 +5742,7 @@ function MapLocationPicker({
   initialCoord,
 }: {
   language: Locale;
-  mode: 'origin' | 'destination';
+  mode: 'origin' | 'destination' | 'location';
   onClose: () => void;
   onConfirm: (coord: { latitude: number; longitude: number }, label: string) => void;
   onSave: (saveName: string, coord: { latitude: number; longitude: number }, label: string) => void;
@@ -5232,7 +5851,7 @@ function MapLocationPicker({
     onClose();
   };
 
-  const confirmLabel = mode === 'origin' ? 'NEREDEN OLARAK SEÇ' : 'NEREYE OLARAK SEÇ';
+  const confirmLabel = mode === 'origin' ? 'NEREDEN OLARAK SEÇ' : mode === 'destination' ? 'NEREYE OLARAK SEÇ' : 'KONUMU SEÇ';
   const hasPin = pinLabel.length > 0 || searchQuery.length > 0;
 
   return (
@@ -5285,7 +5904,7 @@ function MapLocationPicker({
             <View style={styles.mapPickerSearchBox}>
               <TextInput
                 onChangeText={setSearchQuery}
-                placeholder={mode === 'origin' ? 'Başlangıç noktası ara...' : 'Hedef ara...'}
+                placeholder={mode === 'origin' ? 'Başlangıç noktası ara...' : mode === 'destination' ? 'Hedef ara...' : 'Konum ara...'}
                 placeholderTextColor={colors.muted}
                 style={styles.mapPickerSearchInput}
                 value={searchQuery}
@@ -5606,6 +6225,17 @@ function openChargeStopNavigation(candidate: ApiChargeStopPoiCandidate) {
   Linking.openURL(url).catch(() => undefined);
 }
 
+type ChargeCompareCard = {
+  stationName: string;
+  distanceM: number;
+  isDc: boolean;
+  stationDcKw: number | null;
+  effectiveDcKw: number | null;
+  effectiveAcKw: number | null;
+  dcMinutes: number | null;
+  acMinutes: number | null;
+};
+
 type ChargeLoggerStepProps = {
   backendBinding: BackendBinding | null;
   chargeStartedAt: Date | null;
@@ -5618,7 +6248,15 @@ type ChargeLoggerStepProps = {
   savedLocations: ApiSavedLocation[];
   status: 'idle' | 'saving' | 'offline';
   summary: ApiChargeSummary | null;
+  vehicle: VehicleCatalogItem | null;
 };
+
+function formatChargeTime(minutes: number): string {
+  if (minutes < 60) return `~${minutes} dk`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m === 0 ? `~${h} sa` : `~${h} sa ${m} dk`;
+}
 
 function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number) {
   const R = 6371;
@@ -5648,11 +6286,13 @@ function ChargeLoggerStep({
   savedLocations,
   status,
   summary,
+  vehicle,
 }: ChargeLoggerStepProps) {
   const disabled = status === 'saving' || !backendBinding;
 
   const [detectStatus, setDetectStatus] = useState<'idle' | 'detecting' | 'done' | 'error'>('idle');
   const [detectNote, setDetectNote] = useState<string | null>(null);
+  const [compareCard, setCompareCard] = useState<ChargeCompareCard | null>(null);
   const [elapsed, setElapsed] = useState('');
 
   useEffect(() => {
@@ -5696,14 +6336,35 @@ function ChargeLoggerStep({
 
       if (nearest) {
         const distKm = haversineKm(latitude, longitude, nearest.latitude, nearest.longitude);
+        const distM = Math.round(distKm * 1000);
         const isDc = nearest.maxDcKw !== null && nearest.maxDcKw >= 22;
         onChange('locationType', isDc ? 'public_dc' : 'public_ac');
         onChange('stationName', nearest.stationName);
-        setDetectNote(`${nearest.stationName} — ${Math.round(distKm * 1000)}m`);
+        setDetectNote(`${nearest.stationName} — ${distM}m · ${isDc ? '⚡ DC Hızlı Şarj' : '⊙ AC İstasyon'}`);
+
+        // DC vs AC karşılaştırma kartı
+        const battKwh = vehicle?.batteryNetKwh ?? null;
+        const vDcKw = vehicle?.dcMaxKw ?? null;
+        const vAcKw = vehicle?.acMaxKw ?? null;
+        const stDcKw = nearest.maxDcKw;
+        const effDc = isDc && stDcKw && vDcKw ? Math.min(stDcKw, vDcKw) : (isDc ? stDcKw : null);
+        const effAc = vAcKw ?? 7.4;
+        const energyKwh = battKwh ? battKwh * 0.6 : null;
+        setCompareCard({
+          stationName: nearest.stationName,
+          distanceM: distM,
+          isDc,
+          stationDcKw: stDcKw,
+          effectiveDcKw: effDc,
+          effectiveAcKw: effAc,
+          dcMinutes: isDc && effDc && energyKwh ? Math.round((energyKwh / effDc) * 60) : null,
+          acMinutes: energyKwh ? Math.round((energyKwh / effAc) * 60) : null,
+        });
       } else {
         onChange('locationType', 'public_ac');
         onChange('stationName', '');
         setDetectNote('Yakında istasyon bulunamadı, tipi manuel seç.');
+        setCompareCard(null);
       }
 
       setDetectStatus('done');
@@ -5749,7 +6410,7 @@ function ChargeLoggerStep({
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.sarjScroll}>
+    <ScrollView contentContainerStyle={styles.sarjScroll} showsVerticalScrollIndicator={false}>
 
       {/* ── ÖZET SATIRI ───────────────────────────────────────────────── */}
       <View style={styles.sarjSummaryRow}>
@@ -5807,6 +6468,43 @@ function ChargeLoggerStep({
             <Text style={[styles.sarjDetectNote, detectStatus === 'error' ? { color: '#e05252' } : null]}>
               {detectNote}
             </Text>
+          ) : null}
+
+          {/* DC vs AC KARŞILAŞTIRMA KARTI */}
+          {compareCard ? (
+            <View style={styles.sarjCompareCard}>
+              {compareCard.isDc && compareCard.dcMinutes !== null && compareCard.acMinutes !== null ? (
+                <>
+                  <View style={styles.sarjCompareRow}>
+                    <Text style={styles.sarjCompareLabel}>⚡ DC Hızlı Şarj</Text>
+                    <Text style={styles.sarjCompareVal}>
+                      {compareCard.effectiveDcKw} kW · {formatChargeTime(compareCard.dcMinutes)}
+                    </Text>
+                  </View>
+                  <View style={styles.sarjCompareDivider} />
+                  <View style={styles.sarjCompareRow}>
+                    <Text style={[styles.sarjCompareLabel, { color: colors.muted }]}>⊙ AC ile olsaydı</Text>
+                    <Text style={[styles.sarjCompareVal, { color: colors.muted }]}>
+                      {compareCard.effectiveAcKw} kW · {formatChargeTime(compareCard.acMinutes)}
+                    </Text>
+                  </View>
+                  <Text style={styles.sarjCompareHint}>
+                    (%20 → %80 için tahmini · araç sınırı esas alındı)
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <View style={styles.sarjCompareRow}>
+                    <Text style={[styles.sarjCompareLabel, { color: colors.muted }]}>⊙ AC İstasyon</Text>
+                    {compareCard.acMinutes !== null ? (
+                      <Text style={[styles.sarjCompareVal, { color: colors.muted }]}>
+                        {compareCard.effectiveAcKw} kW · {formatChargeTime(compareCard.acMinutes)}
+                      </Text>
+                    ) : null}
+                  </View>
+                </>
+              )}
+            </View>
           ) : null}
 
           {/* SAYAÇ — şarj başladıysa göster */}
@@ -6000,6 +6698,7 @@ function SavedLocationsStep({
   locations,
   message,
   onChange,
+  onOpenMap,
   onSaveLocation,
   onSaveRoute,
   onSelectPrediction,
@@ -6013,6 +6712,7 @@ function SavedLocationsStep({
   locations: ApiSavedLocation[];
   message: string | null;
   onChange: (field: keyof SavedLocationForm, value: string) => void;
+  onOpenMap: () => void;
   onSaveLocation: () => void;
   onSaveRoute: () => void;
   onSelectPrediction: (prediction: ApiPlacePrediction) => void;
@@ -6025,7 +6725,7 @@ function SavedLocationsStep({
   const disabled = status === 'saving';
 
   return (
-    <ScrollView contentContainerStyle={styles.content}>
+    <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       <View style={styles.accountPanel}>
         <Text style={styles.badge}>KONUM HAFIZASI</Text>
         <Text style={styles.heading}>Konum kaydet</Text>
@@ -6052,16 +6752,21 @@ function SavedLocationsStep({
           translatePrefix="mobile.savedLocation.kind"
         />
         <Text style={styles.label}>HARİTADAN / GOOGLE'DAN SEÇ</Text>
-        <TextInput
-          onChangeText={(value) => onChange('searchLabel', value)}
-          placeholder="Adres veya yer ara..."
-          placeholderTextColor={colors.muted}
-          style={styles.searchInput}
-          value={form.searchLabel}
-        />
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <TextInput
+            onChangeText={(value) => onChange('searchLabel', value)}
+            placeholder="Adres veya yer ara..."
+            placeholderTextColor={colors.muted}
+            style={[styles.searchInput, { flex: 1, marginBottom: 0 }]}
+            value={form.searchLabel}
+          />
+          <Pressable accessibilityRole="button" onPress={onOpenMap} style={styles.mapPickBtn}>
+            <Text style={styles.mapPickBtnText}>🗺</Text>
+          </Pressable>
+        </View>
         <PlacePredictionList predictions={predictions} onSelect={onSelectPrediction} />
         <PlaceSearchState status={searchStatus} />
-        <Pressable accessibilityRole="button" onPress={onUseCurrentLocation} style={styles.retryButton}>
+        <Pressable accessibilityRole="button" onPress={onUseCurrentLocation} style={[styles.retryButton, { marginTop: 10 }]}>
           <Text style={styles.retryText}>Mevcut konumu pinle</Text>
         </Pressable>
         <View style={styles.metricGrid}>
@@ -6188,6 +6893,7 @@ type TripRecorderStepProps = {
   onDeleteRoute: (routeId: string) => void;
   onManageLocations: () => void;
   onOpenMap: (mode: 'origin' | 'destination') => void;
+  onPlanRange: () => void;
   onUpdateLocation: (locationId: string, label: string, kind: string) => Promise<void>;
   onPlaceSelect: (prediction: ApiPlacePrediction) => void;
   onStartTrip: () => void;
@@ -6232,8 +6938,9 @@ function TripRecorderStep({
   onDeleteRoute,
   onDestSearch,
   onFinishTrip,
-  onManageLocations: _onManageLocations,
+  onManageLocations,
   onOpenMap,
+  onPlanRange,
   onUpdateLocation,
   onPlaceSelect,
   onStartTrip,
@@ -6286,7 +6993,7 @@ function TripRecorderStep({
   const vehicleName = vehicle ? `${vehicle.brand} ${vehicle.model}` : backendBinding?.vehicle.displayName ?? '—';
 
   return (
-    <ScrollView contentContainerStyle={styles.yolculukScroll}>
+    <ScrollView contentContainerStyle={styles.yolculukScroll} showsVerticalScrollIndicator={false}>
 
       {/* ── DURUM SATIRI ──────────────────────────────────────────────── */}
       <View style={styles.yolculukStatusRow}>
@@ -6314,6 +7021,14 @@ function TripRecorderStep({
             <View style={[styles.yolculukSocFill, { width: '80%' }]} />
           </View>
         </View>
+      </View>
+
+      {/* ── ROTA KAYDETME BİLGİSİ ────────────────────────────────────── */}
+      <View style={[styles.yolculukAutoCard, { flexDirection: 'column', alignItems: 'flex-start', gap: 6 }]}>
+        <Text style={styles.yolculukAutoTitle}>Sık kullandığın rotaları kaydet</Text>
+        <Text style={styles.yolculukAutoSub}>
+          DMyC rota hattını tanıdıkça menzil tahminlerin kişiselleşir ve sürüş alışkanlıkların ölçülür. Ev, iş veya sık gittiğin noktaları buraya ekle.
+        </Text>
       </View>
 
       {/* ── AKTİF YOLCULUK BANNER ─────────────────────────────────────── */}
@@ -6391,6 +7106,36 @@ function TripRecorderStep({
                 <Text style={[styles.yolculukInputValue, { color: colors.muted }]}>Haritadan seç veya ara...</Text>
               )}
             </Pressable>
+            {/* ── KAYITLI KONUMLAR CHİP'LERİ ──────────────────────────── */}
+            {(filteredRoutes.length > 0 || filteredLocations.length > 0) && (
+              <View style={{ marginBottom: 8 }}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.yolculukPillsRow}>
+                  {filteredRoutes.map((route) => (
+                    <Pressable
+                      accessibilityRole="button"
+                      key={route.id}
+                      onPress={() => { onSelectRoute(route.id); onSelectDestination(''); }}
+                      style={[styles.yolculukRoutePill, selectedSavedRouteId === route.id ? styles.yolculukRoutePillActive : null]}
+                    >
+                      <Text style={styles.yolculukRoutePillIcon}>⌁</Text>
+                      <Text style={styles.yolculukRoutePillText}>{route.label}</Text>
+                    </Pressable>
+                  ))}
+                  {filteredLocations.map((loc) => (
+                    <Pressable
+                      accessibilityRole="button"
+                      key={loc.id}
+                      onPress={() => { onSelectDestination(loc.id); onSelectRoute(''); }}
+                      style={[styles.yolculukRoutePill, selectedDestinationLocationId === loc.id ? styles.yolculukRoutePillActive : null]}
+                    >
+                      <Text style={styles.yolculukRoutePillIcon}>{loc.locationKind === 'home' ? '⌂' : loc.locationKind === 'work' ? '⊡' : '⊙'}</Text>
+                      <Text style={styles.yolculukRoutePillText}>{loc.label}</Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+
             <Pressable
               accessibilityRole="button"
               disabled={disabled}
@@ -6402,37 +7147,6 @@ function TripRecorderStep({
               </Text>
             </Pressable>
           </View>
-
-          {/* ── KAYITLI ROTALAR (yatay scroll) ──────────────────────────── */}
-          {(filteredRoutes.length > 0 || filteredLocations.length > 0) && (
-            <View style={styles.yolculukSavedSection}>
-              <Text style={styles.yolculukSavedTitle}>KAYITLI ROTALAR</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.yolculukPillsRow}>
-                {filteredRoutes.map((route) => (
-                  <Pressable
-                    accessibilityRole="button"
-                    key={route.id}
-                    onPress={() => { onSelectRoute(route.id); onSelectDestination(''); }}
-                    style={[styles.yolculukRoutePill, selectedSavedRouteId === route.id ? styles.yolculukRoutePillActive : null]}
-                  >
-                    <Text style={styles.yolculukRoutePillIcon}>⌁</Text>
-                    <Text style={styles.yolculukRoutePillText}>{route.label}</Text>
-                  </Pressable>
-                ))}
-                {filteredLocations.map((loc) => (
-                  <Pressable
-                    accessibilityRole="button"
-                    key={loc.id}
-                    onPress={() => { onSelectDestination(loc.id); onSelectRoute(''); }}
-                    style={[styles.yolculukRoutePill, selectedDestinationLocationId === loc.id ? styles.yolculukRoutePillActive : null]}
-                  >
-                    <Text style={styles.yolculukRoutePillIcon}>{loc.locationKind === 'home' ? '⌂' : loc.locationKind === 'work' ? '⊡' : '⊙'}</Text>
-                    <Text style={styles.yolculukRoutePillText}>{loc.label}</Text>
-                  </Pressable>
-                ))}
-              </ScrollView>
-            </View>
-          )}
         </>
       )}
 
@@ -6512,6 +7226,24 @@ function TripRecorderStep({
         />
       )}
 
+      {/* ── MENZİL PLANLAMA ───────────────────────────────────────────── */}
+      <View style={{ marginHorizontal: 16, marginTop: 8, marginBottom: 4 }}>
+        <Pressable accessibilityRole="button" onPress={onPlanRange} style={styles.todayPrimaryButton}>
+          <Text style={styles.todayPrimaryButtonText}>MENZİL PLANLA  ≡</Text>
+        </Pressable>
+        <Text style={{ color: colors.muted, fontSize: 12, textAlign: 'center', marginTop: 8 }}>
+          Bu yolu yapabilir miyim?
+        </Text>
+      </View>
+
+      <View style={[styles.aracListSection, { marginBottom: 24 }]}>
+        <Pressable accessibilityRole="button" onPress={onManageLocations} style={styles.aracListRow}>
+          <Text style={styles.aracListIcon}>⊙</Text>
+          <Text style={styles.aracListLabel}>Konumları Yönet</Text>
+          <Text style={styles.aracListChevron}>›</Text>
+        </Pressable>
+      </View>
+
     </ScrollView>
   );
 }
@@ -6531,7 +7263,7 @@ class MapErrorBoundary extends Component<{ children: React.ReactNode }, { crashe
   render() {
     if (this.state.crashed) {
       return (
-        <View style={{ flex: 1, backgroundColor: '#1a2424', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+        <View style={{ flex: 1, backgroundColor: 'transparent', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
           <Text style={{ color: '#849495', fontSize: 13, textAlign: 'center' }}>Harita bu build'de kullanılamıyor.</Text>
           {this.state.reason ? (
             <Text style={{ color: '#849495', fontSize: 10, marginTop: 6, textAlign: 'center', opacity: 0.6 }}>{this.state.reason}</Text>
@@ -7157,7 +7889,8 @@ function nextStep(step: Step): Step {
   return 'today';
 }
 
-function isOnboardingStep(step: Step) {
+function isOnboardingStep(step: Step, returnStep?: Step) {
+  if (step === 'sicil') return returnStep === 'assessment';
   return step === 'register' || step === 'tracking' || step === 'brand' || step === 'model' || step === 'variant' || step === 'assessment';
 }
 
@@ -7194,7 +7927,11 @@ function stepIndex(step: Step) {
     return 5;
   }
 
-  return 6;
+  if (step === 'sicil') {
+    return 6;
+  }
+
+  return 7;
 }
 
 function continueLabel(step: Step, locale: Locale) {
@@ -7218,6 +7955,10 @@ function continueLabel(step: Step, locale: Locale) {
 
   if (step === 'assessment') {
     return 'Devam';
+  }
+
+  if (step === 'sicil') {
+    return 'Araç Sicilini Kaydet';
   }
 
   return translate('mobile.action.confirmSelection');
@@ -7574,7 +8315,7 @@ function AssessmentInputStep({
         : translate('mobile.assessment.gps.failed');
 
   return (
-    <ScrollView contentContainerStyle={styles.content}>
+    <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       <View style={styles.successHeader}>
         <Text style={styles.heading}>{translate('mobile.assessment.title')}</Text>
         <Text style={styles.description}>
@@ -7630,6 +8371,740 @@ function AssessmentInputStep({
         </View>
         <Text style={styles.signalCaption}>
           Trafik yükü çarpanı için kullanılır. Boş bırakılabilir.
+        </Text>
+      </View>
+    </ScrollView>
+  );
+}
+
+// ─── Muayene renk hesabı ─────────────────────────────────────────────────────
+
+function inspectionStatusColor(nextDate: string | null): string {
+  if (!nextDate) return colors.muted;
+  const diffDays = Math.floor((new Date(nextDate).getTime() - Date.now()) / 86_400_000);
+  if (diffDays < 0)   return '#ef4444'; // geçmiş — kırmızı
+  if (diffDays < 30)  return '#f97316'; // 30 günden az — turuncu
+  if (diffDays < 90)  return '#facc15'; // 3 aydan az — sarı
+  return '#4ade80';                      // iyi — yeşil
+}
+
+function inspectionStatusLabel(nextDate: string | null, confidence: string): string {
+  if (!nextDate) return 'Muayene bilgisi yok';
+  const diffDays = Math.floor((new Date(nextDate).getTime() - Date.now()) / 86_400_000);
+  const dateStr = new Date(nextDate).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' });
+  if (diffDays < 0) return `Süresi geçmiş — ${dateStr}`;
+  if (diffDays < 30) return `${diffDays} gün kaldı — ${dateStr}`;
+  if (diffDays < 90) return `Yaklaşıyor — ${dateStr}`;
+  const suffix = confidence === 'user_declared' ? ' (tahmini)' : '';
+  return `${dateStr}${suffix}`;
+}
+
+function InspectionCard({
+  inspection,
+  onOpenSicilEntry,
+}: {
+  inspection: ApiInspectionRecord | null;
+  onOpenSicilEntry: () => void;
+}) {
+  const nextDate = inspection?.nextInspectionDate ?? null;
+  const statusColor = inspectionStatusColor(nextDate);
+  const statusLabel = inspection
+    ? inspectionStatusLabel(nextDate, inspection.confidence ?? 'user_declared')
+    : null;
+
+  return (
+    <View style={styles.aracCard}>
+      <View style={styles.aracCardHeader}>
+        <Text style={styles.aracCardTitle}>TÜVTÜRK MUAYENESİ</Text>
+        {inspection && (
+          <View style={[styles.aracPill, { backgroundColor: statusColor + '22' }]}>
+            <Text style={[styles.aracPillText, { color: statusColor }]}>
+              {inspection.result === 'passed' ? 'GEÇTİ' : inspection.result === 'failed' ? 'KALDI' : 'BELİRSİZ'}
+            </Text>
+          </View>
+        )}
+      </View>
+
+      {inspection ? (
+        <>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: statusColor }} />
+            <Text style={[styles.aracDataTileValue, { fontSize: 13, color: statusColor, flex: 1 }]}>
+              {statusLabel}
+            </Text>
+          </View>
+          {inspection.confidence === 'user_declared' && (
+            <Text style={styles.signalCaption}>Kullanıcı beyanı · Belge yükleyerek doğrulayabilirsiniz.</Text>
+          )}
+          {inspection.lastInspectionDate && (
+            <Text style={styles.signalCaption}>
+              Son muayene: {new Date(inspection.lastInspectionDate).toLocaleDateString('tr-TR')}
+            </Text>
+          )}
+        </>
+      ) : (
+        <Text style={[styles.signalCaption, { marginBottom: 8 }]}>
+          Muayene bilgisi henüz girilmedi.
+        </Text>
+      )}
+
+      <View style={styles.aracCardFooter}>
+        <Pressable accessibilityRole="button" onPress={onOpenSicilEntry} style={styles.aracOutlineButton}>
+          <Text style={styles.aracOutlineButtonText}>
+            {inspection ? 'MUAYENEYİ GÜNCELLE' : 'MUAYENEYİ EKLE'}
+          </Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+// ── Bakım kartı yardımcıları ──────────────────────────────────────────────────
+
+const ITEM_CODE_LABELS: Record<string, string> = {
+  cabin_filter:      'Polen Filtresi',
+  brake_fluid:       'Fren Hidroliği',
+  tire_rotation:     'Lastik Rotasyonu',
+  coolant:           'Soğutma Suyu',
+  hv_battery_check:  'HV Batarya Kontrolü',
+  general_inspection:'Genel Muayene',
+  air_filter:        'Hava Filtresi',
+  wiper_blades:      'Silecek Lastiği',
+  cabin_microfilter: 'Kabin Mikrofiltres',
+};
+
+function kmRemainingColor(km: number | null): string {
+  if (km === null)  return colors.muted;
+  if (km < 0)       return '#ef4444';
+  if (km < 1000)    return '#f97316';
+  if (km < 3000)    return '#facc15';
+  return '#4ade80';
+}
+
+function kmRemainingLabel(km: number | null): string {
+  if (km === null)  return '—';
+  if (km < 0)       return 'Süresi geçti';
+  return `${km.toLocaleString('tr-TR')} km`;
+}
+
+type MaintenanceRule = NonNullable<ApiMaintenanceStatus['rules']>[number];
+
+function MaintenanceRuleRow({ rule }: { rule: MaintenanceRule }) {
+  const color = kmRemainingColor(rule.kmRemaining);
+  const label = kmRemainingLabel(rule.kmRemaining);
+  const itemLabel = rule.itemCode ? (ITEM_CODE_LABELS[rule.itemCode] ?? rule.itemCode.replace(/_/g, ' ')) : 'Periyodik Bakım';
+  const isCondition = rule.ruleType === 'condition_based' || rule.ruleType === 'manual_required';
+
+  return (
+    <View style={{
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 9,
+      borderBottomWidth: 1,
+      borderBottomColor: '#0d2527',
+      gap: 10,
+    }}>
+      {/* Renk göstergesi */}
+      <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: isCondition ? colors.muted : color }} />
+
+      {/* Etiket */}
+      <Text style={{ flex: 1, color: '#c9d6d6', fontSize: 13 }}>{itemLabel}</Text>
+
+      {/* Aralık ipucu */}
+      {rule.intervalKm && (
+        <Text style={{ color: colors.muted, fontSize: 11 }}>
+          {`${(rule.intervalKm / 1000).toLocaleString('tr-TR', { maximumFractionDigits: 0 })}k`}
+        </Text>
+      )}
+
+      {/* Kalan km veya durum */}
+      {isCondition ? (
+        <Text style={{ color: colors.muted, fontSize: 11, fontStyle: 'italic' }}>
+          {rule.ruleType === 'condition_based' ? 'Durum bazlı' : 'Manuel'}
+        </Text>
+      ) : (
+        <View style={{ alignItems: 'flex-end', minWidth: 80 }}>
+          <Text style={{ color, fontSize: 12, fontWeight: '700' }}>{label}</Text>
+          {/* Mini progres çubuğu */}
+          {rule.kmRemaining !== null && rule.intervalKm && rule.kmRemaining >= 0 && (
+            <View style={{ width: 80, height: 3, backgroundColor: '#0d2527', borderRadius: 2, marginTop: 3 }}>
+              <View style={{
+                width: `${Math.min(100, Math.max(2, (1 - rule.kmRemaining / rule.intervalKm) * 100))}%` as unknown as number,
+                height: 3,
+                backgroundColor: color,
+                borderRadius: 2,
+              }} />
+            </View>
+          )}
+        </View>
+      )}
+    </View>
+  );
+}
+
+function MaintenanceCard({
+  maintenanceStatus,
+  onOpenSicilEntry,
+}: {
+  maintenanceStatus: ApiMaintenanceStatus | null;
+  onOpenSicilEntry: () => void;
+}) {
+  if (!maintenanceStatus) return null;
+
+  const { hasVerifiedRules, nextServiceKmRemaining, lastServiceKm, rules = [] } = maintenanceStatus;
+
+  // En kritik (en az kalan km) kurala göre başlık rengi
+  const headerColor = kmRemainingColor(nextServiceKmRemaining);
+
+  // Kural tipleri grupla: önce periodic_visit, sonra item_schedule, sonra diğerleri
+  const periodicRules = rules.filter((r) => r.ruleType === 'periodic_visit');
+  const itemRules     = rules.filter((r) => r.ruleType === 'item_schedule');
+  const otherRules    = rules.filter((r) => r.ruleType === 'condition_based' || r.ruleType === 'manual_required');
+
+  return (
+    <View style={styles.aracCard}>
+      {/* ── Başlık ── */}
+      <View style={styles.aracCardHeader}>
+        <Text style={styles.aracCardTitle}>ÜRETİCİ BAKIM TAKVİMİ</Text>
+        {hasVerifiedRules ? (
+          <View style={[styles.aracPill, { backgroundColor: headerColor + '22' }]}>
+            <Text style={[styles.aracPillText, { color: headerColor }]}>
+              {rules.length} KURAL
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.aracPill}>
+            <Text style={styles.aracPillText}>DOĞRULANMADI</Text>
+          </View>
+        )}
+      </View>
+
+      {/* ── İçerik ── */}
+      {!hasVerifiedRules ? (
+        <>
+          <Text style={[styles.signalCaption, { marginBottom: 4 }]}>
+            Bu araç için üretici bakım takvimi henüz doğrulanmadı.
+          </Text>
+          <Text style={styles.signalCaption}>
+            Admin panelinden onaylanan kurallar burada görünür.
+          </Text>
+        </>
+      ) : (
+        <>
+          {/* Son bakım özet satırı */}
+          {lastServiceKm != null && (
+            <Text style={[styles.signalCaption, { marginBottom: 8 }]}>
+              Son bakım: {lastServiceKm.toLocaleString('tr-TR')} km ·{' '}
+              {maintenanceStatus.currentKm != null
+                ? `Şu an ${maintenanceStatus.currentKm.toLocaleString('tr-TR')} km`
+                : null}
+            </Text>
+          )}
+
+          {/* Periyodik bakım kuralları */}
+          {periodicRules.length > 0 && (
+            <View style={{ marginBottom: 4 }}>
+              <Text style={[styles.signalCaption, { color: '#849495', marginBottom: 2, fontSize: 10, letterSpacing: 0.6 }]}>
+                PERİYODİK BAKIM
+              </Text>
+              {periodicRules.map((r, i) => <MaintenanceRuleRow key={i} rule={r} />)}
+            </View>
+          )}
+
+          {/* Kalem takvimi kuralları */}
+          {itemRules.length > 0 && (
+            <View style={{ marginTop: 10, marginBottom: 4 }}>
+              <Text style={[styles.signalCaption, { color: '#849495', marginBottom: 2, fontSize: 10, letterSpacing: 0.6 }]}>
+                BAKIM KALEMLERİ
+              </Text>
+              {itemRules.map((r, i) => <MaintenanceRuleRow key={i} rule={r} />)}
+            </View>
+          )}
+
+          {/* Durum bazlı / manuel */}
+          {otherRules.length > 0 && (
+            <View style={{ marginTop: 10 }}>
+              <Text style={[styles.signalCaption, { color: '#849495', marginBottom: 2, fontSize: 10, letterSpacing: 0.6 }]}>
+                DİĞER KURALLAR
+              </Text>
+              {otherRules.map((r, i) => <MaintenanceRuleRow key={i} rule={r} />)}
+            </View>
+          )}
+
+          {/* Kalan km girilmemişse uyarı */}
+          {nextServiceKmRemaining === null && (
+            <Text style={[styles.signalCaption, { marginTop: 10, color: '#f97316' }]}>
+              Son bakım km'si girilmeden kalan km hesaplanamaz.
+            </Text>
+          )}
+        </>
+      )}
+
+      {/* ── Footer ── */}
+      {hasVerifiedRules && nextServiceKmRemaining === null && (
+        <View style={styles.aracCardFooter}>
+          <Pressable accessibilityRole="button" onPress={onOpenSicilEntry} style={styles.aracOutlineButton}>
+            <Text style={styles.aracOutlineButtonText}>SON BAKIM KM EKLE</Text>
+          </Pressable>
+        </View>
+      )}
+    </View>
+  );
+}
+
+// ── Kasko Değer Talebi Kartı ─────────────────────────────────────────────────
+
+type PhotoSlot = 'front' | 'rear' | 'left' | 'right';
+const PHOTO_SLOTS: { key: PhotoSlot; label: string; icon: string }[] = [
+  { key: 'front', label: 'Ön', icon: '↑' },
+  { key: 'rear',  label: 'Arka', icon: '↓' },
+  { key: 'left',  label: 'Sol Yan', icon: '←' },
+  { key: 'right', label: 'Sağ Yan', icon: '→' },
+];
+
+function InsuranceValueCard({
+  sicilSnapshot,
+  insuranceValueRequest,
+  kaskoEstimate,
+  onCreateRequest,
+  onOpenSicilEntry,
+  vehicle,
+}: {
+  sicilSnapshot: ApiSicilSnapshot | null;
+  insuranceValueRequest: ApiInsuranceValueRequest | null;
+  kaskoEstimate: ApiKaskoEstimate | null;
+  onCreateRequest: (photoUrls?: string[]) => Promise<void>;
+  onOpenSicilEntry: () => void;
+  vehicle: VehicleCatalogItem | null;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [showPhotoStep, setShowPhotoStep] = useState(false);
+  const [photos, setPhotos] = useState<Partial<Record<PhotoSlot, string>>>({});
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  const hasInspection   = sicilSnapshot?.inspection?.nextInspectionDate != null;
+  const hasServiceKm    = (sicilSnapshot?.latestServiceKm ?? null) !== null;
+  const hasKaskoValue   = kaskoEstimate?.available === true;
+  const readyCount      = [hasInspection, hasServiceKm, hasKaskoValue].filter(Boolean).length;
+
+  const nextInspDate    = sicilSnapshot?.inspection?.nextInspectionDate ?? null;
+  const latestServiceKm = sicilSnapshot?.latestServiceKm ?? null;
+  const estimate        = kaskoEstimate?.available === true ? kaskoEstimate : null;
+
+  async function pickPhoto(slot: PhotoSlot) {
+    if (!ImagePicker) {
+      setUploadError('Fotoğraf özelliği için uygulamayı yeniden derlemeniz gerekiyor.');
+      return;
+    }
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      const cam = await ImagePicker.requestCameraPermissionsAsync();
+      if (!cam.granted) return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.85,
+      allowsEditing: true,
+      aspect: [4, 3],
+    });
+    if (!result.canceled && result.assets[0]) {
+      setPhotos(prev => ({ ...prev, [slot]: result.assets[0].uri }));
+    }
+  }
+
+  async function handleSubmitWithPhotos() {
+    setLoading(true);
+    setUploadError(null);
+    try {
+      let photoUrls: string[] = [];
+      const hasAnyPhoto = Object.values(photos).some(Boolean);
+      if (hasAnyPhoto) {
+        photoUrls = await uploadKaskoPhotos(photos);
+      }
+      await onCreateRequest(photoUrls);
+      setShowPhotoStep(false);
+      setPhotos({});
+    } catch (e) {
+      setUploadError('Fotoğraf yüklenemedi. Lütfen tekrar deneyin.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const hasRequest  = insuranceValueRequest !== null;
+  const requestSnap = insuranceValueRequest?.registrySnapshot;
+
+  return (
+    <View style={styles.aracCard}>
+      {/* ── Başlık ── */}
+      <View style={styles.aracCardHeader}>
+        <Text style={styles.aracCardTitle}>ORTALAMA KASKO BEDELİ</Text>
+        {hasRequest ? (
+          <View style={[styles.aracPill, { backgroundColor: '#4ade8022' }]}>
+            <Text style={[styles.aracPillText, { color: '#4ade80' }]}>OLUŞTURULDU</Text>
+          </View>
+        ) : (
+          <View style={styles.aracPill}>
+            <Text style={styles.aracPillText}>{readyCount}/3 VERİ</Text>
+          </View>
+        )}
+      </View>
+
+      {/* ── Tahmini değer aralığı (kasko estimate varsa) ── */}
+      {estimate && (
+        <View style={{
+          backgroundColor: '#071a1a',
+          borderRadius: 8,
+          padding: 12,
+          marginBottom: 12,
+          borderWidth: 1,
+          borderColor: '#0d3030',
+          alignItems: 'center',
+        }}>
+          <Text style={[styles.signalCaption, { fontSize: 9, letterSpacing: 1, color: colors.muted, marginBottom: 4 }]}>
+            TAHMİNİ PAZAR DEĞERİ
+          </Text>
+          <Text style={{ color: colors.cyan, fontSize: 18, fontWeight: '700', letterSpacing: 0.3 }}>
+            ₺{estimate.estimatedMin.toLocaleString('tr-TR')} – ₺{estimate.estimatedMax.toLocaleString('tr-TR')}
+          </Text>
+          <Text style={[styles.signalCaption, { fontSize: 9, color: colors.muted, marginTop: 3, marginBottom: 0 }]}>
+            Yaş katsayısı {estimate.ageFactor} · EFC notu {estimate.batteryGrade} ({estimate.batteryFactor}) · {estimate.annualKm.toLocaleString('tr-TR')} km/yıl
+          </Text>
+        </View>
+      )}
+
+      {/* ── Araç sicili önizleme ── */}
+      <View style={{ gap: 6, marginBottom: 12 }}>
+        {/* Muayene */}
+        <View style={styles.aracChevronRow}>
+          <Text style={[styles.aracChevronIcon, { color: hasInspection ? '#4ade80' : colors.muted }]}>
+            {hasInspection ? '✓' : '○'}
+          </Text>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.aracChevronLabel, { color: hasInspection ? colors.text : colors.muted }]}>
+              TÜVTÜRK Muayenesi
+            </Text>
+            {hasInspection && nextInspDate ? (
+              <Text style={[styles.signalCaption, { marginBottom: 0, marginTop: 1 }]}>
+                Sonraki: {new Date(nextInspDate).toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' })}
+              </Text>
+            ) : (
+              <Text style={[styles.signalCaption, { marginBottom: 0, marginTop: 1 }]}>
+                Girilmedi
+              </Text>
+            )}
+          </View>
+          {!hasInspection && (
+            <Pressable accessibilityRole="button" onPress={onOpenSicilEntry}>
+              <Text style={{ color: colors.cyan, fontSize: 12 }}>Ekle</Text>
+            </Pressable>
+          )}
+        </View>
+
+        {/* Son bakım km */}
+        <View style={styles.aracChevronRow}>
+          <Text style={[styles.aracChevronIcon, { color: hasServiceKm ? '#4ade80' : colors.muted }]}>
+            {hasServiceKm ? '✓' : '○'}
+          </Text>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.aracChevronLabel, { color: hasServiceKm ? colors.text : colors.muted }]}>
+              Son Bakım
+            </Text>
+            {hasServiceKm && latestServiceKm !== null ? (
+              <Text style={[styles.signalCaption, { marginBottom: 0, marginTop: 1 }]}>
+                {latestServiceKm.toLocaleString('tr-TR')} km
+              </Text>
+            ) : (
+              <Text style={[styles.signalCaption, { marginBottom: 0, marginTop: 1 }]}>
+                Girilmedi
+              </Text>
+            )}
+          </View>
+          {!hasServiceKm && (
+            <Pressable accessibilityRole="button" onPress={onOpenSicilEntry}>
+              <Text style={{ color: colors.cyan, fontSize: 12 }}>Ekle</Text>
+            </Pressable>
+          )}
+        </View>
+
+        {/* Tahmini Değer */}
+        <View style={styles.aracChevronRow}>
+          <Text style={[styles.aracChevronIcon, { color: hasKaskoValue ? '#4ade80' : colors.muted }]}>
+            {hasKaskoValue ? '✓' : '○'}
+          </Text>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.aracChevronLabel, { color: hasKaskoValue ? colors.text : colors.muted }]}>
+              Tahmini Pazar Değeri
+            </Text>
+            {estimate ? (
+              <Text style={[styles.signalCaption, { marginBottom: 0, marginTop: 1 }]}>
+                {`₺${estimate.estimatedMin.toLocaleString('tr-TR')} – ₺${estimate.estimatedMax.toLocaleString('tr-TR')}`}
+              </Text>
+            ) : (
+              <Text style={[styles.signalCaption, { marginBottom: 0, marginTop: 1 }]}>
+                Hesaplanıyor…
+              </Text>
+            )}
+          </View>
+        </View>
+      </View>
+
+      {/* ── Oluşturulmuş talep detayı ── */}
+      {hasRequest && requestSnap && (
+        <View style={{
+          backgroundColor: '#071515',
+          borderRadius: 8,
+          padding: 10,
+          marginBottom: 12,
+          borderWidth: 1,
+          borderColor: '#0d2527',
+        }}>
+          <Text style={[styles.signalCaption, { color: '#4ade80', marginBottom: 4, fontSize: 10, letterSpacing: 0.6 }]}>
+            OLUŞTURULAN TALEP
+          </Text>
+          <Text style={[styles.signalCaption, { marginBottom: 1 }]}>
+            Talep No: {insuranceValueRequest!.id.slice(-8).toUpperCase()}
+          </Text>
+          <Text style={[styles.signalCaption, { marginBottom: 0 }]}>
+            Tarih: {new Date(insuranceValueRequest!.createdAt).toLocaleDateString('tr-TR')}
+          </Text>
+        </View>
+      )}
+
+      {/* ── Açıklama ── */}
+      <Text style={[styles.signalCaption, { marginBottom: 12, lineHeight: 18 }]}>
+        {vehicle ? `${vehicle.brand} ${vehicle.model}` : 'Araç'} için sıfır liste fiyatı, araç yaşı ve DMyC EFC batarya notu kullanılarak hesaplanan tahmini pazar değeri.
+        {estimate ? ` Liste fiyatı: ₺${estimate.listPriceTry.toLocaleString('tr-TR')}` : ''}
+      </Text>
+
+      {/* ── Fotoğraf seçim adımı ── */}
+      {showPhotoStep && (
+        <View style={{
+          backgroundColor: '#0c1a1b', borderRadius: 10, padding: 16,
+          marginBottom: 12, borderWidth: 1, borderColor: '#1a3535',
+        }}>
+          <Text style={{ color: colors.cyan, fontSize: 12, fontWeight: '700', letterSpacing: 0.8, marginBottom: 4 }}>
+            4 ARAÇ FOTOĞRAFI
+          </Text>
+          <Text style={[styles.signalCaption, { marginBottom: 14, lineHeight: 17 }]}>
+            Sigorta firmasına göndereceğin belgede araç fotoğrafları görünür. GPS/EXIF verisi otomatik silinir.
+          </Text>
+
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+            {PHOTO_SLOTS.map(slot => {
+              const uri = photos[slot.key];
+              return (
+                <Pressable
+                  key={slot.key}
+                  accessibilityRole="button"
+                  onPress={() => void pickPhoto(slot.key)}
+                  style={{
+                    width: '47%', aspectRatio: 4 / 3,
+                    borderRadius: 8, overflow: 'hidden',
+                    backgroundColor: '#111c1d',
+                    borderWidth: 1.5,
+                    borderColor: uri ? '#71ffe8' : '#1e3535',
+                    alignItems: 'center', justifyContent: 'center',
+                  }}
+                >
+                  {uri ? (
+                    <Image source={{ uri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                  ) : (
+                    <View style={{ alignItems: 'center', gap: 4 }}>
+                      <Text style={{ color: '#3a6060', fontSize: 20 }}>{slot.icon}</Text>
+                      <Text style={{ color: '#3a6060', fontSize: 10, fontWeight: '700' }}>{slot.label}</Text>
+                      <Text style={{ color: '#2a5050', fontSize: 9 }}>Fotoğraf ekle</Text>
+                    </View>
+                  )}
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {uploadError && (
+            <Text style={{ color: '#f87171', fontSize: 11, marginBottom: 10 }}>{uploadError}</Text>
+          )}
+
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <Pressable
+              accessibilityRole="button"
+              style={[styles.aracOutlineButton, { flex: 1 }]}
+              onPress={() => { setShowPhotoStep(false); setPhotos({}); setUploadError(null); }}
+            >
+              <Text style={styles.aracOutlineButtonText}>İPTAL</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              style={[styles.aracCyanButton, { flex: 2, opacity: loading ? 0.6 : 1 }]}
+              disabled={loading}
+              onPress={() => void handleSubmitWithPhotos()}
+            >
+              <Text style={styles.aracCyanButtonText}>
+                {loading ? 'YÜKLENIYOR…' : Object.values(photos).filter(Boolean).length > 0
+                  ? `${Object.values(photos).filter(Boolean).length}/4 FOTOĞRAFLA OLUŞTUR`
+                  : 'FOTOĞRAFSIZ OLUŞTUR'}
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
+
+      {/* ── Aksiyon butonları ── */}
+      {!showPhotoStep && (
+        <View style={styles.aracCardFooter}>
+          {hasRequest ? (
+            <View style={{ gap: 8 }}>
+              <Pressable
+                accessibilityRole="button"
+                style={styles.aracCyanButton}
+                onPress={() => Linking.openURL(`${WEB_BASE_URL}/reports/kasko/${insuranceValueRequest!.id}`).catch(() => undefined)}
+              >
+                <Text style={styles.aracCyanButtonText}>⬡  KASKO KARNESİNİ AÇ</Text>
+              </Pressable>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <Pressable
+                  accessibilityRole="button"
+                  style={[styles.aracOutlineButton, { flex: 1 }]}
+                  onPress={() => {
+                    const url = `${WEB_BASE_URL}/reports/kasko/${insuranceValueRequest!.id}`;
+                    const summary = [
+                      'DMyC Kasko Değer Karnesi',
+                      vehicle ? `Araç: ${vehicle.brand} ${vehicle.model}` : '',
+                      estimate ? `Tahmini Değer: ₺${estimate.estimatedMin.toLocaleString('tr-TR')} – ₺${estimate.estimatedMax.toLocaleString('tr-TR')}` : '',
+                      url,
+                    ].filter(Boolean).join('\n');
+                    void Share.share({ title: 'DMyC Kasko Değer Karnesi', message: summary });
+                  }}
+                >
+                  <Text style={styles.aracOutlineButtonText}>PAYLAŞ</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  style={[styles.aracOutlineButton, { flex: 1 }]}
+                  disabled={loading}
+                  onPress={() => setShowPhotoStep(true)}
+                >
+                  <Text style={styles.aracOutlineButtonText}>YENİLE</Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : (
+            <Pressable
+              accessibilityRole="button"
+              style={[styles.aracCyanButton, { opacity: loading ? 0.6 : 1 }]}
+              disabled={loading}
+              onPress={() => setShowPhotoStep(true)}
+            >
+              <Text style={styles.aracCyanButtonText}>
+                {loading ? 'HAZIRLANIYOR…' : 'ARAÇ SİCİLİMLE DEĞER İSTE'}
+              </Text>
+            </Pressable>
+          )}
+        </View>
+      )}
+    </View>
+  );
+}
+
+function SicilOnboardingStep({
+  firstRegYear,
+  lastInspectionDate,
+  noInspectionYet,
+  lastServiceKm,
+  loading,
+  onChangeFirstRegYear,
+  onChangeLastInspectionDate,
+  onToggleNoInspection,
+  onChangeLastServiceKm,
+}: {
+  firstRegYear: string;
+  lastInspectionDate: string;
+  noInspectionYet: boolean;
+  lastServiceKm: string;
+  loading: boolean;
+  onChangeFirstRegYear: (v: string) => void;
+  onChangeLastInspectionDate: (v: string) => void;
+  onToggleNoInspection: (v: boolean) => void;
+  onChangeLastServiceKm: (v: string) => void;
+}) {
+  return (
+    <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <View style={styles.successHeader}>
+        <Text style={styles.heading}>ARAÇ SİCİLİ</Text>
+        <Text style={styles.description}>
+          Muayene ve bakım bilgilerin varsa şimdi girebilirsin.{'\n'}
+          Tüm alanlar isteğe bağlıdır — sonradan Araç ekranından güncellenebilir.
+        </Text>
+      </View>
+
+      {/* Tescil yılı */}
+      <View style={styles.card}>
+        <Text style={styles.cardLabel}>İLK TESCİL YILI</Text>
+        <TextInput
+          style={styles.formInput}
+          keyboardType="numeric"
+          placeholder="örn. 2020"
+          value={firstRegYear}
+          onChangeText={onChangeFirstRegYear}
+          maxLength={4}
+          editable={!loading}
+        />
+        <Text style={styles.signalCaption}>
+          İlk TÜVTÜRK muayene tarihini tahmin etmek için kullanılır.
+        </Text>
+      </View>
+
+      {/* Son muayene tarihi */}
+      <View style={styles.card}>
+        <Text style={styles.cardLabel}>SON TÜVTÜRK MUAYENESİ</Text>
+
+        <Pressable
+          accessibilityRole="checkbox"
+          style={[styles.cityPill, noInspectionYet && styles.cityPillActive, { marginBottom: 12 }]}
+          onPress={() => onToggleNoInspection(!noInspectionYet)}
+        >
+          <Text style={[styles.cityPillText, noInspectionYet && styles.cityPillTextActive]}>
+            Henüz muayene olmadım
+          </Text>
+        </Pressable>
+
+        {!noInspectionYet && (
+          <>
+            <TextInput
+              style={styles.formInput}
+              placeholder="YYYY-AA-GG (örn. 2024-03-15)"
+              value={lastInspectionDate}
+              onChangeText={onChangeLastInspectionDate}
+              maxLength={10}
+              editable={!loading}
+              keyboardType="numbers-and-punctuation"
+            />
+            <Text style={styles.signalCaption}>
+              Tarihi bilmiyorsan boş bırak — tescil yılından tahmin edilir.
+            </Text>
+          </>
+        )}
+        {noInspectionYet && (
+          <Text style={styles.signalCaption}>
+            Tescil yılına göre ilk muayene tahmini hesaplanacak.
+          </Text>
+        )}
+      </View>
+
+      {/* Son bakım km */}
+      <View style={styles.card}>
+        <Text style={styles.cardLabel}>SON PERİYODİK BAKIM KM</Text>
+        <TextInput
+          style={styles.formInput}
+          keyboardType="numeric"
+          placeholder="örn. 40000"
+          value={lastServiceKm}
+          onChangeText={onChangeLastServiceKm}
+          maxLength={7}
+          editable={!loading}
+        />
+        <Text style={styles.signalCaption}>
+          Bir sonraki bakım kalan km'sini hesaplamak için kullanılır.
         </Text>
       </View>
     </ScrollView>
@@ -8099,6 +9574,15 @@ function PremiumReportBlock({
             </>
           ) : null}
 
+          {/* Web raporu aç */}
+          <Pressable
+            accessibilityRole="button"
+            style={[styles.aracCyanButton, { marginTop: 12 }]}
+            onPress={() => Linking.openURL(`${WEB_BASE_URL}/reports/premium/${report.id}`).catch(() => undefined)}
+          >
+            <Text style={styles.aracCyanButtonText}>⬡  WEB RAPORU AÇ</Text>
+          </Pressable>
+
           {/* Add external report inline form */}
           {addExtVisible ? (
             <View style={{ marginTop: 12, gap: 8 }}>
@@ -8326,7 +9810,7 @@ const colors = {
 
 const styles = StyleSheet.create({
   shell: {
-    backgroundColor: colors.background,
+    backgroundColor: 'transparent',
     flex: 1,
   },
   loginContent: {
@@ -8367,15 +9851,10 @@ const styles = StyleSheet.create({
     lineHeight: 30,
   },
   loginLogo: {
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 240, 255, 0.1)',
-    borderColor: colors.cyan,
     borderRadius: 8,
-    borderWidth: 1,
-    height: 56,
-    justifyContent: 'center',
+    height: 72,
     marginBottom: 24,
-    width: 56,
+    width: 72,
   },
   loginLogoText: {
     color: colors.cyan,
@@ -8589,7 +10068,7 @@ const styles = StyleSheet.create({
     paddingBottom: 180,
   },
   accountPanel: {
-    backgroundColor: colors.panel,
+    backgroundColor: 'transparent',
     borderColor: colors.line,
     borderRadius: 8,
     borderWidth: 1,
@@ -8714,6 +10193,69 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingHorizontal: 10,
     paddingVertical: 8,
+  },
+  mapPickBtn: {
+    alignItems: 'center',
+    backgroundColor: colors.panel,
+    borderColor: colors.line,
+    borderRadius: 8,
+    borderWidth: 1,
+    height: 44,
+    justifyContent: 'center',
+    marginBottom: 18,
+    width: 44,
+  },
+  mapPickBtnText: {
+    fontSize: 20,
+  },
+  rangeWeatherCard: {
+    backgroundColor: colors.panel,
+    borderColor: colors.line,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginBottom: 18,
+    padding: 14,
+  },
+  rangeWeatherTitle: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  rangeWeatherCondition: {
+    color: colors.muted,
+    fontWeight: '400',
+  },
+  rangeWeatherHint: {
+    color: colors.muted,
+    fontSize: 12,
+    marginBottom: 10,
+    marginTop: 2,
+  },
+  rangeWeatherBtns: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  rangeWeatherBtn: {
+    borderColor: colors.line,
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+  },
+  rangeWeatherBtnActive: {
+    backgroundColor: colors.cyan,
+    borderColor: colors.cyan,
+  },
+  rangeWeatherBtnText: {
+    color: colors.muted,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  rangeWeatherBtnTextActive: {
+    color: colors.background,
   },
   retryText: {
     color: colors.cyan,
@@ -8881,7 +10423,7 @@ const styles = StyleSheet.create({
     top: 0,
   },
   heroTextBlock: {
-    bottom: 16,
+    bottom: 10,
     left: 16,
     position: 'absolute',
     right: 16,
@@ -9105,7 +10647,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   bindingPanel: {
-    backgroundColor: colors.panel,
+    backgroundColor: 'transparent',
     borderColor: colors.line,
     borderRadius: 8,
     borderWidth: 1,
@@ -9152,7 +10694,7 @@ const styles = StyleSheet.create({
     padding: 12,
   },
   tripPanel: {
-    backgroundColor: colors.panel,
+    backgroundColor: 'transparent',
     borderColor: colors.line,
     borderRadius: 8,
     borderWidth: 1,
@@ -9272,7 +10814,7 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   dashboardTitleBlock: {
-    bottom: 16,
+    bottom: 10,
     left: 16,
     position: 'absolute',
     right: 16,
@@ -9675,7 +11217,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   card: {
-    backgroundColor: colors.panel,
+    backgroundColor: 'transparent',
     borderColor: colors.line,
     borderRadius: 12,
     borderWidth: 1,
@@ -9730,7 +11272,7 @@ const styles = StyleSheet.create({
   yolculukScroll: {
     paddingHorizontal: 20,
     paddingTop: 20,
-    paddingBottom: 140,
+    paddingBottom: 200,
     gap: 16,
   },
   // Status row
@@ -9769,7 +11311,7 @@ const styles = StyleSheet.create({
   },
   // Vehicle mini card: bg-surface-container border p-md rounded-lg flex row
   yolculukVehicleCard: {
-    backgroundColor: '#192122',
+    backgroundColor: 'transparent',
     borderColor: colors.line,
     borderWidth: 1,
     borderRadius: 4,
@@ -9905,7 +11447,7 @@ const styles = StyleSheet.create({
   },
   // Route planner card
   yolculukPlanCard: {
-    backgroundColor: '#192122',
+    backgroundColor: 'transparent',
     borderColor: colors.line,
     borderWidth: 1,
     borderRadius: 4,
@@ -9914,7 +11456,7 @@ const styles = StyleSheet.create({
   },
   // Floating-label input: bg-background border rounded-lg
   yolculukInputWrap: {
-    backgroundColor: '#0d1515',
+    backgroundColor: 'rgba(13,21,21,0.45)',
     borderColor: colors.line,
     borderWidth: 1,
     borderRadius: 4,
@@ -9994,7 +11536,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#192122',
+    backgroundColor: 'transparent',
     borderColor: colors.line,
     borderWidth: 1,
     borderRadius: 999,
@@ -10015,7 +11557,7 @@ const styles = StyleSheet.create({
   },
   // Recap card
   yolculukRecapCard: {
-    backgroundColor: '#192122',
+    backgroundColor: 'transparent',
     borderColor: colors.line,
     borderWidth: 1,
     borderRadius: 4,
@@ -10063,7 +11605,7 @@ const styles = StyleSheet.create({
   },
   // Auto trip card: bg-surface-container border rounded-lg flex row
   yolculukAutoCard: {
-    backgroundColor: '#192122',
+    backgroundColor: 'transparent',
     borderColor: colors.line,
     borderWidth: 1,
     borderRadius: 4,
@@ -10101,7 +11643,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   locMgrCard: {
-    backgroundColor: '#192122',
+    backgroundColor: 'transparent',
     borderColor: colors.line,
     borderWidth: 1,
     borderRadius: 4,
@@ -10197,7 +11739,7 @@ const styles = StyleSheet.create({
   sarjScroll: {
     paddingHorizontal: 20,
     paddingTop: 20,
-    paddingBottom: 140,
+    paddingBottom: 200,
     gap: 24,
   },
   // Summary Row: grid grid-cols-3 gap-xs (no radius)
@@ -10207,7 +11749,7 @@ const styles = StyleSheet.create({
   },
   sarjSummaryTile: {
     flex: 1,
-    backgroundColor: '#192122',
+    backgroundColor: 'transparent',
     borderColor: colors.line,
     borderWidth: 1,
     padding: 12,
@@ -10235,7 +11777,7 @@ const styles = StyleSheet.create({
   },
   // Log Card: bg-surface-container border (no radius)
   sarjLogCard: {
-    backgroundColor: '#192122',
+    backgroundColor: 'transparent',
     borderColor: colors.line,
     borderWidth: 1,
     overflow: 'hidden',
@@ -10269,7 +11811,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#0d1515',
+    backgroundColor: 'rgba(13,21,21,0.45)',
     borderColor: colors.cyan,
     borderWidth: 1,
     paddingHorizontal: 14,
@@ -10284,8 +11826,41 @@ const styles = StyleSheet.create({
   },
   sarjDetectNote: {
     color: colors.muted,
-    fontSize: 12,
+    fontSize: 14,
     marginTop: -8,
+  },
+  sarjCompareCard: {
+    backgroundColor: '#0a1a1a',
+    borderColor: colors.line,
+    borderRadius: 10,
+    borderWidth: 1,
+    gap: 8,
+    marginTop: 4,
+    padding: 12,
+  },
+  sarjCompareRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  sarjCompareLabel: {
+    color: colors.cyan,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  sarjCompareVal: {
+    color: colors.cyan,
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  sarjCompareDivider: {
+    backgroundColor: colors.line,
+    height: 1,
+  },
+  sarjCompareHint: {
+    color: colors.muted,
+    fontSize: 11,
+    marginTop: 2,
   },
   sarjTimerRow: {
     flexDirection: 'row',
@@ -10307,7 +11882,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#0d1515',
+    backgroundColor: 'rgba(13,21,21,0.45)',
     borderColor: colors.line,
     borderWidth: 1,
     paddingHorizontal: 12,
@@ -10337,7 +11912,7 @@ const styles = StyleSheet.create({
   },
   sarjSegPills: {
     flexDirection: 'row',
-    backgroundColor: '#0d1515',
+    backgroundColor: 'rgba(13,21,21,0.45)',
     borderColor: colors.line,
     borderWidth: 1,
     padding: 2,
@@ -10384,7 +11959,7 @@ const styles = StyleSheet.create({
   },
   // Input: bg-background border (no radius) px-md py-3
   sarjInput: {
-    backgroundColor: '#0d1515',
+    backgroundColor: 'rgba(13,21,21,0.45)',
     borderColor: colors.line,
     borderWidth: 1,
     color: '#dce4e5',
@@ -10434,7 +12009,7 @@ const styles = StyleSheet.create({
   // History row: h-16 bg-surface-container border relative overflow-hidden
   sarjHistoryRow: {
     height: 64,
-    backgroundColor: '#192122',
+    backgroundColor: 'transparent',
     borderColor: colors.line,
     borderWidth: 1,
     flexDirection: 'row',
@@ -10511,7 +12086,7 @@ const styles = StyleSheet.create({
   karneScroll: {
     paddingHorizontal: 20,
     paddingTop: 20,
-    paddingBottom: 100,
+    paddingBottom: 200,
     gap: 16,
   },
   // Inner card stack: space-y-sm (12px gap)
@@ -10576,7 +12151,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1.5,
   },
   karneCard: {
-    backgroundColor: '#192122',
+    backgroundColor: 'transparent',
     borderColor: colors.line,
     borderWidth: 1,
     borderRadius: 4,
@@ -10745,7 +12320,7 @@ const styles = StyleSheet.create({
   aracScroll: {
     paddingHorizontal: 20,
     paddingTop: 16,
-    paddingBottom: 140,
+    paddingBottom: 200,
     gap: 24,
   },
   // Identity section: label + h1 + subtitle
@@ -10776,7 +12351,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderColor: colors.line,
     borderWidth: 1,
-    backgroundColor: '#192122',
+    backgroundColor: 'transparent',
   },
   aracHeroImage: {
     position: 'absolute',
@@ -10795,7 +12370,7 @@ const styles = StyleSheet.create({
   // Status pill at bottom-left
   aracHeroStatusWrap: {
     position: 'absolute',
-    bottom: 16,
+    bottom: 10,
     left: 16,
     backgroundColor: '#2e3637',
     borderColor: 'rgba(0,240,255,0.3)',
@@ -10812,7 +12387,7 @@ const styles = StyleSheet.create({
   },
   // Main cards: bg-surface-container border rounded-xl (8px)
   aracCard: {
-    backgroundColor: '#192122',
+    backgroundColor: 'transparent',
     borderColor: colors.line,
     borderWidth: 1,
     borderRadius: 8,
@@ -10822,15 +12397,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
     borderBottomColor: colors.line,
     borderBottomWidth: 1,
   },
   aracCardTitle: {
-    color: '#dce4e5',
-    fontSize: 20,
-    fontWeight: '600',
-    lineHeight: 28,
+    color: colors.muted,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1.4,
   },
   aracCardSubtitle: {
     color: colors.muted,
@@ -10880,7 +12456,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1.2,
   },
   routeSaveModal: {
-    backgroundColor: '#192122',
+    backgroundColor: 'transparent',
     borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.line,
@@ -11070,7 +12646,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   aracListRow: {
-    backgroundColor: '#192122',
+    backgroundColor: 'transparent',
     borderColor: colors.line,
     borderWidth: 1,
     borderRadius: 4,
@@ -11150,10 +12726,10 @@ const styles = StyleSheet.create({
   // ── Bugün (SummaryStep) — HTML token'larına birebir ─────────────────
   todayRoot: {
     flex: 1,
-    backgroundColor: '#0d1515',
+    backgroundColor: 'transparent',
   },
   todayScroll: {
-    paddingBottom: 140,
+    paddingBottom: 200,
   },
   // Hero: h-[335px] — hero section below top bar
   todayHero: {
@@ -11198,7 +12774,7 @@ const styles = StyleSheet.create({
   // Hero title: font-headline-lg 28px bold
   todayHeroTitleWrap: {
     position: 'absolute',
-    bottom: 16,
+    bottom: 10,
     left: 20,
     right: 20,
   },
@@ -11216,7 +12792,7 @@ const styles = StyleSheet.create({
   },
   // Main metric card: bg-surface-container border rounded-lg (4px) p-md
   todayCard: {
-    backgroundColor: '#192122',
+    backgroundColor: 'transparent',
     borderColor: colors.line,
     borderWidth: 1,
     borderRadius: 4,
@@ -11256,7 +12832,7 @@ const styles = StyleSheet.create({
   },
   // Each spec tile: bg-surface-container border p-md h-24 (96px) flex-col justify-between
   todaySpecTile: {
-    backgroundColor: '#192122',
+    backgroundColor: 'transparent',
     borderColor: colors.line,
     borderWidth: 1,
     borderRadius: 4,
@@ -11311,7 +12887,7 @@ const styles = StyleSheet.create({
   },
   // Assessment card: bg-surface-container border rounded-lg overflow-hidden
   todayAssessmentCard: {
-    backgroundColor: '#192122',
+    backgroundColor: 'transparent',
     borderColor: colors.line,
     borderWidth: 1,
     borderRadius: 4,
@@ -11427,7 +13003,7 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   tripWelcomeCard: {
-    backgroundColor: '#192122',
+    backgroundColor: 'transparent',
     borderColor: colors.line,
     borderWidth: 1,
     borderRadius: 8,
@@ -11495,7 +13071,7 @@ const styles = StyleSheet.create({
   },
   mapPickerMapPlaceholder: {
     flex: 1,
-    backgroundColor: '#1a2424',
+    backgroundColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -11520,7 +13096,7 @@ const styles = StyleSheet.create({
   mapPickerCloseBtn: {
     width: 44,
     height: 44,
-    backgroundColor: '#192122',
+    backgroundColor: 'transparent',
     borderColor: colors.line,
     borderWidth: 1,
     borderRadius: 999,
@@ -11534,7 +13110,7 @@ const styles = StyleSheet.create({
   },
   mapPickerSearchBox: {
     flex: 1,
-    backgroundColor: '#192122',
+    backgroundColor: 'transparent',
     borderColor: colors.line,
     borderWidth: 1,
     borderRadius: 4,
@@ -11550,7 +13126,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#192122',
+    backgroundColor: 'transparent',
     borderTopColor: colors.line,
     borderTopWidth: 1,
     padding: 20,
