@@ -44,6 +44,9 @@ export type ApiVehicle = {
   vehicleSpecId: string;
   canonicalVehicleId: string;
   vin: string | null;
+  vinLast5: string | null;
+  vinVerifiedAt: string | null;
+  identityLevel: 'declared' | 'vin_matched';
   displayName: string;
   createdAt: string;
 };
@@ -204,6 +207,8 @@ export type ApiChargeSummary = {
   totalEnergyKwh: number;
   totalCostAmount: number;
   avgConfidenceScore: number;
+  socSessionCount: number;
+  socBasedEnergyKwh: number;
   estimationContinuesWithoutManualData: boolean;
 };
 
@@ -529,16 +534,41 @@ const browserApiBaseUrl = browserLocation?.hostname
   : 'http://localhost:4311';
 
 export const API_BASE_URL =
-  envApiBaseUrl ?? (Platform.OS === 'web' ? browserApiBaseUrl : 'http://192.168.1.21:4311');
+  envApiBaseUrl ?? (Platform.OS === 'web' ? browserApiBaseUrl : 'https://api.dmyc.digital');
+
+const envWebBaseUrl = (globalThis as { process?: { env?: Record<string, string | undefined> } })
+  .process?.env?.EXPO_PUBLIC_DMYC_WEB_URL;
+
+const browserWebBaseUrl = browserApiBaseUrl.replace(':4311', ':4310');
+
+export const WEB_BASE_URL =
+  envWebBaseUrl ?? (Platform.OS === 'web' ? browserWebBaseUrl : 'https://app.dmyc.digital');
 
 const REQUEST_TIMEOUT_MS = 8000;
+
+export function resolvePublicAssetUrl(url: string | null | undefined) {
+  if (!url) {
+    return null;
+  }
+
+  return url.replace(/^https?:\/\/(?:localhost|127\.0\.0\.1):4310/i, WEB_BASE_URL);
+}
+
+function normalizeVehicleCatalogItem(item: VehicleCatalogItem): VehicleCatalogItem {
+  return {
+    ...item,
+    imageUrl: resolvePublicAssetUrl(item.imageUrl),
+    brandImageUrl: resolvePublicAssetUrl(item.brandImageUrl),
+  };
+}
 
 export async function fetchApiHealth() {
   return fetchJson<ApiHealth>('/health');
 }
 
 export async function fetchVehicleSpecs(market = 'TR') {
-  return fetchJson<VehicleCatalogItem[]>(`/vehicle-specs?market=${encodeURIComponent(market)}`);
+  const specs = await fetchJson<VehicleCatalogItem[]>(`/vehicle-specs?market=${encodeURIComponent(market)}`);
+  return specs.map(normalizeVehicleCatalogItem);
 }
 
 export async function createUser(input: CreateUserInput) {
@@ -1449,6 +1479,22 @@ export async function revokeVehicleAccess(vehicleId: string, accessId: string, u
   );
 }
 
+// ── VIN kimlik doğrulama (KVKK uyumlu — yalnızca son 5 karakter) ──────────
+
+export type ApiVinUpdateResult = {
+  vehicleId: string;
+  vinLast5: string;
+  vinVerifiedAt: string;
+  identityLevel: 'vin_matched';
+};
+
+export async function updateVehicleVin(vehicleId: string, userId: string, vinLast5: string) {
+  return fetchJson<ApiVinUpdateResult>(
+    `/vehicles/${vehicleId}/vin?userId=${userId}`,
+    { method: 'PATCH', body: JSON.stringify({ vinLast5 }) },
+  );
+}
+
 // ── Vehicle access invites ────────────────────────────────────────────────
 
 export type ApiVehicleInvite = {
@@ -1514,6 +1560,224 @@ export async function matchRouteOrigin(vehicleId: string, lat: number, lng: numb
   } catch {
     return [];
   }
+}
+
+export type ApiSponsor = {
+  id: string;
+  logoUrl: string | null;
+  clickUrl: string | null;
+  label: string | null;
+  isActive: boolean;
+  updatedAt: string;
+};
+
+export async function fetchSponsor(): Promise<ApiSponsor | null> {
+  try {
+    return await fetchJson<ApiSponsor | null>('/sponsor');
+  } catch {
+    return null;
+  }
+}
+
+export type RouteWeatherResult = {
+  tempC: number;
+  condition: string;
+  hvacInferred: 'cooling' | 'heating' | 'none';
+};
+
+export async function fetchRouteWeather(lat: number, lng: number): Promise<RouteWeatherResult | null> {
+  try {
+    return await fetchJson<RouteWeatherResult | null>(`/weather?lat=${lat}&lng=${lng}`);
+  } catch {
+    return null;
+  }
+}
+
+// ── Araç Sicili ──────────────────────────────────────────────────────────────
+
+export type ApiInspectionRecord = {
+  id: string;
+  vehicleId: string;
+  firstRegistrationDate: string | null;
+  firstRegistrationYear: number | null;
+  lastInspectionDate: string | null;
+  nextInspectionDate: string | null;
+  result: 'passed' | 'failed' | 'unknown';
+  confidence: 'user_declared' | 'document_seen';
+  isCurrent: boolean;
+  createdAt: string;
+};
+
+export type ApiServiceEvent = {
+  id: string;
+  vehicleId: string;
+  serviceDate: string | null;
+  odometerKm: number;
+  serviceType: string;
+  isCurrent: boolean;
+  createdAt: string;
+};
+
+export async function fetchVehicleInspection(vehicleId: string): Promise<ApiInspectionRecord | null> {
+  try {
+    return await fetchJson<ApiInspectionRecord | null>(`/vehicles/${vehicleId}/inspection`);
+  } catch { return null; }
+}
+
+export type ApiMaintenanceStatus = {
+  hasVerifiedRules: boolean;
+  currentKm?: number;
+  lastServiceKm?: number | null;
+  nextServiceKmRemaining: number | null;
+  rules?: {
+    ruleType: string;
+    itemCode: string | null;
+    intervalKm: number | null;
+    intervalMonths: number | null;
+    firstDueKm: number | null;
+    sourceConfidence: string;
+    kmRemaining: number | null;
+  }[];
+};
+
+export async function fetchMaintenanceStatus(vehicleId: string): Promise<ApiMaintenanceStatus | null> {
+  try {
+    return await fetchJson<ApiMaintenanceStatus>(`/vehicles/${vehicleId}/maintenance-status`);
+  } catch { return null; }
+}
+
+export async function upsertVehicleInspection(
+  vehicleId: string,
+  body: {
+    firstRegistrationDate?: string | null;
+    firstRegistrationYear?: number | null;
+    lastInspectionDate?: string | null;
+    result?: 'passed' | 'failed' | 'unknown';
+    sourceType?: 'user_input' | 'document_ocr' | 'edevlet_screenshot';
+    confidence?: 'user_declared' | 'document_seen';
+    notes?: string | null;
+  },
+) {
+  return fetchJson<ApiInspectionRecord>(`/vehicles/${vehicleId}/inspection`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export type ApiSicilSnapshot = {
+  inspection: {
+    nextInspectionDate: string | null;
+    lastInspectionDate: string | null;
+    confidence: 'user_declared' | 'document_seen';
+    result: 'passed' | 'failed' | 'unknown';
+  } | null;
+  latestServiceKm: number | null;
+  valuation: {
+    valueTry: number;
+    valuationMonth: string;
+    confidence: string;
+  } | null;
+  maintenance: {
+    hasVerifiedRules: boolean;
+    nextServiceKmRemaining: number | null;
+  };
+};
+
+export type ApiInsuranceValueRequest = {
+  id: string;
+  vehicleId: string;
+  requestType: string;
+  status: string;
+  createdAt: string;
+  registrySnapshot: ApiSicilSnapshot;
+};
+
+export async function fetchSicilRegistrySnapshot(vehicleId: string): Promise<ApiSicilSnapshot | null> {
+  try {
+    return await fetchJson<ApiSicilSnapshot>(`/vehicles/${vehicleId}/registry-snapshot`);
+  } catch { return null; }
+}
+
+export async function fetchLatestInsuranceValueRequest(
+  vehicleId: string,
+): Promise<ApiInsuranceValueRequest | null> {
+  try {
+    return await fetchJson<ApiInsuranceValueRequest | null>(`/vehicles/${vehicleId}/insurance-value-requests/latest`);
+  } catch { return null; }
+}
+
+export async function createInsuranceValueRequest(
+  vehicleId: string,
+  reportId?: string,
+  vehiclePhotoUrls?: string[],
+): Promise<ApiInsuranceValueRequest> {
+  return fetchJson<ApiInsuranceValueRequest>(`/vehicles/${vehicleId}/insurance-value-requests`, {
+    method: 'POST',
+    body: JSON.stringify({ reportId: reportId ?? null, vehiclePhotoUrls: vehiclePhotoUrls ?? [] }),
+  });
+}
+
+// 4 araç fotoğrafı yükler → EXIF silinmiş URL'ler döner
+export async function uploadKaskoPhotos(
+  photos: { front?: string; rear?: string; left?: string; right?: string },
+): Promise<string[]> {
+  const form = new FormData();
+  const labels = ['front', 'rear', 'left', 'right'] as const;
+  for (const label of labels) {
+    const uri = photos[label];
+    if (!uri) continue;
+    const filename = `${label}.jpg`;
+    // React Native FormData file format
+    (form as unknown as { append(name: string, value: unknown): void }).append(label, {
+      uri,
+      name: filename,
+      type: 'image/jpeg',
+    } as unknown as Blob);
+  }
+  const resp = await fetch(`${WEB_BASE_URL}/api/kasko-upload`, { method: 'POST', body: form });
+  if (!resp.ok) throw new Error('Photo upload failed');
+  const json = await resp.json() as { urls: string[] };
+  return json.urls;
+}
+
+export async function addVehicleServiceEvent(
+  vehicleId: string,
+  body: {
+    odometerKm: number;
+    serviceDate?: string | null;
+    serviceType?: 'periodic' | 'item_specific' | 'user_reported' | 'authorized_service' | 'unknown';
+    sourceType?: 'user_input' | 'document_seen' | 'authorized_service_record';
+    notes?: string | null;
+  },
+) {
+  return fetchJson<ApiServiceEvent>(`/vehicles/${vehicleId}/service-events`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export type ApiKaskoEstimate =
+  | { available: false; reason: string }
+  | {
+      available: true;
+      listPriceTry: number;
+      listPriceYear: number | null;
+      ageYears: number;
+      ageFactor: number;
+      batteryGrade: string;
+      batteryFactor: number;
+      annualKm: number;
+      kmFactor: number;
+      estimatedMin: number;
+      estimatedMax: number;
+      calculatedAt: string;
+      disclaimer: string;
+    };
+
+export async function fetchKaskoEstimate(vehicleId: string): Promise<ApiKaskoEstimate | null> {
+  try {
+    return await fetchJson<ApiKaskoEstimate>(`/vehicles/${vehicleId}/kasko-estimate`);
+  } catch { return null; }
 }
 
 async function fetchJson<T>(path: string, init: RequestInit = {}): Promise<T> {
