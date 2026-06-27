@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html class="dark" lang="tr">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>DMyC | Elektrikli Aracının Gerçek Karnesi</title>
+<meta name="description" content="DMyC; menzil, şarj, sürüş ve batarya verilerini birleştirerek elektrikli aracının gerçek kullanım profilini ve paylaşılabilir değer raporlarını oluşturur."/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<style>
+  body {
+    background-color: #051424;
+    color: #d4e4fa;
+    font-family: 'Inter', sans-serif;
+    overflow-x: hidden;
+  }
+  .glass-panel {
+    background: rgba(17, 26, 28, 0.5);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  .glass-panel-heavy {
+    background: rgba(17, 26, 28, 0.85);
+    backdrop-filter: blur(24px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  .cyan-glow {
+    box-shadow: 0 0 20px rgba(0, 240, 255, 0.2);
+  }
+  .text-gradient {
+    background: linear-gradient(to right, #dbfcff, #00f0ff);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .hero-bg {
+    background: radial-gradient(ellipse 80% 60% at 50% 100%, rgba(0,240,255,0.12) 0%, transparent 70%),
+                radial-gradient(ellipse 60% 40% at 80% 60%, rgba(0,100,180,0.18) 0%, transparent 60%),
+                linear-gradient(180deg, #051424 0%, #071a2e 50%, #051424 100%);
+  }
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+  }
+  .grade-badge {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem 0.75rem;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(17,26,28,0.5);
+    gap: 0.5rem;
+  }
+  .grade-badge .letter {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1;
+  }
+  .grade-badge .desc {
+    font-size: 10px;
+    text-align: center;
+    color: #b9cacb;
+    line-height: 1.3;
+  }
+</style>
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        colors: {
+          "on-error": "#690005",
+          "inverse-surface": "#d4e4fa",
+          "surface-container-low": "#0d1c2d",
+          "secondary": "#bec8cb",
+          "surface-tint": "#00dbe9",
+          "outline": "#849495",
+          "primary-fixed-dim": "#00dbe9",
+          "on-background": "#d4e4fa",
+          "on-surface-variant": "#b9cacb",
+          "surface-container-lowest": "#010f1f",
+          "surface-container": "#122131",
+          "secondary-container": "#3f484b",
+          "surface-variant": "#273647",
+          "outline-variant": "#3b494b",
+          "on-primary-container": "#006970",
+          "on-secondary-container": "#adb7b9",
+          "surface-container-high": "#1c2b3c",
+          "surface": "#051424",
+          "surface-container-highest": "#273647",
+          "surface-dim": "#051424",
+          "on-primary": "#00363a",
+          "primary": "#dbfcff",
+          "error-container": "#93000a",
+          "primary-container": "#00f0ff",
+          "inverse-on-surface": "#233143",
+          "error": "#ffb4ab",
+          "primary-fixed": "#7df4ff",
+          "on-primary-fixed": "#002022",
+          "inverse-primary": "#006970",
+          "on-secondary": "#293234",
+          "surface-bright": "#2c3a4c",
+          "tertiary": "#edf8f9",
+          "background": "#051424",
+          "on-surface": "#d4e4fa"
+        },
+        borderRadius: {
+          "DEFAULT": "0.125rem",
+          "lg": "0.25rem",
+          "xl": "0.5rem",
+          "full": "0.75rem"
+        },
+        fontFamily: {
+          "baslik": ["Space Grotesk"],
+          "govde": ["Inter"]
+        }
+      }
+    }
+  }
+</script>
+</head>
+<body class="bg-surface text-on-surface">
+
+<!-- Nav -->
+<header class="fixed top-0 w-full z-50 bg-surface/60 backdrop-blur-xl border-b border-white/10 h-16 flex justify-between items-center px-6">
+  <div class="flex items-center">
+    <img alt="DMyC" class="h-6 w-auto" src="./assets/yatay-logo.png"/>
+  </div>
+  <a href="#indir" class="text-primary-container font-semibold text-sm bg-primary-container/10 px-4 py-1.5 border border-primary-container/20 hover:bg-primary-container/20 transition-all">
+    İndir
+  </a>
+</header>
+
+<main class="pt-16">
+
+  <!-- Hero -->
+  <section class="relative min-h-[90vh] flex flex-col justify-end px-6 pb-20 overflow-hidden hero-bg">
+    <!-- Dekoratif çizgiler -->
+    <div class="absolute inset-0 -z-0 opacity-10" style="background-image: linear-gradient(rgba(0,240,255,0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(0,240,255,0.3) 1px, transparent 1px); background-size: 60px 60px;"></div>
+    <!-- Alt gradient -->
+    <div class="absolute inset-0 bg-gradient-to-t from-surface via-surface/60 to-transparent pointer-events-none"></div>
+
+    <div class="relative z-10 max-w-xl">
+      <div class="inline-block mb-4 px-3 py-1 border border-primary-container/30 text-primary-container text-xs font-semibold tracking-widest uppercase">Android · Ücretsiz</div>
+      <h1 class="font-baslik text-4xl font-bold text-primary tracking-tight mb-4 leading-tight">
+        Elektrikli aracının<br/><span class="text-primary-container">gerçek karnesi.</span>
+      </h1>
+      <p class="text-on-surface-variant mb-8 leading-relaxed text-base">
+        Katalog menzili herkes için aynıdır. Gerçek menzil — senin sürüş biçimine, güzergahına ve bataryana özgüdür. DMyC bunu ölçer, belgeler ve paylaşılabilir hale getirir.
+      </p>
+      <div class="flex flex-col gap-3" id="indir">
+        <a href="./assets/dmyc-app.apk" id="apk-btn" class="bg-primary-container text-black font-baslik font-bold text-base py-4 text-center w-full uppercase tracking-widest cyan-glow hover:brightness-110 transition-all flex items-center justify-center gap-2">
+          <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1">android</span>
+          Android APK İndir
+        </a>
+        <a href="PLACEHOLDER_RAPOR_URL" class="border border-white/20 text-white text-base py-4 text-center w-full hover:bg-white/5 transition-all font-semibold">
+          Örnek Raporu Gör
+        </a>
+      </div>
+      <div class="mt-6 flex items-center gap-2 text-on-surface-variant/60 text-xs font-semibold tracking-wide">
+        <span class="material-symbols-outlined text-[16px]">verified_user</span>
+        <span>TC kimlik, ruhsat, VIN veya poliçe bilgisi istenmez.</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Önizleme kartları -->
+  <section class="px-6 py-20">
+    <div class="glass-panel p-6 relative overflow-hidden">
+      <div class="absolute top-4 right-4 text-primary-container/30 text-[10px] font-semibold tracking-widest uppercase">ÖRNEK VERİ</div>
+      <h3 class="font-baslik font-semibold text-primary mb-6 flex items-center gap-2 text-base">
+        <span class="material-symbols-outlined text-primary-container">speed</span>
+        ARAÇ ANALİZ ÖNİZLEME
+      </h3>
+      <div class="grid grid-cols-2 gap-4">
+        <div class="glass-panel p-4 flex flex-col justify-between aspect-square">
+          <span class="text-on-surface-variant text-[10px] font-semibold uppercase tracking-wider">EV Kondisyon</span>
+          <div>
+            <div class="text-3xl font-baslik font-bold text-primary-container">86 <span class="text-sm font-normal text-on-surface-variant">/ 100</span></div>
+            <div class="h-1 w-full bg-white/10 mt-2">
+              <div class="h-full bg-primary-container" style="width: 86%"></div>
+            </div>
+          </div>
+        </div>
+        <div class="glass-panel p-4 flex flex-col justify-between aspect-square">
+          <span class="text-on-surface-variant text-[10px] font-semibold uppercase tracking-wider">Batarya Notu</span>
+          <div class="text-5xl font-baslik font-bold text-primary">A+</div>
+        </div>
+        <div class="glass-panel p-4 col-span-2">
+          <span class="text-on-surface-variant text-[10px] font-semibold uppercase tracking-wider block mb-1">Pratik Menzil Tahmini</span>
+          <div class="flex items-baseline gap-2">
+            <span class="text-3xl font-baslik font-bold text-primary">340–360</span>
+            <span class="text-on-surface-variant">km</span>
+            <span class="text-on-surface-variant/50 text-xs">(WLTP: 590 km)</span>
+          </div>
+        </div>
+        <div class="glass-panel p-4 col-span-2 border-primary-container/30">
+          <span class="text-primary-container text-[10px] font-semibold uppercase tracking-wider block mb-1">Kasko Ön Değer Aralığı</span>
+          <div class="text-2xl font-baslik font-semibold text-primary">₺1.42M – ₺1.57M</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Problem -->
+  <section class="px-6 py-20 bg-surface-container-low">
+    <div class="text-center mb-12">
+      <h2 class="font-baslik text-3xl font-bold text-primary mb-4">WLTP menzili gerçeği anlatmaz.</h2>
+      <div class="h-1 w-24 bg-primary-container mx-auto"></div>
+    </div>
+    <div class="space-y-4">
+      <div class="glass-panel p-6">
+        <span class="material-symbols-outlined text-primary-container text-4xl mb-4 block">person_pin</span>
+        <h4 class="font-baslik font-semibold text-primary mb-2 text-lg">Gerçek menzil kişiseldir</h4>
+        <p class="text-on-surface-variant text-sm leading-relaxed">Sürüş stilin, güzergahın ve iklimlendirme alışkanlıkların fabrika verilerinden %30'a kadar farklılık yaratır.</p>
+      </div>
+      <div class="glass-panel p-6">
+        <span class="material-symbols-outlined text-primary-container text-4xl mb-4 block">visibility_off</span>
+        <h4 class="font-baslik font-semibold text-primary mb-2 text-lg">Batarya geçmişi görünmez kalır</h4>
+        <p class="text-on-surface-variant text-sm leading-relaxed">Hızlı şarj sıklığı ve şarj döngüsü sayısı ikinci el değerini en çok etkileyen ama en az belgelenen veridir.</p>
+      </div>
+      <div class="glass-panel p-6">
+        <span class="material-symbols-outlined text-primary-container text-4xl mb-4 block">account_balance_wallet</span>
+        <h4 class="font-baslik font-semibold text-primary mb-2 text-lg">Sigorta dosyası dağınıktır</h4>
+        <p class="text-on-surface-variant text-sm leading-relaxed">Aracın teknik sağlığı ile finansal değeri arasındaki bağ WhatsApp fotoğrafları ile kurulmaya çalışılır. Bunun daha iyi bir yolu var.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Raporlar -->
+  <section class="px-6 py-20 bg-surface-container">
+    <h2 class="font-baslik text-3xl font-bold text-primary mb-2">İki rapor, iki kullanım.</h2>
+    <p class="text-on-surface-variant text-sm mb-10">Her ikisi de web tarayıcıda açılır, PDF olarak kaydedilebilir.</p>
+    <div class="space-y-6">
+
+      <div class="relative group">
+        <div class="absolute -inset-1 bg-gradient-to-r from-primary-container to-blue-500 blur opacity-20 group-hover:opacity-40 transition"></div>
+        <div class="relative glass-panel-heavy p-8">
+          <span class="text-primary-container text-[10px] font-semibold tracking-widest uppercase block mb-4">PREMIUM RAPOR</span>
+          <h3 class="font-baslik text-2xl font-bold text-primary mb-2">EV Karnesi</h3>
+          <p class="text-on-surface-variant text-sm mb-6 leading-relaxed">Menzil verimliliği, batarya sağlık sinyalleri, şarj profili ve sürüş davranışı analizi — tek belgede.</p>
+          <div class="flex flex-wrap gap-2 mb-6">
+            <span class="px-2 py-1 bg-white/5 border border-white/10 text-[11px] text-on-surface-variant font-semibold tracking-wide">BATARYA NOTU</span>
+            <span class="px-2 py-1 bg-white/5 border border-white/10 text-[11px] text-on-surface-variant font-semibold tracking-wide">EFC ANALİZİ</span>
+            <span class="px-2 py-1 bg-white/5 border border-white/10 text-[11px] text-on-surface-variant font-semibold tracking-wide">SÜRÜŞ SKORU</span>
+          </div>
+          <a href="PLACEHOLDER_PREMIUM_URL" class="w-full border-b border-primary-container text-primary-container font-semibold py-2 flex justify-between items-center group">
+            Örnek EV Karnesi
+            <span class="material-symbols-outlined group-hover:translate-x-2 transition-transform">arrow_forward</span>
+          </a>
+        </div>
+      </div>
+
+      <div class="relative glass-panel p-8">
+        <span class="text-on-surface-variant text-[10px] font-semibold tracking-widest uppercase block mb-4">FİNANSAL ANALİZ</span>
+        <h3 class="font-baslik text-2xl font-bold text-primary mb-2">Kasko Değer Karnesi</h3>
+        <p class="text-on-surface-variant text-sm mb-6 leading-relaxed">Sigortacıya veya ekspere gönderilebilecek teknik ön değerleme belgesi. 4 araç fotoğrafı, muayene geçmişi, batarya notu ve tahmini değer aralığı.</p>
+        <div class="flex flex-wrap gap-2 mb-6">
+          <span class="px-2 py-1 bg-white/5 border border-white/10 text-[11px] text-on-surface-variant font-semibold tracking-wide">KONDİSYON SKORU</span>
+          <span class="px-2 py-1 bg-white/5 border border-white/10 text-[11px] text-on-surface-variant font-semibold tracking-wide">DEĞER ARALIĞI</span>
+          <span class="px-2 py-1 bg-white/5 border border-white/10 text-[11px] text-on-surface-variant font-semibold tracking-wide">ARAÇ FOTOĞRAFI</span>
+        </div>
+        <a href="PLACEHOLDER_KASKO_URL" class="w-full border-b border-white/20 text-white font-semibold py-2 flex justify-between items-center group">
+          Örnek Kasko Karnesi
+          <span class="material-symbols-outlined group-hover:translate-x-2 transition-transform">arrow_forward</span>
+        </a>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Batarya Notu Açıklayıcı -->
+  <section class="px-6 py-20">
+    <h2 class="font-baslik text-3xl font-bold text-primary mb-2">Batarya Notu: A+'dan D'ye.</h2>
+    <p class="text-on-surface-variant text-sm mb-8">EFC skoru, DC şarj oranı ve şarj alışkanlıklarından deterministik olarak hesaplanır. Sigorta ve ikinci el değerlemede referans alınır.</p>
+    <div class="grid grid-cols-3 gap-3">
+      <div class="grade-badge">
+        <span class="letter" style="color:#00f0ff">A+</span>
+        <span class="desc">Mükemmel alışkanlık, düşük EFC</span>
+      </div>
+      <div class="grade-badge">
+        <span class="letter" style="color:#71ffe8">A</span>
+        <span class="desc">İyi korunan batarya</span>
+      </div>
+      <div class="grade-badge">
+        <span class="letter" style="color:#a3e635">B+</span>
+        <span class="desc">Dengeli kullanım</span>
+      </div>
+      <div class="grade-badge">
+        <span class="letter" style="color:#facc15">B</span>
+        <span class="desc">Takip önerilir</span>
+      </div>
+      <div class="grade-badge">
+        <span class="letter" style="color:#f97316">C</span>
+        <span class="desc">Yüksek stres sinyali</span>
+      </div>
+      <div class="grade-badge">
+        <span class="letter" style="color:#ef4444">D</span>
+        <span class="desc">Kritik inceleme gerekir</span>
+      </div>
+    </div>
+    <p class="text-on-surface-variant/50 text-xs mt-4">EFC = Equivalent Full Cycle — bataryada tamamlanmış şarj döngüsü karşılığı</p>
+  </section>
+
+  <!-- Gizlilik -->
+  <section class="px-6 py-20 bg-surface-container-low">
+    <div class="glass-panel p-8 border-l-4 border-l-primary-container">
+      <h2 class="font-baslik text-3xl font-bold text-primary mb-6">Gerektiği kadar veri.<br/>Fazlası yok.</h2>
+      <ul class="space-y-5">
+        <li class="flex items-start gap-4">
+          <span class="material-symbols-outlined text-primary-container mt-0.5">check_circle</span>
+          <div>
+            <div class="font-semibold text-primary text-base">TC Kimlik İstemez</div>
+            <p class="text-sm text-on-surface-variant mt-0.5">Kişisel kimlik bilgisi toplanmaz, saklanmaz.</p>
+          </div>
+        </li>
+        <li class="flex items-start gap-4">
+          <span class="material-symbols-outlined text-primary-container mt-0.5">check_circle</span>
+          <div>
+            <div class="font-semibold text-primary text-base">Tam Şase / VIN İstemez</div>
+            <p class="text-sm text-on-surface-variant mt-0.5">Son 5 hane ile kısmi doğrulama yapılır, tam VIN gerekmez.</p>
+          </div>
+        </li>
+        <li class="flex items-start gap-4">
+          <span class="material-symbols-outlined text-primary-container mt-0.5">check_circle</span>
+          <div>
+            <div class="font-semibold text-primary text-base">Ruhsat / Poliçe İstemez</div>
+            <p class="text-sm text-on-surface-variant mt-0.5">Resmi belge yüklemesi gerekmez. Kasko raporunda bu bilgiler yer almaz.</p>
+          </div>
+        </li>
+        <li class="flex items-start gap-4">
+          <span class="material-symbols-outlined text-primary-container mt-0.5">check_circle</span>
+          <div>
+            <div class="font-semibold text-primary text-base">Araç Fotoğraflarından GPS Silinir</div>
+            <p class="text-sm text-on-surface-variant mt-0.5">Yüklenen fotoğrafların EXIF/GPS metadata'sı sunucuda otomatik temizlenir.</p>
+          </div>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- Nasıl Çalışır -->
+  <section class="px-6 py-20 bg-surface-container-high">
+    <h2 class="font-baslik text-3xl font-bold text-primary mb-12">Nasıl Çalışır?</h2>
+    <div class="space-y-10">
+      <div class="flex gap-6">
+        <div class="flex-shrink-0 w-10 h-10 bg-primary-container text-black flex items-center justify-center font-baslik font-bold text-lg">1</div>
+        <div>
+          <h4 class="font-baslik font-semibold text-primary mb-1 text-lg">Aracını ekle</h4>
+          <p class="text-on-surface-variant text-sm leading-relaxed">Katalogdan marka, model ve variant seç. Teknik özellikler — WLTP menzili, batarya kapasitesi — otomatik yüklenir.</p>
+        </div>
+      </div>
+      <div class="flex gap-6">
+        <div class="flex-shrink-0 w-10 h-10 bg-primary-container text-black flex items-center justify-center font-baslik font-bold text-lg">2</div>
+        <div>
+          <h4 class="font-baslik font-semibold text-primary mb-1 text-lg">Sür ve şarj et</h4>
+          <p class="text-on-surface-variant text-sm leading-relaxed">Arka planda GPS takibi. Şarj seanslarını kaydet — AC/DC oranı, SOC aralığı ve enerji tüketimi izlenir. 4–5 yolculuktan sonra güzergahın tanımlanır.</p>
+        </div>
+      </div>
+      <div class="flex gap-6">
+        <div class="flex-shrink-0 w-10 h-10 bg-primary-container text-black flex items-center justify-center font-baslik font-bold text-lg">3</div>
+        <div>
+          <h4 class="font-baslik font-semibold text-primary mb-1 text-lg">Raporunu paylaş</h4>
+          <p class="text-on-surface-variant text-sm leading-relaxed">EV Karnesi veya Kasko Değer Karnesi oluştur. URL ile paylaş veya tarayıcıdan PDF olarak kaydet — sigortacına, ekspere ya da alıcıya gönder.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Şeffaf Sınırlar -->
+  <section class="px-6 py-20">
+    <div class="glass-panel overflow-hidden">
+      <div class="bg-white/5 px-6 py-4 border-b border-white/10">
+        <h3 class="text-primary text-xs font-semibold tracking-widest uppercase">Şeffaf Sınırlarımız</h3>
+      </div>
+      <div class="divide-y divide-white/5">
+        <div class="px-6 py-4 flex justify-between items-start gap-4">
+          <span class="text-sm font-semibold text-primary whitespace-nowrap">Veri Girişi</span>
+          <span class="text-sm text-on-surface-variant text-right">Manuel veya uygulama asistanı. OBD / araç API bağlantısı yok.</span>
+        </div>
+        <div class="px-6 py-4 flex justify-between items-start gap-4">
+          <span class="text-sm font-semibold text-primary whitespace-nowrap">Batarya Sağlığı</span>
+          <span class="text-sm text-on-surface-variant text-right">EFC + şarj davranışı sinyali. Kesin kapasite ölçümü değil.</span>
+        </div>
+        <div class="px-6 py-4 flex justify-between items-start gap-4">
+          <span class="text-sm font-semibold text-primary whitespace-nowrap">Değerleme</span>
+          <span class="text-sm text-on-surface-variant text-right">Deterministik algoritma. Resmi eksper veya TSB fiyatı değil.</span>
+        </div>
+        <div class="px-6 py-4 flex justify-between items-start gap-4">
+          <span class="text-sm font-semibold text-primary whitespace-nowrap">Platform</span>
+          <span class="text-sm text-on-surface-variant text-right">Şu an yalnızca Android. iOS yakında.</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Final CTA -->
+  <section class="px-6 py-20 text-center">
+    <h2 class="font-baslik text-3xl font-bold text-primary mb-3">Aracının gerçek değerini<br/>görünür yap.</h2>
+    <p class="text-on-surface-variant text-sm mb-8">Uygulamayı indir, ilk yolculuğunu kaydet.</p>
+    <a href="./assets/dmyc-app.apk" class="bg-primary-container text-black font-baslik font-bold text-base py-4 px-8 w-full flex items-center justify-center gap-2 uppercase tracking-widest cyan-glow hover:brightness-110 transition-all mb-4">
+      <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1">android</span>
+      Android APK İndir
+    </a>
+    <p class="text-on-surface-variant/50 text-xs uppercase tracking-widest">Ücretsiz · Play Store gerekmez</p>
+  </section>
+
+</main>
+
+<!-- Footer -->
+<footer class="bg-surface border-t border-white/10 py-16 px-6 text-center">
+  <img alt="DMyC" class="h-6 w-auto mx-auto mb-8 opacity-60" src="./assets/yatay-logo.png"/>
+  <div class="flex flex-col gap-3 mb-8 text-on-surface-variant text-sm">
+    <a class="hover:text-primary-container transition-colors" href="#">Kullanım Koşulları</a>
+    <a class="hover:text-primary-container transition-colors" href="#">KVKK Aydınlatma Metni</a>
+  </div>
+  <div class="text-on-surface-variant/40 text-xs">
+    © 2026 DMyC · dmyc.digital · Elektrikli Araç Sağlığı ve Değer Analizi
+  </div>
+</footer>
+
+<script>
+  // Scroll reveal
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('opacity-100');
+        entry.target.classList.remove('opacity-0', 'translate-y-8');
+      }
+    });
+  }, { threshold: 0.08 });
+
+  document.querySelectorAll('section').forEach(el => {
+    el.classList.add('transition-all', 'duration-700', 'opacity-0', 'translate-y-8');
+    observer.observe(el);
+  });
+</script>
+
+</body>
+</html>
