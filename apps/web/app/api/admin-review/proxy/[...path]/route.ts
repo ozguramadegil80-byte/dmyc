@@ -15,12 +15,21 @@ async function proxy(request: Request, context: { params: Promise<{ path: string
   headers.delete('host');
   headers.set('x-dmyc-admin-key', getAdminApiKey());
 
-  const response = await fetch(target, {
-    method: request.method,
-    headers,
-    body: ['GET', 'HEAD'].includes(request.method) ? undefined : await request.arrayBuffer(),
-    cache: 'no-store',
-  });
+  let response: Response;
+  try {
+    response = await fetch(target, {
+      method: request.method,
+      headers,
+      body: ['GET', 'HEAD'].includes(request.method) ? undefined : await request.arrayBuffer(),
+      cache: 'no-store',
+    });
+  } catch (err) {
+    const cause = err instanceof Error ? err.message : String(err);
+    return NextResponse.json(
+      { error: `API sunucusuna ulaşılamıyor (${target.hostname}:${target.port}): ${cause}` },
+      { status: 502 },
+    );
+  }
 
   return new NextResponse(response.body, {
     status: response.status,

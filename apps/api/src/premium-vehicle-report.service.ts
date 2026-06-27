@@ -2,6 +2,21 @@ import { Injectable } from '@nestjs/common';
 import { DatabaseService } from './database.service';
 import { ElectricityTariffService } from './electricity-tariff.service';
 
+// balanced/watch/high_stress → harf notası
+function normalizeBatteryGrade(raw: string | null | undefined): string {
+  const map: Record<string, string> = {
+    'balanced':    'B+',
+    'watch':       'B',
+    'high_stress': 'C',
+    'unknown':     'unknown',
+  };
+  if (!raw) return 'unknown';
+  const letter = map[raw];
+  if (letter) return letter;
+  // Zaten harf notasıysa olduğu gibi döndür
+  return ['A+', 'A', 'B+', 'B', 'C', 'D'].includes(raw) ? raw : 'unknown';
+}
+
 // ─── Internal row shapes ────────────────────────────────────────────────────
 
 type SpecRow = {
@@ -277,7 +292,7 @@ export class PremiumVehicleReportService {
             totalChargeCount: bls
               ? bls.ac_charge_count + bls.dc_charge_count
               : null,
-            batteryUsageGrade: bls?.battery_usage_grade ?? null,
+            batteryUsageGrade: normalizeBatteryGrade(bls?.battery_usage_grade),
           },
         },
         chargingStyle: {
@@ -390,6 +405,50 @@ export class PremiumVehicleReportService {
        WHERE vehicle_id = $1
        ORDER BY created_at DESC LIMIT 1`,
       [vehicleId],
+    );
+    return res.rows[0] ?? null;
+  }
+
+  async getReportById(reportId: string) {
+    const res = await this.db.query(
+      `SELECT
+         pvr.id,
+         pvr.vehicle_id                    AS "vehicleId",
+         pvr.report_data                   AS "reportData",
+         pvr.driving_style_label           AS "drivingStyleLabel",
+         pvr.driving_style_score           AS "drivingStyleScore",
+         pvr.consumption_deviation_percent AS "consumptionDeviationPercent",
+         pvr.total_kwh                     AS "totalKwh",
+         pvr.estimated_savings_tl          AS "estimatedSavingsTl",
+         pvr.confidence,
+         pvr.created_at                    AS "createdAt",
+         vs.brand,
+         vs.model,
+         vs.variant,
+         COALESCE(vs.variant_display_name, vs.variant) AS "variantDisplayName",
+         vs.image_url                      AS "imageUrl",
+         vs.wltp_range_km                  AS "wltpRangeKm",
+         cv.display_name                   AS "vehicleDisplayName",
+         v.vin_last5                       AS "vinLast5",
+         CASE WHEN v.vin_last5 IS NOT NULL THEN 'verified' ELSE 'unverified' END AS "identityLevel",
+         vir.next_inspection_date          AS "nextInspectionDate",
+         vir.last_inspection_date          AS "lastInspectionDate",
+         vse.odometer_km                   AS "lastServiceKm",
+         vse.service_date                  AS "lastServiceDate"
+       FROM premium_vehicle_reports pvr
+       JOIN vehicles v ON v.id = pvr.vehicle_id
+       JOIN vehicle_specs vs ON vs.id = v.vehicle_spec_id
+       JOIN canonical_vehicles cv ON cv.id = vs.canonical_vehicle_id
+       LEFT JOIN vehicle_inspection_records vir
+              ON vir.vehicle_id = v.id AND vir.is_current = TRUE
+       LEFT JOIN LATERAL (
+         SELECT odometer_km, service_date
+         FROM vehicle_service_events
+         WHERE vehicle_id = v.id AND is_current = TRUE
+         ORDER BY odometer_km DESC LIMIT 1
+       ) vse ON TRUE
+       WHERE pvr.id = $1`,
+      [reportId],
     );
     return res.rows[0] ?? null;
   }

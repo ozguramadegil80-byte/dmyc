@@ -18,6 +18,7 @@ node_modules/
 # Logs
 *.log
 npm-debug.log*
+ops/local-server/logs/*.log
 
 # OS
 .DS_Store

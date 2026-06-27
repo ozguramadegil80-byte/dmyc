@@ -281,6 +281,124 @@ export async function deleteReviewDecision(id: string) {
   });
 }
 
+// ── Sponsor ──────────────────────────────────────────────────────────────────
+
+export type SponsorConfig = {
+  id: string;
+  logoUrl: string | null;
+  clickUrl: string | null;
+  label: string | null;
+  isActive: boolean;
+  updatedAt: string;
+};
+
+export async function uploadSponsorLogo(file: File): Promise<{ url: string }> {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('vehicleName', 'sponsor-logo');
+
+  const response = await fetch('/api/admin-review/upload', {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    throw new Error(`Yükleme başarısız ${response.status}: ${await response.text()}`);
+  }
+
+  return response.json() as Promise<{ url: string }>;
+}
+
+export async function fetchAdminSponsor(): Promise<SponsorConfig | null> {
+  return fetchJson<SponsorConfig | null>('/admin/sponsor');
+}
+
+export async function updateAdminSponsor(body: {
+  logoUrl?: string | null;
+  clickUrl?: string | null;
+  label?: string | null;
+  isActive?: boolean;
+}): Promise<SponsorConfig> {
+  return fetchJson<SponsorConfig>('/admin/sponsor', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+// ── Bakım Adayları ────────────────────────────────────────────────────────────
+
+export type MaintenanceCandidate = {
+  id: string;
+  brand: string;
+  model: string;
+  variant: string | null;
+  ruleType: string;
+  itemCode: string | null;
+  intervalKm: number | null;
+  intervalMonths: number | null;
+  firstDueKm: number | null;
+  firstDueMonths: number | null;
+  sourceName: string | null;
+  sourceUrl: string | null;
+  sourceQuote: string | null;
+  sourceConfidence: string;
+  sourceDepth: string;
+  matchStatus: string;
+  matchScore: number | null;
+  specDisplayName: string | null;
+  canonicalDisplayName: string | null;
+  adminStatus: 'pending' | 'approved' | 'rejected' | 'needs_source';
+  adminNote: string | null;
+  researchNeeded: boolean;
+  warnings: string[] | null;
+  missingFields: string[] | null;
+  createdAt: string;
+};
+
+export async function fetchMaintenanceCandidates(status?: string): Promise<MaintenanceCandidate[]> {
+  const q = status ? `?status=${status}` : '';
+  const rows = await fetchJson<Record<string, unknown>[]>(`/admin/maintenance-rule-candidates${q}`);
+  return rows.map((r) => ({
+    id: r.id as string,
+    brand: r.brand as string,
+    model: r.model as string,
+    variant: (r.variant as string | null) ?? null,
+    ruleType: r.rule_type as string,
+    itemCode: (r.item_code as string | null) ?? null,
+    intervalKm: (r.interval_km as number | null) ?? null,
+    intervalMonths: (r.interval_months as number | null) ?? null,
+    firstDueKm: (r.first_due_km as number | null) ?? null,
+    firstDueMonths: (r.first_due_months as number | null) ?? null,
+    sourceName: (r.source_name as string | null) ?? null,
+    sourceUrl: (r.source_url as string | null) ?? null,
+    sourceQuote: (r.source_quote as string | null) ?? null,
+    sourceConfidence: r.source_confidence as string,
+    sourceDepth: r.source_depth as string,
+    matchStatus: r.match_status as string,
+    matchScore: (r.match_score as number | null) ?? null,
+    specDisplayName: (r.spec_display_name as string | null) ?? null,
+    canonicalDisplayName: (r.canonical_display_name as string | null) ?? null,
+    adminStatus: r.admin_status as MaintenanceCandidate['adminStatus'],
+    adminNote: (r.admin_note as string | null) ?? null,
+    researchNeeded: r.research_needed as boolean,
+    warnings: (r.warnings as string[] | null) ?? null,
+    missingFields: (r.missing_fields as string[] | null) ?? null,
+    createdAt: r.created_at as string,
+  }));
+}
+
+export async function updateMaintenanceCandidate(
+  id: string,
+  body: { adminStatus: 'approved' | 'rejected' | 'needs_source'; adminNote?: string },
+): Promise<void> {
+  await fetchJson<unknown>(`/admin/maintenance-rule-candidates/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
 async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
   const isBrowser = typeof window !== 'undefined';
   const url = isBrowser ? `/api/admin-review/proxy${path}` : `${API_BASE_URL}${path}`;

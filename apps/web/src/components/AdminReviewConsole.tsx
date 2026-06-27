@@ -38,6 +38,7 @@ type Props = {
   initialMarket: MarketCode;
   contentLocale: 'tr' | 'en';
   adminUsername: string;
+  apiError?: boolean;
 };
 
 type SpecFieldKind = 'text' | 'number' | 'boolean' | 'image';
@@ -163,6 +164,7 @@ export function AdminReviewConsole({
   initialMarket,
   contentLocale,
   adminUsername,
+  apiError = false,
 }: Props) {
   const preferredSpecId =
     initialVehicleSpecs.find(
@@ -587,6 +589,11 @@ export function AdminReviewConsole({
 
   return (
     <main className="admin-shell">
+      {apiError && (
+        <div style={{ background: '#7f1d1d', color: '#fca5a5', padding: '10px 20px', fontSize: 13, fontWeight: 600 }}>
+          ⚠️ API sunucusuna bağlanılamıyor (port 4311). Lütfen <code>npm run api:start</code> ile API'yi başlatın, ardından sayfayı yenileyin.
+        </div>
+      )}
       <header className="topbar">
         <div>
           <p className="eyebrow">DMyC Admin</p>

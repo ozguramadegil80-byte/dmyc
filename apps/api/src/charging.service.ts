@@ -279,9 +279,17 @@ export class ChargingService {
           count(*)::int AS "chargeSessionCount",
           COALESCE(sum(energy_kwh), 0)::numeric(10,3) AS "totalEnergyKwh",
           COALESCE(sum(cost_amount), 0)::numeric(10,2) AS "totalCostAmount",
-          COALESCE(avg(confidence_score), 0)::numeric(5,4) AS "avgConfidenceScore"
-        FROM charge_sessions
-        WHERE vehicle_id = $1
+          COALESCE(avg(confidence_score), 0)::numeric(5,4) AS "avgConfidenceScore",
+          count(*) FILTER (WHERE cs.start_soc IS NOT NULL AND cs.end_soc IS NOT NULL AND cs.end_soc > cs.start_soc)::int AS "socSessionCount",
+          COALESCE(
+            sum((cs.end_soc - cs.start_soc) / 100.0 * vs.battery_net_kwh)
+              FILTER (WHERE cs.start_soc IS NOT NULL AND cs.end_soc IS NOT NULL AND cs.end_soc > cs.start_soc),
+            0
+          )::numeric(10,2) AS "socBasedEnergyKwh"
+        FROM charge_sessions cs
+        JOIN vehicles v ON v.id = cs.vehicle_id
+        JOIN vehicle_specs vs ON vs.id = v.vehicle_spec_id
+        WHERE cs.vehicle_id = $1
       `,
       [vehicleId],
     );
@@ -294,6 +302,8 @@ export class ChargingService {
       totalEnergyKwh: Number(summary.totalEnergyKwh),
       totalCostAmount: Number(summary.totalCostAmount),
       avgConfidenceScore: Number(summary.avgConfidenceScore),
+      socSessionCount: Number(summary.socSessionCount),
+      socBasedEnergyKwh: Number(summary.socBasedEnergyKwh),
       estimationContinuesWithoutManualData: Number(summary.chargeSessionCount) === 0,
     };
   }

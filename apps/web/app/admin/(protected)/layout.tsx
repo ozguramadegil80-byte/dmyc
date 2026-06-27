@@ -14,7 +14,9 @@ export default async function ProtectedAdminLayout({ children }: { children: Rea
           <span className="admin-main-brand">DMyC Admin</span>
           <Link href="/admin/vehicles">Araçlar</Link>
           <Link href="/admin/review">İnceleme</Link>
+          <Link href="/admin/maintenance">Bakım Adayları</Link>
           <Link href="/admin/users">Kullanıcılar</Link>
+          <Link href="/admin/sponsor">Sponsor</Link>
         </div>
       </nav>
       {children}

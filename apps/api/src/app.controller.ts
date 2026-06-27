@@ -30,6 +30,8 @@ import { TripRecapService } from './trip-recap.service';
 import { VehicleRegistryService } from './vehicle-registry.service';
 import { VehicleSpecsService } from './vehicle-specs.service';
 import { VehiclesService } from './vehicles.service';
+import { SponsorService } from './sponsor.service';
+import { AracSiciliService, InspectionUpsertBody, ServiceEventBody } from './arac-sicili.service';
 
 @Controller()
 export class AppController {
@@ -64,6 +66,8 @@ export class AppController {
     private readonly vehicleRegistry: VehicleRegistryService,
     private readonly vehicleSpecs: VehicleSpecsService,
     private readonly vehicles: VehiclesService,
+    private readonly sponsor: SponsorService,
+    private readonly aracSicili: AracSiciliService,
   ) {}
 
   @Get('health')
@@ -346,6 +350,15 @@ export class AppController {
     return this.vehicles.createVehicle(body);
   }
 
+  @Patch('vehicles/:id/vin')
+  updateVehicleVin(
+    @Param('id') id: string,
+    @Query('userId') userId: string,
+    @Body() body: { vinLast5?: string },
+  ) {
+    return this.vehicles.updateVehicleVin(id, userId, body);
+  }
+
   @Post('vehicle-ownerships')
   createOwnership(@Body() body: Parameters<VehiclesService['createOwnership']>[0]) {
     return this.vehicles.createOwnership(body);
@@ -408,6 +421,14 @@ export class AppController {
   @Patch('trips/:id/hvac-confirmation')
   confirmTripHvac(@Param('id') id: string, @Body() body: { confirmed: boolean }) {
     return this.weather.confirmHvac(id, body.confirmed);
+  }
+
+  @Get('weather')
+  getWeatherAtLocation(@Query('lat') lat: string, @Query('lng') lng: string) {
+    const latN = parseFloat(lat);
+    const lngN = parseFloat(lng);
+    if (!lat || !lng || isNaN(latN) || isNaN(lngN)) return null;
+    return this.weather.getWeatherAtLocation(latN, lngN);
   }
 
   @Get('users/:userId/driver-profile/:vehicleId')
@@ -715,6 +736,16 @@ export class AppController {
     return this.vehicleRegistry.getPublicReportByToken(token);
   }
 
+  @Get('public/premium-reports/:id')
+  getPublicPremiumReport(@Param('id') id: string) {
+    return this.premiumVehicleReport.getReportById(id);
+  }
+
+  @Get('public/kasko-reports/:id')
+  getPublicKaskoReport(@Param('id') id: string) {
+    return this.aracSicili.getKaskoReportById(id);
+  }
+
   // ── EPDK Elektrik Tarifeleri ─────────────────────────────────────────────
 
   @Get('tariff-periods')
@@ -841,5 +872,103 @@ export class AppController {
   @Get('vehicles/:id/external-battery-reports')
   getExternalBatteryReports(@Param('id') id: string) {
     return this.premiumVehicleReport.fetchExternalReports(id);
+  }
+
+  // ── Sponsor Banner ───────────────────────────────────────────────────────
+
+  @Get('sponsor')
+  getSponsor() {
+    return this.sponsor.get();
+  }
+
+  @Get('admin/sponsor')
+  @UseGuards(AdminApiKeyGuard)
+  getAdminSponsor() {
+    return this.sponsor.get();
+  }
+
+  @Patch('admin/sponsor')
+  @UseGuards(AdminApiKeyGuard)
+  updateSponsor(@Body() body: Parameters<SponsorService['update']>[0]) {
+    return this.sponsor.update(body);
+  }
+
+  // ── Admin: Bakım Adayları ─────────────────────────────────────────────────
+
+  @Get('admin/maintenance-rule-candidates')
+  @UseGuards(AdminApiKeyGuard)
+  listMaintenanceCandidates(@Query('status') status?: string) {
+    return this.aracSicili.listMaintenanceCandidates(status);
+  }
+
+  @Patch('admin/maintenance-rule-candidates/:id')
+  @UseGuards(AdminApiKeyGuard)
+  updateMaintenanceCandidate(
+    @Param('id') id: string,
+    @Body() body: { adminStatus: 'approved' | 'rejected' | 'needs_source'; adminNote?: string },
+  ) {
+    return this.aracSicili.updateCandidateStatus(id, body);
+  }
+
+  // ── Araç Sicili — Muayene ────────────────────────────────────────────────
+
+  @Get('vehicles/:id/inspection')
+  getInspection(@Param('id') id: string) {
+    return this.aracSicili.getInspection(id);
+  }
+
+  @Post('vehicles/:id/inspection')
+  upsertInspection(
+    @Param('id') id: string,
+    @Body() body: InspectionUpsertBody,
+  ) {
+    return this.aracSicili.upsertInspection(id, body);
+  }
+
+  // ── Araç Sicili — Bakım Servis ───────────────────────────────────────────
+
+  @Post('vehicles/:id/service-events')
+  addServiceEvent(
+    @Param('id') id: string,
+    @Body() body: ServiceEventBody,
+  ) {
+    return this.aracSicili.addServiceEvent(id, body);
+  }
+
+  @Get('vehicles/:id/maintenance-status')
+  getMaintenanceStatus(@Param('id') id: string) {
+    return this.aracSicili.getMaintenanceStatus(id);
+  }
+
+  // ── Araç Sicili — Değerleme & Sicil Özeti ────────────────────────────────
+
+  @Get('vehicles/:id/valuation')
+  getValuation(@Param('id') id: string) {
+    return this.aracSicili.getValuationSnapshot(id);
+  }
+
+  @Get('vehicles/:id/registry-snapshot')
+  getRegistrySnapshot(@Param('id') id: string) {
+    return this.aracSicili.getRegistrySnapshot(id);
+  }
+
+  @Get('vehicles/:id/kasko-estimate')
+  getKaskoEstimate(@Param('id') id: string) {
+    return this.aracSicili.getKaskoEstimate(id);
+  }
+
+  // ── Araç Sicili — Kasko Değer Talebi ─────────────────────────────────────
+
+  @Get('vehicles/:id/insurance-value-requests/latest')
+  getLatestInsuranceValueRequest(@Param('id') id: string) {
+    return this.aracSicili.getLatestInsuranceValueRequest(id);
+  }
+
+  @Post('vehicles/:id/insurance-value-requests')
+  createInsuranceValueRequest(
+    @Param('id') id: string,
+    @Body() body: { reportId?: string; vehiclePhotoUrls?: string[] },
+  ) {
+    return this.aracSicili.createInsuranceValueRequest(id, body.reportId, body.vehiclePhotoUrls);
   }
 }

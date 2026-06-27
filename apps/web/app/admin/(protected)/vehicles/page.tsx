@@ -6,7 +6,7 @@ export default async function VehiclesAdminPage() {
   const session = await getAdminSession();
   const marketCode = session?.marketCode ?? 'TR';
   const contentLocale = session?.contentLocale ?? 'tr';
-  const { vehicleSpecs, evidence, decisions } = await loadAdminReviewData(marketCode);
+  const { vehicleSpecs, evidence, decisions, apiError } = await loadAdminReviewData(marketCode);
 
   return (
     <AdminReviewConsole
@@ -17,6 +17,7 @@ export default async function VehiclesAdminPage() {
       initialMarket={marketCode}
       contentLocale={contentLocale}
       adminUsername={session?.username ?? 'admin'}
+      apiError={apiError}
     />
   );
 }

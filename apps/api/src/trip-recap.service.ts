@@ -251,7 +251,7 @@ export class TripRecapService {
           trips.vehicle_id AS "vehicleId",
           trips.ownership_id AS "ownershipId",
           trips.user_id AS "userId",
-          COALESCE(vehicle_specs.display_name, vehicles.canonical_vehicle_id, vehicles.id::text) AS "vehicleName",
+          COALESCE(vehicles.display_name, vehicle_specs.variant_display_name, vehicle_specs.variant, vehicles.canonical_vehicle_id::text, vehicles.id::text) AS "vehicleName",
           trips.started_at AS "startedAt",
           trips.ended_at AS "endedAt",
           trips.status,

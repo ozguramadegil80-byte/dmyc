@@ -10,7 +10,7 @@ type CreateRoutePlanBody = {
   distanceKm?: number;
   passengerCount?: number;
   cargoLevel?: 'light' | 'normal' | 'heavy';
-  weatherProfile?: 'normal' | 'cold' | 'hot' | 'rain';
+  weatherProfile?: 'normal' | 'cold' | 'hot' | 'rain' | 'snow';
   roadProfile?: 'city' | 'mixed' | 'highway';
   startSoc?: number;
   targetArrivalSoc?: number;
@@ -90,7 +90,7 @@ export class RoutePlanningService {
     const usableEnergyKwh = round(batteryKwh * ((input.startSoc - input.targetArrivalSoc) / 100), 2);
     const energyMarginKwh = round(usableEnergyKwh - estimatedEnergyKwh, 2);
     const expectedRangeKm = round((usableEnergyKwh * 1000) / estimatedConsumptionWhKm, 2);
-    const estimatedDurationMinutes = estimateDurationMinutes(input.distanceKm, input.roadProfile);
+    const estimatedDurationMinutes = estimateDurationMinutes(input.distanceKm, input.roadProfile, input.weatherProfile);
     const feasibilityStatus = feasibility(energyMarginKwh, estimatedEnergyKwh);
     const confidenceScore = confidence(context, input);
     const chargeShortfallKwh = Math.max(0, round(Math.abs(Math.min(0, energyMarginKwh)) + batteryKwh * 0.08, 2));
@@ -386,7 +386,7 @@ function normalizeRoutePlanInput(body: CreateRoutePlanBody) {
   const distanceKm = Number(body.distanceKm);
   const passengerCount = clampInt(body.passengerCount ?? 1, 1, 7);
   const cargoLevel = normalizeOption(body.cargoLevel, ['light', 'normal', 'heavy'], 'normal');
-  const weatherProfile = normalizeOption(body.weatherProfile, ['normal', 'cold', 'hot', 'rain'], 'normal');
+  const weatherProfile = normalizeOption(body.weatherProfile, ['normal', 'cold', 'hot', 'rain', 'snow'], 'normal');
   const roadProfile = normalizeOption(body.roadProfile, ['city', 'mixed', 'highway'], 'mixed');
   const startSoc = clampInt(body.startSoc ?? 80, 5, 100);
   const targetArrivalSoc = clampInt(body.targetArrivalSoc ?? 15, 5, 50);
@@ -437,7 +437,11 @@ function resolveBaseConsumptionWhKm(context: RoutePlanContextRow, batteryKwh: nu
 function consumptionMultiplier(input: ReturnType<typeof normalizeRoutePlanInput>) {
   const passengerMultiplier = 1 + Math.max(0, input.passengerCount - 1) * 0.025;
   const cargoMultiplier = input.cargoLevel === 'heavy' ? 1.08 : input.cargoLevel === 'light' ? 0.98 : 1;
-  const weatherMultiplier = input.weatherProfile === 'cold' ? 1.16 : input.weatherProfile === 'hot' ? 1.07 : input.weatherProfile === 'rain' ? 1.08 : 1;
+  const weatherMultiplier =
+    input.weatherProfile === 'cold' ? 1.16 :
+    input.weatherProfile === 'hot'  ? 1.07 :
+    input.weatherProfile === 'rain' ? 1.14 :
+    input.weatherProfile === 'snow' ? 1.30 : 1;
   const roadMultiplier = input.roadProfile === 'highway' ? 1.11 : input.roadProfile === 'city' ? 0.96 : 1.03;
 
   return passengerMultiplier * cargoMultiplier * weatherMultiplier * roadMultiplier;
@@ -492,8 +496,13 @@ function strategyFor(status: string, startSoc: number, targetArrivalSoc: number,
   };
 }
 
-function estimateDurationMinutes(distanceKm: number, roadProfile: string) {
-  const speed = roadProfile === 'highway' ? 88 : roadProfile === 'city' ? 32 : 62;
+function estimateDurationMinutes(distanceKm: number, roadProfile: string, weatherProfile: string) {
+  const baseSpeed = roadProfile === 'highway' ? 88 : roadProfile === 'city' ? 32 : 62;
+  const speed =
+    weatherProfile === 'snow' ? (roadProfile === 'highway' ? 55 : roadProfile === 'city' ? 22 : 38) :
+    weatherProfile === 'rain' ? (roadProfile === 'highway' ? 75 : roadProfile === 'city' ? 28 : 52) :
+    weatherProfile === 'cold' ? Math.round(baseSpeed * 0.93) :
+    baseSpeed;
   return Math.max(1, Math.round((distanceKm / speed) * 60));
 }
 

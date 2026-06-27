@@ -34,6 +34,8 @@ import { UsageProfileService } from './usage-profile.service';
 import { VehicleRegistryService } from './vehicle-registry.service';
 import { VehicleSpecsService } from './vehicle-specs.service';
 import { VehiclesService } from './vehicles.service';
+import { SponsorService } from './sponsor.service';
+import { AracSiciliService } from './arac-sicili.service';
 
 @Module({
   controllers: [AppController],
@@ -72,6 +74,8 @@ import { VehiclesService } from './vehicles.service';
     VehicleRegistryService,
     VehicleSpecsService,
     VehiclesService,
+    SponsorService,
+    AracSiciliService,
   ],
 })
 export class AppModule {}

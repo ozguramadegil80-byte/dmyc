@@ -1,0 +1,329 @@
+{
+  "sourceRoot": "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu",
+  "matchedCount": 53,
+  "expectedCount": 53,
+  "unmatchedSpecs": [],
+  "unusedFiles": [
+    "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu\\BYD\\BYD Otto\\BYD Atto 3.png"
+  ],
+  "copiedFiles": [
+    {
+      "vehicle": "BMW i4 eDrive40 Sport Line",
+      "fileName": "bmw-i4-edrive40-sport-line.png",
+      "source": "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu\\BMW\\İ4 Serisi\\BMW i4 eDrive40 Sport Line.png",
+      "imageUrl": "http://localhost:4310/uploads/vehicles/bmw-i4-edrive40-sport-line.png"
+    },
+    {
+      "vehicle": "BMW i4 eDrive40 M Sport",
+      "fileName": "bmw-i4-edrive40-m-sport.png",
+      "source": "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu\\BMW\\İ4 Serisi\\BMW i4 eDrive40 M Sport.png",
+      "imageUrl": "http://localhost:4310/uploads/vehicles/bmw-i4-edrive40-m-sport.png"
+    },
+    {
+      "vehicle": "BMW i4 eDrive40 Edition M Sport",
+      "fileName": "bmw-i4-edrive40-edition-m-sport.png",
+      "source": "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu\\BMW\\İ4 Serisi\\BMW i4 eDrive40 Edition M Sport.png",
+      "imageUrl": "http://localhost:4310/uploads/vehicles/bmw-i4-edrive40-edition-m-sport.png"
+    },
+    {
+      "vehicle": "BMW iX3 M Sport",
+      "fileName": "bmw-ix3-m-sport.png",
+      "source": "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu\\BMW\\İ3 Serisi\\BMW iX3 M Sport.png",
+      "imageUrl": "http://localhost:4310/uploads/vehicles/bmw-ix3-m-sport.png"
+    },
+    {
+      "vehicle": "BYD Atto 2 Boost",
+      "fileName": "byd-atto-2-boost.png",
+      "source": "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu\\BYD\\BYD Otto\\BYD Atto 2 Boost.png",
+      "imageUrl": "http://localhost:4310/uploads/vehicles/byd-atto-2-boost.png"
+    },
+    {
+      "vehicle": "BYD Atto 2 Comfort",
+      "fileName": "byd-atto-2-comfort.png",
+      "source": "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu\\BYD\\BYD Otto\\BYD Atto 2 Comfort.png",
+      "imageUrl": "http://localhost:4310/uploads/vehicles/byd-atto-2-comfort.png"
+    },
+    {
+      "vehicle": "BYD Atto 3 Design",
+      "fileName": "byd-atto-3-design.png",
+      "source": "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu\\BYD\\BYD Otto\\BYD Atto 3 Design.png",
+      "imageUrl": "http://localhost:4310/uploads/vehicles/byd-atto-3-design.png"
+    },
+    {
+      "vehicle": "BYD Dolphin Design",
+      "fileName": "byd-dolphin-design.png",
+      "source": "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu\\BYD\\BYD Otto\\BYD Dolphin Design.png",
+      "imageUrl": "http://localhost:4310/uploads/vehicles/byd-dolphin-design.png"
+    },
+    {
+      "vehicle": "BYD Seal Excellence AWD",
+      "fileName": "byd-seal-excellence-awd.png",
+      "source": "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu\\BYD\\BYD Otto\\BYD Seal Excellence AWD.png",
+      "imageUrl": "http://localhost:4310/uploads/vehicles/byd-seal-excellence-awd.png"
+    },
+    {
+      "vehicle": "BYD Seal U EV Design",
+      "fileName": "byd-seal-u-ev-design.png",
+      "source": "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu\\BYD\\BYD Otto\\BYD Seal U EV Design.png",
+      "imageUrl": "http://localhost:4310/uploads/vehicles/byd-seal-u-ev-design.png"
+    },
+    {
+      "vehicle": "BYD Sealion 7",
+      "fileName": "byd-sealion-7.png",
+      "source": "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu\\BYD\\BYD Otto\\BYD Sealion 7.png",
+      "imageUrl": "http://localhost:4310/uploads/vehicles/byd-sealion-7.png"
+    },
+    {
+      "vehicle": "Hyundai Ioniq 5 Dynamic",
+      "fileName": "hyundai-ioniq-5-dynamic.png",
+      "source": "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu\\Hyundai\\Hyundai Ioniq 5 Dynamic.png",
+      "imageUrl": "http://localhost:4310/uploads/vehicles/hyundai-ioniq-5-dynamic.png"
+    },
+    {
+      "vehicle": "Hyundai Ioniq 5 Dynamic Vision Roof",
+      "fileName": "hyundai-ioniq-5-dynamic-vision-roof.png",
+      "source": "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu\\Hyundai\\Hyundai Ioniq 5 Dynamic Vision Roof.png",
+      "imageUrl": "http://localhost:4310/uploads/vehicles/hyundai-ioniq-5-dynamic-vision-roof.png"
+    },
+    {
+      "vehicle": "Hyundai Ioniq 5 Advance",
+      "fileName": "hyundai-ioniq-5-advance.png",
+      "source": "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu\\Hyundai\\Hyundai Ioniq 5 Advance.png",
+      "imageUrl": "http://localhost:4310/uploads/vehicles/hyundai-ioniq-5-advance.png"
+    },
+    {
+      "vehicle": "Hyundai Ioniq 5 Progressive",
+      "fileName": "hyundai-ioniq-5-progressive.png",
+      "source": "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu\\Hyundai\\Hyundai Ioniq 5 Progressive.png",
+      "imageUrl": "http://localhost:4310/uploads/vehicles/hyundai-ioniq-5-progressive.png"
+    },
+    {
+      "vehicle": "Hyundai Ioniq 5 N",
+      "fileName": "hyundai-ioniq-5-n.png",
+      "source": "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu\\Hyundai\\Hyundai Ioniq 5 N.png",
+      "imageUrl": "http://localhost:4310/uploads/vehicles/hyundai-ioniq-5-n.png"
+    },
+    {
+      "vehicle": "Hyundai Ioniq 6 Progressive",
+      "fileName": "hyundai-ioniq-6-progressive.png",
+      "source": "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu\\Hyundai\\Hyundai Ioniq 6 Progressive.png",
+      "imageUrl": "http://localhost:4310/uploads/vehicles/hyundai-ioniq-6-progressive.png"
+    },
+    {
+      "vehicle": "KGM Torres EVX",
+      "fileName": "kgm-torres-evx.png",
+      "source": "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu\\KGM\\KGM Torres EVX.png",
+      "imageUrl": "http://localhost:4310/uploads/vehicles/kgm-torres-evx.png"
+    },
+    {
+      "vehicle": "Kia EV3 Elegance",
+      "fileName": "kia-ev3-elegance.png",
+      "source": "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu\\Kia\\Kia EV3 Elegance.png",
+      "imageUrl": "http://localhost:4310/uploads/vehicles/kia-ev3-elegance.png"
+    },
+    {
+      "vehicle": "Kia EV3 Prestige",
+      "fileName": "kia-ev3-prestige.png",
+      "source": "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu\\Kia\\Kia EV3 Prestige.png",
+      "imageUrl": "http://localhost:4310/uploads/vehicles/kia-ev3-prestige.png"
+    },
+    {
+      "vehicle": "Kia EV6 Prestige",
+      "fileName": "kia-ev6-prestige.png",
+      "source": "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu\\Kia\\Kia EV6 Prestige.png",
+      "imageUrl": "http://localhost:4310/uploads/vehicles/kia-ev6-prestige.png"
+    },
+    {
+      "vehicle": "Kia EV6 GT",
+      "fileName": "kia-ev6-gt.png",
+      "source": "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu\\Kia\\Kia EV6 GT.png",
+      "imageUrl": "http://localhost:4310/uploads/vehicles/kia-ev6-gt.png"
+    },
+    {
+      "vehicle": "MG MG4 Electric Comfort",
+      "fileName": "mg-mg4-electric-comfort.png",
+      "source": "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu\\MG\\MG4 Electirck Comfort.png",
+      "imageUrl": "http://localhost:4310/uploads/vehicles/mg-mg4-electric-comfort.png"
+    },
+    {
+      "vehicle": "MG MG4 Electric Luxury",
+      "fileName": "mg-mg4-electric-luxury.png",
+      "source": "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu\\MG\\MG4 Electric Luxury.png",
+      "imageUrl": "http://localhost:4310/uploads/vehicles/mg-mg4-electric-luxury.png"
+    },
+    {
+      "vehicle": "MINI Countryman Electric Countryman E Classic",
+      "fileName": "mini-countryman-electric-countryman-e-classic.png",
+      "source": "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu\\MINI\\MINI Countryman E Classic.png",
+      "imageUrl": "http://localhost:4310/uploads/vehicles/mini-countryman-electric-countryman-e-classic.png"
+    },
+    {
+      "vehicle": "MINI Countryman Electric Countryman SE ALL4 Favoured",
+      "fileName": "mini-countryman-electric-countryman-se-all4-favoured.png",
+      "source": "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu\\MINI\\MINI Countryman SE ALL4 Favoured.png",
+      "imageUrl": "http://localhost:4310/uploads/vehicles/mini-countryman-electric-countryman-se-all4-favoured.png"
+    },
+    {
+      "vehicle": "MINI Countryman Electric Countryman SE ALL4 JCW",
+      "fileName": "mini-countryman-electric-countryman-se-all4-jcw.png",
+      "source": "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu\\MINI\\MINI Countryman SE ALL4 JCW.png",
+      "imageUrl": "http://localhost:4310/uploads/vehicles/mini-countryman-electric-countryman-se-all4-jcw.png"
+    },
+    {
+      "vehicle": "Mercedes-Benz EQE SUV EQE 350 4MATIC AMG",
+      "fileName": "mercedes-benz-eqe-suv-eqe-350-4matic-amg.png",
+      "source": "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu\\Mercedes Benz\\Mercedes-Benz EQE 350 4MATIC AMG SUV.png",
+      "imageUrl": "http://localhost:4310/uploads/vehicles/mercedes-benz-eqe-suv-eqe-350-4matic-amg.png"
+    },
+    {
+      "vehicle": "Opel Mokka Electric Ultimate",
+      "fileName": "opel-mokka-electric-ultimate.png",
+      "source": "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu\\Opel\\Opel Mokka Electric Ultimate.png",
+      "imageUrl": "http://localhost:4310/uploads/vehicles/opel-mokka-electric-ultimate.png"
+    },
+    {
+      "vehicle": "Peugeot E-208 GT",
+      "fileName": "peugeot-e-208-gt.png",
+      "source": "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu\\Peugeot\\Peugeot E-208 GT.png",
+      "imageUrl": "http://localhost:4310/uploads/vehicles/peugeot-e-208-gt.png"
+    },
+    {
+      "vehicle": "Renault Megane E-Tech Techno",
+      "fileName": "renault-megane-e-tech-techno.png",
+      "source": "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu\\Renault\\Renault Megane E-Tech Techno.png",
+      "imageUrl": "http://localhost:4310/uploads/vehicles/renault-megane-e-tech-techno.png"
+    },
+    {
+      "vehicle": "Renault Megane E-Tech Iconic",
+      "fileName": "renault-megane-e-tech-iconic.png",
+      "source": "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu\\Renault\\Renault Megane E-Tech Iconic.png",
+      "imageUrl": "http://localhost:4310/uploads/vehicles/renault-megane-e-tech-iconic.png"
+    },
+    {
+      "vehicle": "Skywell ET5 LR Elite",
+      "fileName": "skywell-et5-lr-elite.png",
+      "source": "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu\\Skywell\\Skywell ET5 LR Elite.png",
+      "imageUrl": "http://localhost:4310/uploads/vehicles/skywell-et5-lr-elite.png"
+    },
+    {
+      "vehicle": "Skywell ET5 LR Premium",
+      "fileName": "skywell-et5-lr-premium.png",
+      "source": "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu\\Skywell\\Skywell ET5 LR Premium.png",
+      "imageUrl": "http://localhost:4310/uploads/vehicles/skywell-et5-lr-premium.png"
+    },
+    {
+      "vehicle": "Skywell ET5 Legend",
+      "fileName": "skywell-et5-legend.png",
+      "source": "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu\\Skywell\\Skywell ET5 Legend.png",
+      "imageUrl": "http://localhost:4310/uploads/vehicles/skywell-et5-legend.png"
+    },
+    {
+      "vehicle": "Tesla Model Y Arkadan Çekiş",
+      "fileName": "tesla-model-y-arkadan-cekis.png",
+      "source": "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu\\Tesla\\Tesla Model Y Arkadan Çekiş.png",
+      "imageUrl": "http://localhost:4310/uploads/vehicles/tesla-model-y-arkadan-cekis.png"
+    },
+    {
+      "vehicle": "Tesla Model Y Long Range Arkadan Çekiş",
+      "fileName": "tesla-model-y-long-range-arkadan-cekis.png",
+      "source": "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu\\Tesla\\Tesla Model Y Long Range Arkadan Çekiş.png",
+      "imageUrl": "http://localhost:4310/uploads/vehicles/tesla-model-y-long-range-arkadan-cekis.png"
+    },
+    {
+      "vehicle": "Tesla Model Y Long Range AWD",
+      "fileName": "tesla-model-y-long-range-awd.png",
+      "source": "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu\\Tesla\\Tesla Model Y Long Range AWD.png",
+      "imageUrl": "http://localhost:4310/uploads/vehicles/tesla-model-y-long-range-awd.png"
+    },
+    {
+      "vehicle": "Tesla Model Y Performance",
+      "fileName": "tesla-model-y-performance.png",
+      "source": "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu\\Tesla\\Tesla Model Y Performance.png",
+      "imageUrl": "http://localhost:4310/uploads/vehicles/tesla-model-y-performance.png"
+    },
+    {
+      "vehicle": "Togg T10F V1 RWD Standart Menzil",
+      "fileName": "togg-t10f-v1-rwd-standart-menzil.png",
+      "source": "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu\\Togg\\Togg T10F V1 RWD Standart Menzil.png",
+      "imageUrl": "http://localhost:4310/uploads/vehicles/togg-t10f-v1-rwd-standart-menzil.png"
+    },
+    {
+      "vehicle": "Togg T10F V1 RWD Uzun Menzil",
+      "fileName": "togg-t10f-v1-rwd-uzun-menzil.png",
+      "source": "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu\\Togg\\Togg T10F V1 RWD Uzun Menzil.png",
+      "imageUrl": "http://localhost:4310/uploads/vehicles/togg-t10f-v1-rwd-uzun-menzil.png"
+    },
+    {
+      "vehicle": "Togg T10F V2 RWD Uzun Menzil",
+      "fileName": "togg-t10f-v2-rwd-uzun-menzil.png",
+      "source": "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu\\Togg\\Togg T10F V2 RWD Uzun Menzil.png",
+      "imageUrl": "http://localhost:4310/uploads/vehicles/togg-t10f-v2-rwd-uzun-menzil.png"
+    },
+    {
+      "vehicle": "Togg T10F V2 4More",
+      "fileName": "togg-t10f-v2-4more.png",
+      "source": "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu\\Togg\\Togg T10F V2 4More.png",
+      "imageUrl": "http://localhost:4310/uploads/vehicles/togg-t10f-v2-4more.png"
+    },
+    {
+      "vehicle": "Togg T10X V1 RWD Standart Menzil",
+      "fileName": "togg-t10x-v1-rwd-standart-menzil.png",
+      "source": "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu\\Togg\\Togg T10X V1 RWD Standart Menzil.png",
+      "imageUrl": "http://localhost:4310/uploads/vehicles/togg-t10x-v1-rwd-standart-menzil.png"
+    },
+    {
+      "vehicle": "Togg T10X V1 RWD Uzun Menzil",
+      "fileName": "togg-t10x-v1-rwd-uzun-menzil.png",
+      "source": "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu\\Togg\\Togg T10X V1 RWD Uzun Menzil.png",
+      "imageUrl": "http://localhost:4310/uploads/vehicles/togg-t10x-v1-rwd-uzun-menzil.png"
+    },
+    {
+      "vehicle": "Togg T10X V2 RWD Uzun Menzil",
+      "fileName": "togg-t10x-v2-rwd-uzun-menzil.png",
+      "source": "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu\\Togg\\Togg T10X V2 RWD Uzun Menzil.png",
+      "imageUrl": "http://localhost:4310/uploads/vehicles/togg-t10x-v2-rwd-uzun-menzil.png"
+    },
+    {
+      "vehicle": "Togg T10X V2 4More Obsidiyen",
+      "fileName": "togg-t10x-v2-4more-obsidiyen.png",
+      "source": "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu\\Togg\\Togg T10X V2 4More Obsidiyen.png",
+      "imageUrl": "http://localhost:4310/uploads/vehicles/togg-t10x-v2-4more-obsidiyen.png"
+    },
+    {
+      "vehicle": "Volvo EX30 Core",
+      "fileName": "volvo-ex30-core.png",
+      "source": "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu\\Volvo\\Volvo EX30 Core.png",
+      "imageUrl": "http://localhost:4310/uploads/vehicles/volvo-ex30-core.png"
+    },
+    {
+      "vehicle": "Volvo EX30 Plus",
+      "fileName": "volvo-ex30-plus.png",
+      "source": "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu\\Volvo\\Volvo EX30 Plus.png",
+      "imageUrl": "http://localhost:4310/uploads/vehicles/volvo-ex30-plus.png"
+    },
+    {
+      "vehicle": "Volvo EX30 Ultra",
+      "fileName": "volvo-ex30-ultra.png",
+      "source": "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu\\Volvo\\Volvo EX30 Ultra.png",
+      "imageUrl": "http://localhost:4310/uploads/vehicles/volvo-ex30-ultra.png"
+    },
+    {
+      "vehicle": "Volvo EX40 Core",
+      "fileName": "volvo-ex40-core.png",
+      "source": "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu\\Volvo\\Volvo EX40 Core.png",
+      "imageUrl": "http://localhost:4310/uploads/vehicles/volvo-ex40-core.png"
+    },
+    {
+      "vehicle": "Volvo EX40 Plus",
+      "fileName": "volvo-ex40-plus.png",
+      "source": "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu\\Volvo\\Volvo EX40 Plus.png",
+      "imageUrl": "http://localhost:4310/uploads/vehicles/volvo-ex40-plus.png"
+    },
+    {
+      "vehicle": "Volvo EX40 Ultra",
+      "fileName": "volvo-ex40-ultra.png",
+      "source": "C:\\Users\\oxgur\\OneDrive\\Desktop\\araç fotosu\\Volvo\\Volvo EX40 Ultra.png",
+      "imageUrl": "http://localhost:4310/uploads/vehicles/volvo-ex40-ultra.png"
+    }
+  ]
+}

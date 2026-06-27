@@ -1,7 +1,77 @@
 [
   {
     "brand": "BMW",
-    "image_url": "http://localhost:4310/uploads/vehicles/bmw-i4-edrive40-edition-m-sport.png",
+    "image_url": "http://localhost:4310/uploads/vehicles/bmw-i4-edrive40-sport-line.png",
     "notes": "BMW kategori ana görseli; BMW i4 eDrive40 Edition M Sport assetiyle başlatıldı."
+  },
+  {
+    "brand": "BYD",
+    "image_url": "http://localhost:4310/uploads/vehicles/byd-atto-2-boost.png",
+    "notes": "Ara? foto?raf? klas?r?nden otomatik e?lenen marka g?rseli."
+  },
+  {
+    "brand": "Hyundai",
+    "image_url": "http://localhost:4310/uploads/vehicles/hyundai-ioniq-5-dynamic.png",
+    "notes": "Ara? foto?raf? klas?r?nden otomatik e?lenen marka g?rseli."
+  },
+  {
+    "brand": "KGM",
+    "image_url": "http://localhost:4310/uploads/vehicles/kgm-torres-evx.png",
+    "notes": "Ara? foto?raf? klas?r?nden otomatik e?lenen marka g?rseli."
+  },
+  {
+    "brand": "Kia",
+    "image_url": "http://localhost:4310/uploads/vehicles/kia-ev3-elegance.png",
+    "notes": "Ara? foto?raf? klas?r?nden otomatik e?lenen marka g?rseli."
+  },
+  {
+    "brand": "Mercedes-Benz",
+    "image_url": "http://localhost:4310/uploads/vehicles/mercedes-benz-eqe-suv-eqe-350-4matic-amg.png",
+    "notes": "Ara? foto?raf? klas?r?nden otomatik e?lenen marka g?rseli."
+  },
+  {
+    "brand": "MG",
+    "image_url": "http://localhost:4310/uploads/vehicles/mg-mg4-electric-comfort.png",
+    "notes": "Ara? foto?raf? klas?r?nden otomatik e?lenen marka g?rseli."
+  },
+  {
+    "brand": "MINI",
+    "image_url": "http://localhost:4310/uploads/vehicles/mini-countryman-electric-countryman-e-classic.png",
+    "notes": "Ara? foto?raf? klas?r?nden otomatik e?lenen marka g?rseli."
+  },
+  {
+    "brand": "Opel",
+    "image_url": "http://localhost:4310/uploads/vehicles/opel-mokka-electric-ultimate.png",
+    "notes": "Ara? foto?raf? klas?r?nden otomatik e?lenen marka g?rseli."
+  },
+  {
+    "brand": "Peugeot",
+    "image_url": "http://localhost:4310/uploads/vehicles/peugeot-e-208-gt.png",
+    "notes": "Ara? foto?raf? klas?r?nden otomatik e?lenen marka g?rseli."
+  },
+  {
+    "brand": "Renault",
+    "image_url": "http://localhost:4310/uploads/vehicles/renault-megane-e-tech-techno.png",
+    "notes": "Ara? foto?raf? klas?r?nden otomatik e?lenen marka g?rseli."
+  },
+  {
+    "brand": "Skywell",
+    "image_url": "http://localhost:4310/uploads/vehicles/skywell-et5-lr-elite.png",
+    "notes": "Ara? foto?raf? klas?r?nden otomatik e?lenen marka g?rseli."
+  },
+  {
+    "brand": "Tesla",
+    "image_url": "http://localhost:4310/uploads/vehicles/tesla-model-y-arkadan-cekis.png",
+    "notes": "Ara? foto?raf? klas?r?nden otomatik e?lenen marka g?rseli."
+  },
+  {
+    "brand": "Togg",
+    "image_url": "http://localhost:4310/uploads/vehicles/togg-t10f-v1-rwd-standart-menzil.png",
+    "notes": "Ara? foto?raf? klas?r?nden otomatik e?lenen marka g?rseli."
+  },
+  {
+    "brand": "Volvo",
+    "image_url": "http://localhost:4310/uploads/vehicles/volvo-ex30-core.png",
+    "notes": "Ara? foto?raf? klas?r?nden otomatik e?lenen marka g?rseli."
   }
 ]

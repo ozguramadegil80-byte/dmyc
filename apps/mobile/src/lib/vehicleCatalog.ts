@@ -1,7 +1,12 @@
 import catalog from '../data/mobile_vehicle_catalog.json';
 import type { VehicleCatalogItem } from '../types/vehicleCatalog';
+import { resolvePublicAssetUrl } from './apiClient';
 
-export const vehicleCatalog = catalog as VehicleCatalogItem[];
+export const vehicleCatalog = (catalog as VehicleCatalogItem[]).map((item) => ({
+  ...item,
+  imageUrl: resolvePublicAssetUrl(item.imageUrl),
+  brandImageUrl: resolvePublicAssetUrl(item.brandImageUrl),
+}));
 
 export function getBrands(items: VehicleCatalogItem[] = vehicleCatalog) {
   return Array.from(new Set(items.map((item) => item.brand))).sort((a, b) =>

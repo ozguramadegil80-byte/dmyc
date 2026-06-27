@@ -303,6 +303,10 @@ export class VehiclesService {
   }
 
   private buildVehicleBinding(row: Record<string, unknown>) {
+    const vinLast5 = (row.vin_last5 as string | null) ?? null;
+    const vinVerifiedAt = (row.vin_verified_at as string | null) ?? null;
+    // OCR doğrulaması gelene kadar her zaman 'declared' — vinLast5 kayıtlı olsa bile.
+    const identityLevel: 'declared' | 'vin_matched' = 'declared';
     return {
       catalogKey:
         makeCatalogKey(row.brand as string, row.model as string, row.variant as string) ??
@@ -322,6 +326,9 @@ export class VehiclesService {
         id: row.vehicle_id as string,
         vehicleSpecId: row.vehicle_spec_id as string,
         vin: row.vin as string | null,
+        vinLast5,
+        vinVerifiedAt,
+        identityLevel,
       },
     };
   }
@@ -336,6 +343,8 @@ export class VehiclesService {
       v.vehicle_spec_id,
       v.canonical_vehicle_id,
       v.vin,
+      v.vin_last5,
+      v.vin_verified_at,
       v.display_name,
       v.created_at AS vehicle_created_at,
       cv.canonical_key,
@@ -368,6 +377,8 @@ export class VehiclesService {
           v.vehicle_spec_id,
           v.canonical_vehicle_id,
           v.vin,
+          v.vin_last5,
+          v.vin_verified_at,
           v.display_name,
           v.created_at        AS vehicle_created_at,
           cv.canonical_key,
@@ -416,6 +427,8 @@ export class VehiclesService {
           v.vehicle_spec_id,
           v.canonical_vehicle_id,
           v.vin,
+          v.vin_last5,
+          v.vin_verified_at,
           v.display_name,
           v.created_at        AS vehicle_created_at,
           cv.canonical_key,
@@ -581,7 +594,7 @@ export class VehiclesService {
     return {
       status: 'PENDING',
       shareUrl: `dmyc://vehicle-invite/${token}`,
-      webUrl: `https://dmyc.app/invite/${token}`,
+      webUrl: `https://dmyc.digital/invite/${token}`,
     };
   }
 
@@ -639,6 +652,36 @@ export class VehiclesService {
     );
 
     return { vehicleId: invite.vehicle_id, role: invite.role, accessStatus: 'active' };
+  }
+
+  // PATCH /vehicles/:id/vin — VIN son 5 karakter kaydetme (KVKK uyumlu)
+  async updateVehicleVin(vehicleId: string, userId: string, body: { vinLast5?: string }) {
+    const access = await this.getVehicleAccessForUser(userId, vehicleId);
+    if (!access || access.access_status !== 'active' || access.role !== 'owner') {
+      throw new ForbiddenException('Bu işlem için araç sahibi olmanız gerekiyor.');
+    }
+
+    const raw = (body.vinLast5 ?? '').trim().toUpperCase();
+    if (!raw || raw.length < 3 || raw.length > 17 || !/^[A-Z0-9]+$/.test(raw)) {
+      throw new BadRequestException('VIN son karakterleri 3–17 arası harf ve rakamdan oluşmalıdır.');
+    }
+    const vinLast5 = raw.slice(-5).padStart(5, '*');
+
+    const result = await this.db.query(
+      `UPDATE vehicles
+       SET vin_last5 = $1, vin_verified_at = now(), updated_at = now()
+       WHERE id = $2
+       RETURNING vin_last5, vin_verified_at`,
+      [vinLast5, vehicleId],
+    );
+    if (!result.rows[0]) throw new NotFoundException('Araç bulunamadı.');
+
+    return {
+      vehicleId,
+      vinLast5: result.rows[0].vin_last5 as string,
+      vinVerifiedAt: result.rows[0].vin_verified_at as string,
+      identityLevel: 'vin_matched' as const,
+    };
   }
 
   async listAdminUsers() {
@@ -746,16 +789,47 @@ export class VehiclesService {
   }
 
   async deleteAdminUser(userId: string) {
-    await this.getAdminUser(userId);
+    await this.db.query('BEGIN');
 
-    await this.db.query('UPDATE usage_signals SET user_id = NULL WHERE user_id = $1', [userId]);
-    await this.db.query('UPDATE usage_profiles SET user_id = NULL, ownership_id = NULL WHERE user_id = $1', [userId]);
-    await this.db.query('UPDATE trips SET user_id = NULL, ownership_id = NULL WHERE user_id = $1', [userId]);
-    await this.db.query('UPDATE trip_driver_assignments SET user_id = NULL WHERE user_id = $1', [userId]);
-    await this.db.query('DELETE FROM vehicle_ownerships WHERE user_id = $1', [userId]);
-    const result = await this.db.query('DELETE FROM users WHERE id = $1', [userId]);
+    try {
+      await this.getAdminUser(userId);
 
-    return { deleted: result.rowCount ?? 0, id: userId };
+      const ownerships = await this.db.query<{ id: string }>(
+        'SELECT id FROM vehicle_ownerships WHERE user_id = $1',
+        [userId],
+      );
+      const ownershipIds = ownerships.rows.map((row) => row.id);
+
+      for (const cleanup of USER_DELETE_DIRECT_DELETES) {
+        await this.db.query(`DELETE FROM ${cleanup.table} WHERE ${cleanup.column} = $1`, [userId]);
+      }
+
+      for (const cleanup of USER_DELETE_NULLABLE_REFS) {
+        await this.db.query(`UPDATE ${cleanup.table} SET ${cleanup.column} = NULL WHERE ${cleanup.column} = $1`, [userId]);
+      }
+
+      if (ownershipIds.length > 0) {
+        for (const cleanup of OWNERSHIP_DELETE_NULLABLE_REFS) {
+          await this.db.query(`UPDATE ${cleanup.table} SET ${cleanup.column} = NULL WHERE ${cleanup.column} = ANY($1::uuid[])`, [
+            ownershipIds,
+          ]);
+        }
+      }
+
+      const ownershipResult = await this.db.query('DELETE FROM vehicle_ownerships WHERE user_id = $1', [userId]);
+      const result = await this.db.query('DELETE FROM users WHERE id = $1', [userId]);
+
+      await this.db.query('COMMIT');
+
+      return {
+        deleted: result.rowCount ?? 0,
+        id: userId,
+        detachedOwnerships: ownershipResult.rowCount ?? 0,
+      };
+    } catch (error) {
+      await this.db.query('ROLLBACK');
+      throw error;
+    }
   }
 
   private async getAdminUser(userId: string) {
@@ -778,6 +852,69 @@ export class VehiclesService {
     return user;
   }
 }
+
+type CleanupReference = {
+  table: string;
+  column: string;
+};
+
+const USER_DELETE_DIRECT_DELETES: CleanupReference[] = [
+  { table: 'driver_vehicle_profiles', column: 'user_id' },
+  { table: 'user_premium_entitlements', column: 'user_id' },
+  { table: 'user_saved_routes', column: 'user_id' },
+  { table: 'user_saved_locations', column: 'user_id' },
+  { table: 'vehicle_access_invites', column: 'invited_by_user_id' },
+  { table: 'vehicle_user_access', column: 'user_id' },
+  { table: 'weekly_route_driver_snapshots', column: 'user_id' },
+];
+
+const USER_DELETE_NULLABLE_REFS: CleanupReference[] = [
+  { table: 'annual_reports', column: 'user_id' },
+  { table: 'battery_cycle_events', column: 'user_id' },
+  { table: 'charge_sessions', column: 'actor_user_id' },
+  { table: 'charge_sessions', column: 'driver_user_id' },
+  { table: 'charge_sessions', column: 'user_id' },
+  { table: 'charging_decision_events', column: 'user_id' },
+  { table: 'monthly_reports', column: 'user_id' },
+  { table: 'route_fingerprints', column: 'user_id' },
+  { table: 'route_guidance_sessions', column: 'user_id' },
+  { table: 'route_plans', column: 'user_id' },
+  { table: 'service_visits', column: 'user_id' },
+  { table: 'transfer_requests', column: 'to_user_id' },
+  { table: 'trip_driver_assignments', column: 'user_id' },
+  { table: 'trip_recaps', column: 'user_id' },
+  { table: 'trip_route_intents', column: 'user_id' },
+  { table: 'trips', column: 'user_id' },
+  { table: 'usage_profiles', column: 'user_id' },
+  { table: 'usage_signals', column: 'user_id' },
+  { table: 'vehicle_access_invites', column: 'invitee_user_id' },
+  { table: 'vehicle_battery_lifecycle_stats', column: 'user_id' },
+  { table: 'vehicle_drivers', column: 'user_id' },
+  { table: 'vehicle_user_access', column: 'invited_by_user_id' },
+];
+
+const OWNERSHIP_DELETE_NULLABLE_REFS: CleanupReference[] = [
+  { table: 'annual_reports', column: 'ownership_id' },
+  { table: 'battery_cycle_events', column: 'ownership_id' },
+  { table: 'charge_sessions', column: 'ownership_id' },
+  { table: 'charging_decision_events', column: 'ownership_id' },
+  { table: 'external_battery_reports', column: 'ownership_id' },
+  { table: 'monthly_reports', column: 'ownership_id' },
+  { table: 'premium_vehicle_reports', column: 'ownership_id' },
+  { table: 'route_fingerprints', column: 'ownership_id' },
+  { table: 'route_guidance_sessions', column: 'ownership_id' },
+  { table: 'route_plans', column: 'ownership_id' },
+  { table: 'service_visits', column: 'ownership_id' },
+  { table: 'transfer_requests', column: 'from_ownership_id' },
+  { table: 'trip_recaps', column: 'ownership_id' },
+  { table: 'trips', column: 'ownership_id' },
+  { table: 'usage_profiles', column: 'ownership_id' },
+  { table: 'usage_signals', column: 'ownership_id' },
+  { table: 'vehicle_assessments', column: 'ownership_id' },
+  { table: 'vehicle_battery_lifecycle_stats', column: 'ownership_id' },
+  { table: 'vehicle_state_snapshots', column: 'ownership_id' },
+  { table: 'vehicle_user_access', column: 'ownership_id' },
+];
 
 function makeCatalogKey(brand?: string | null, model?: string | null, variant?: string | null) {
   if (!brand || !model || !variant) {

@@ -46,7 +46,8 @@ export async function POST(request: Request) {
   await writeFile(path.join(uploadsDir, fileName), bytes);
 
   const publicPath = `/uploads/vehicles/${fileName}`;
-  const absoluteUrl = new URL(publicPath, request.url).toString();
+  const baseUrl = process.env.DMYC_WEB_URL ?? new URL(request.url).origin;
+  const absoluteUrl = `${baseUrl}${publicPath}`;
 
   return NextResponse.json({ url: absoluteUrl });
 }
