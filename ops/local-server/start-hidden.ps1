@@ -47,5 +47,10 @@ if ($StartCloudflare) {
   }
 }
 
-# Stack'i basla
+# Mevcut processleri temizle, sonra basla
+Write-Host "[DMYC] Mevcut processler durduruluyor..."
+powershell -NoProfile -ExecutionPolicy Bypass -File "$repoRoot\ops\local-server\stop-stack.ps1"
+Start-Sleep -Seconds 2
+
+Write-Host "[DMYC] Stack baslatiliyor..."
 powershell -NoProfile -ExecutionPolicy Bypass -File "$repoRoot\ops\local-server\start-stack.ps1"
