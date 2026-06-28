@@ -270,7 +270,7 @@ function GradeBar({ grade, efcVal }: { grade: string | null; efcVal: number }) {
             fontFamily: 'JetBrains Mono, monospace',
           }}
         >
-          {efcVal} EFC
+          {efcVal} EFC (dönem)
         </div>
       </div>
       {/* Labels */}
@@ -563,7 +563,7 @@ export default async function KaskoReportPage({
                 color={dcPct > 50 ? '#fb923c' : '#71ffe8'}
               />
               <FactorRow
-                label="EFC"
+                label="EFC (Dönem)"
                 value={`${efcVal}`}
                 pct={Math.max(0, 100 - (efcVal / 500) * 100)}
                 color={efcVal > 400 ? '#fb923c' : efcVal > 200 ? '#facc15' : '#71ffe8'}
@@ -586,15 +586,15 @@ export default async function KaskoReportPage({
             <div style={{ marginTop: 20 }}>
               <FactorRow
                 label="Muayene"
-                value={r.inspectionResult === 'passed' ? 'Geçti' : r.inspectionResult === 'failed' ? 'Kaldı' : '—'}
-                pct={r.inspectionResult === 'passed' ? 100 : r.inspectionResult === 'failed' ? 15 : 50}
+                value={r.inspectionResult === 'passed' ? 'Geçti' : r.inspectionResult === 'failed' ? 'Kaldı' : 'Doğrulanmadı'}
+                pct={r.inspectionResult === 'passed' ? 100 : r.inspectionResult === 'failed' ? 15 : 0}
                 color={r.inspectionResult === 'passed' ? '#4ade80' : r.inspectionResult === 'failed' ? '#f87171' : '#849490'}
               />
               <FactorRow
                 label="Batarya Notu"
-                value={gradeLabel(gradeVal)}
-                pct={safetyScore}
-                color={gradeColor(gradeVal)}
+                value={gradeVal === 'unknown' ? 'Doğrulanmadı' : gradeLabel(gradeVal)}
+                pct={gradeVal === 'unknown' ? 0 : safetyScore}
+                color={gradeVal === 'unknown' ? '#849490' : gradeColor(gradeVal)}
               />
               <FactorRow
                 label="DC Bağımlılık"
@@ -611,7 +611,7 @@ export default async function KaskoReportPage({
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
             <div>
               <div className="rpt-label rpt-muted" style={{ marginBottom: 4 }}>Batarya Kullanım Notu</div>
-              <div style={{ fontSize: 12, color: '#849490', lineHeight: 1.5 }}>EFC, bataryanın yaklaşık tam şarj döngüsü karşılığıdır. 500 EFC referans alınarak batarya kullanım yoğunluğu yorumlanır.</div>
+              <div style={{ fontSize: 12, color: '#849490', lineHeight: 1.5 }}>EFC, bataryanın yaklaşık tam şarj döngüsü karşılığıdır. 500 EFC referans alınarak batarya kullanım yoğunluğu yorumlanır. <strong style={{ color: '#dfe3e4' }}>Gösterilen EFC değeri yalnızca DMyC&apos;de kayıtlı kullanım dönemine aittir; aracın ömür boyu toplam döngü sayısı değildir.</strong></div>
             </div>
             <div style={{
               fontSize: 28, fontWeight: 700, fontFamily: 'Space Grotesk, sans-serif',
@@ -841,7 +841,40 @@ export default async function KaskoReportPage({
             <StatCell label="Toplam KM" value={formatKm(r.odometerKm)} />
             <StatCell label="Yıllık KM" value={r.annualKm ? `${Math.round(r.annualKm / 1000)}k` : '—'} sub="km/yıl" />
             <StatCell label="DC Şarj Oranı" value={`${dcPct}%`} sub="fast charge" />
-            <StatCell label="Toplam Şarj" value={totalCharges > 0 ? String(totalCharges) : '—'} sub="seans" />
+            <StatCell label="İzlenen Şarj" value={totalCharges > 0 ? String(totalCharges) : '—'} sub="DMyC dönemi" />
+          </div>
+        </div>
+
+        {/* ── Veri Güven Seviyesi ── */}
+        <div style={{
+          background: 'rgba(255,255,255,0.03)', borderRadius: 10,
+          border: '1px solid rgba(255,255,255,0.06)', padding: '16px 20px', marginBottom: 20,
+        }}>
+          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', color: '#849490', textTransform: 'uppercase', marginBottom: 12 }}>
+            Rapor Veri Güven Seviyesi
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 24px' }}>
+            {[
+              { label: 'Araç bilgisi', value: 'Kullanıcı beyanı' },
+              { label: 'Kilometre', value: 'Kullanıcı beyanı' },
+              { label: 'Şarj / EFC verisi', value: 'DMyC kayıtlı dönem' },
+              { label: 'Bakım verisi', value: hasService ? 'DMyC kayıtlı' : 'Girilmemiş' },
+              { label: 'Muayene verisi', value: hasInspection ? 'DMyC kayıtlı' : 'Girilmemiş' },
+              { label: 'Değer hesabı', value: 'Tahmini model' },
+            ].map(({ label, value }) => {
+              const isConfirmed = value === 'DMyC kayıtlı' || value === 'DMyC kayıtlı dönem';
+              const isMissing   = value === 'Girilmemiş';
+              return (
+                <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 11, color: '#849490' }}>{label}</span>
+                  <span style={{
+                    fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 20,
+                    background: isConfirmed ? 'rgba(74,222,128,0.12)' : isMissing ? 'rgba(255,255,255,0.06)' : 'rgba(250,204,21,0.1)',
+                    color: isConfirmed ? '#4ade80' : isMissing ? '#4b5a57' : '#fde68a',
+                  }}>{value}</span>
+                </div>
+              );
+            })}
           </div>
         </div>
 
@@ -851,9 +884,9 @@ export default async function KaskoReportPage({
           border: '1px solid rgba(255,255,255,0.06)', padding: '16px 20px',
           fontSize: 11, color: '#849490', lineHeight: 1.6, marginBottom: 32,
         }}>
-          <strong style={{ color: '#dfe3e4' }}>Feragat:</strong> Bu rapor bilgi amaçlı olup bağlayıcı bir sigorta teklifi değildir.
-          Tahmini kasko değeri; liste fiyatı, araç yaşı, batarya durumu ve kilometre bilgisine dayalı algoritmik hesaplamaya dayanır.
-          Gerçek sigorta değeri sigortacı ve araç muayenesi tarafından belirlenir.
+          <strong style={{ color: '#dfe3e4' }}>Feragat:</strong> Bu rapor bilgi amaçlı ön değerlendirmedir; sigorta teklifi, eksper raporu veya resmi kasko değer belgesi değildir.
+          Tahmini değer; araç yaşı, kilometre, batarya kullanım sinyalleri ve kullanıcı/uygulama verilerine göre hesaplanır.
+          Nihai teklif ve değer; sigorta şirketi, eksper değerlendirmesi ve ilgili resmi kurumsal kaynaklar tarafından belirlenir.
           <br />Hesaplama tarihi: {formatDate(r.createdAt)}.
         </div>
 
