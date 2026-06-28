@@ -240,7 +240,8 @@ export default async function PremiumReportPage({
         padding:'0 16px', height:'56px', gap:8,
         background:'#0f1415', borderBottom:'1px solid rgba(255,255,255,0.08)',
       }}>
-        <span className="rpt-sg rpt-cyan" style={{ fontSize:'18px', fontWeight:700, flexShrink:0 }}>DMyC</span>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/yatay-logo.png" alt="DMyC" style={{ height:28, width:'auto', flexShrink:0 }} />
         <span className="rpt-label rpt-cyan rpt-hide-mobile" style={{ borderBottom:'2px solid #71ffe8', paddingBottom:'2px' }}>
           EV KARNESİ · PREMİUM RAPOR
         </span>
@@ -461,7 +462,8 @@ export default async function PremiumReportPage({
         {/* ── Footer ── */}
         <footer style={{ borderTop:'1px solid rgba(59,74,70,0.5)', paddingTop:'40px', display:'flex', justifyContent:'space-between', alignItems:'flex-end', flexWrap:'wrap', gap:'16px' }}>
           <div>
-            <p className="rpt-sg" style={{ fontSize:'18px', fontWeight:600, marginBottom:'12px' }}>DMyC Digital Mobility Control</p>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/yatay-logo.png" alt="DMyC" style={{ height:32, width:'auto', marginBottom:'12px', opacity:0.85 }} />
             <p className="rpt-label rpt-muted" style={{ marginBottom:'4px' }}>
               RAPOR ID: <span style={{ color:'#dfe3e4' }}>{report.id.slice(-8).toUpperCase()}</span>
             </p>

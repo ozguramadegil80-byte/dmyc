@@ -426,13 +426,8 @@ export default async function KaskoReportPage({
         padding: '12px 16px', gap: 8,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-          <div style={{
-            width: 32, height: 32, borderRadius: 8, flexShrink: 0,
-            background: 'linear-gradient(135deg,#71ffe8 0%,#00b3a4 100%)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontWeight: 700, fontSize: 13, color: '#080F10', fontFamily: 'Space Grotesk, sans-serif',
-          }}>D</div>
-          <span style={{ fontSize: 14, fontWeight: 700, fontFamily: 'Space Grotesk, sans-serif', flexShrink: 0 }}>DMyC</span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/yatay-logo.png" alt="DMyC" style={{ height: 28, width: 'auto', flexShrink: 0 }} />
           <span style={{
             background: 'rgba(113,255,232,0.12)', color: '#71ffe8',
             fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 20,
@@ -896,14 +891,8 @@ export default async function KaskoReportPage({
           borderTop: '1px solid rgba(255,255,255,0.07)', paddingTop: 24,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{
-              width: 24, height: 24, borderRadius: 6,
-              background: 'linear-gradient(135deg,#71ffe8 0%,#00b3a4 100%)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontWeight: 700, fontSize: 10, color: '#080F10',
-            }}>D</div>
-            <span style={{ fontSize: 12, fontWeight: 600, fontFamily: 'Space Grotesk, sans-serif' }}>DMyC</span>
-            <span style={{ fontSize: 11, color: '#849490' }}>EV Karnesi</span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/yatay-logo.png" alt="DMyC" style={{ height: 22, width: 'auto', opacity: 0.7 }} />
           </div>
           <div style={{ fontSize: 11, color: '#849490' }}>
             dmyc.digital · Elektrikli Araç Sağlığı ve Değer Analizi
