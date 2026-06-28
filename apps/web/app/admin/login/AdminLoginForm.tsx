@@ -43,12 +43,10 @@ export function AdminLoginForm() {
   return (
     <main className="login-shell">
       <section className="login-panel">
-        <div className="login-brand">
-          <span className="login-brand-mark">D</span>
-          <div>
-            <p className="eyebrow">DMyC Yönetim Sistemi</p>
-            <h1>Admin girişi</h1>
-          </div>
+        <div className="login-brand" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 8 }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/yatay-logo.png" alt="DMyC" style={{ height: 30, width: 'auto' }} />
+          <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.35)', letterSpacing: '0.1em' }}>YÖNETİM SİSTEMİ</p>
         </div>
 
         <form className="login-form" onSubmit={submit}>
