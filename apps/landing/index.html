@@ -87,8 +87,8 @@
   <div class="flex items-center gap-3">
     <a href="#demo" class="text-[#b9cacb] text-sm hover:text-[#00f0ff] transition-colors hidden md:inline">Demo</a>
     <a href="#indir" class="text-[#00f0ff] text-sm font-bold px-4 py-1.5 border border-[#00f0ff]/30 bg-[#00f0ff]/10 hover:bg-[#00f0ff]/20 transition-all">
-      🤖 İndir
-    </a>
+      <span class="material-symbols-outlined" style="font-size:16px;vertical-align:-3px;font-variation-settings:'FILL' 1;">android</span> İndir
+</a>
   </div>
 </header>
 
@@ -152,89 +152,6 @@
   </section>
 
   <!-- EKRAN TANITIM -->
-  <section class="px-6 py-20 bg-surface-container" id="demo">
-    <div class="max-w-5xl mx-auto">
-
-      <!-- header -->
-      <h2 class="font-baslik text-2xl font-bold text-[#dbfcff] mb-2">Uygulamaya göz at.</h2>
-      <p class="text-[#b9cacb] text-sm mb-10">Gerçek ekranlar — tasarım değil.</p>
-
-      <!-- telefon + navigasyon -->
-      <div style="display:flex;flex-direction:column;align-items:center;gap:24px;">
-
-        <!-- ekran etiketi -->
-        <div style="text-align:center;">
-          <div id="scr-label" style="color:#00f0ff;font-size:13px;font-weight:700;font-family:'Space Grotesk',sans-serif;margin-bottom:3px;"></div>
-          <div id="scr-desc" style="color:#5e7a7e;font-size:12px;"></div>
-        </div>
-
-        <!-- resim -->
-        <div id="scr-touch" style="touch-action:pan-y;user-select:none;">
-          <img id="scr-img" src="" alt="" style="max-height:70vh;max-width:min(320px,85vw);width:auto;height:auto;border-radius:4px;box-shadow:0 0 60px rgba(0,240,255,0.1),0 24px 48px rgba(0,0,0,0.7);transition:opacity .25s;display:block;"/>
-        </div>
-
-        <!-- dots -->
-        <div id="scr-dots" style="display:flex;gap:6px;"></div>
-
-      </div>
-    </div>
-  </section>
-
-  <script>
-  const SCREENS = [
-    { src: './assets/Ekran%20Resimleri/Giris-Sayfasi.webp',         label: 'Giriş',           desc: 'E-posta ve şifre yeterli. TC kimlik istemiyoruz.' },
-    { src: './assets/Ekran%20Resimleri/%C4%B0lk%20Sayfa.webp',      label: 'Ana Ekran',       desc: 'Araç özeti, karne skoru ve anlık veriler.' },
-    { src: './assets/Ekran%20Resimleri/Karne-Ekrani.webp',           label: 'EV Karnesi',      desc: 'Batarya notu, sürüş skoru, kullanım analizi.' },
-    { src: './assets/Ekran%20Resimleri/Giris%20Karne%20Ekrani.webp', label: 'Karne Girişi',    desc: 'Verilerini gir, karne oluşmaya başlar.' },
-    { src: './assets/Ekran%20Resimleri/Sarj%20Ekran%C4%B1.webp',    label: 'Şarj Takibi',     desc: 'Şarj geçmişi, AC/DC dağılımı, aylık maliyet.' },
-    { src: './assets/Ekran%20Resimleri/Menzil-Plan%C4%B1.webp',     label: 'Menzil Planı',    desc: 'Rota gir, tahmini tüketim ve varış bataryası.' },
-    { src: './assets/Ekran%20Resimleri/Arac-Karnesi.webp',           label: 'Araç Karnesi',    desc: 'Sicil, muayene, değer notu — tek ekranda.' },
-  ];
-
-  let scrIdx = 0;
-
-  function scrRender() {
-    const s = SCREENS[scrIdx];
-    const img = document.getElementById('scr-img');
-    img.style.opacity = '0';
-    setTimeout(() => {
-      img.src = s.src;
-      img.onload = () => { img.style.opacity = '1'; };
-      img.style.opacity = '1';
-    }, 120);
-    document.getElementById('scr-label').textContent = s.label;
-    document.getElementById('scr-desc').textContent  = s.desc;
-    document.getElementById('scr-dots').childNodes.forEach((d, i) => {
-      d.style.background = i === scrIdx ? '#00f0ff' : 'rgba(255,255,255,0.15)';
-      d.style.width = i === scrIdx ? '18px' : '6px';
-    });
-  }
-
-  function scrNav(dir) {
-    scrIdx = (scrIdx + dir + SCREENS.length) % SCREENS.length;
-    scrRender();
-  }
-
-  // dots oluştur
-  const dotsEl = document.getElementById('scr-dots');
-  SCREENS.forEach((_, i) => {
-    const d = document.createElement('div');
-    d.style.cssText = 'height:6px;border-radius:3px;cursor:pointer;transition:all .25s;';
-    d.onclick = () => { scrIdx = i; scrRender(); };
-    dotsEl.appendChild(d);
-  });
-
-  scrRender();
-
-  // swipe
-  let _tx = 0;
-  const touch = document.getElementById('scr-touch');
-  touch.addEventListener('touchstart', e => { _tx = e.touches[0].clientX; }, { passive: true });
-  touch.addEventListener('touchend', e => {
-    const dx = e.changedTouches[0].clientX - _tx;
-    if (Math.abs(dx) > 40) scrNav(dx < 0 ? 1 : -1);
-  }, { passive: true });
-  </script>
 
   <!-- ÖZELLİKLER -->
   <section class="px-6 py-20 bg-surface-container-low" id="ozellikler">
@@ -316,36 +233,90 @@
   </section>
 
   <!-- NASIL ÇALIŞIR -->
-  <section class="px-6 py-20">
+  <section class="px-6 py-20" id="demo">
     <h2 class="font-baslik text-2xl font-bold text-[#dbfcff] mb-2">Nasıl çalışır?</h2>
     <p class="text-[#b9cacb] text-sm mb-12">Karmaşık bir şey yok. Sürdükçe öğrenir.</p>
 
-    <div class="flex flex-col">
-      <div class="flex gap-5 items-start">
-        <div class="flex-shrink-0 w-10 h-10 bg-[#00f0ff] text-black flex items-center justify-center font-baslik font-bold text-lg">1</div>
-        <div class="pb-4">
-          <h4 class="font-baslik font-semibold text-[#dbfcff] mb-1 text-lg">Aracını ekle</h4>
-          <p class="text-[#b9cacb] text-sm leading-relaxed">Marka ve modeli seç, teknik bilgiler otomatik gelir. 2 dakika.</p>
+    <div class="flex flex-col lg:flex-row gap-12 lg:items-center">
+
+      <!-- adımlar -->
+      <div class="flex flex-col flex-1">
+        <div class="flex gap-5 items-start">
+          <div class="flex-shrink-0 w-10 h-10 bg-[#00f0ff] text-black flex items-center justify-center font-baslik font-bold text-lg">1</div>
+          <div class="pb-4">
+            <h4 class="font-baslik font-semibold text-[#dbfcff] mb-1 text-lg">Aracını ekle</h4>
+            <p class="text-[#b9cacb] text-sm leading-relaxed">Marka ve modeli seç, teknik bilgiler otomatik gelir. 2 dakika.</p>
+          </div>
+        </div>
+        <div class="step-line"></div>
+        <div class="flex gap-5 items-start">
+          <div class="flex-shrink-0 w-10 h-10 bg-[#00f0ff] text-black flex items-center justify-center font-baslik font-bold text-lg">2</div>
+          <div class="pb-4">
+            <h4 class="font-baslik font-semibold text-[#dbfcff] mb-1 text-lg">Sür ve şarj et</h4>
+            <p class="text-[#b9cacb] text-sm leading-relaxed">Arka planda çalışır, bir şey yapman gerekmez. Şarj yaptıkça, yolculuk yaptıkça DMyC aracını tanımaya başlar.</p>
+          </div>
+        </div>
+        <div class="step-line"></div>
+        <div class="flex gap-5 items-start">
+          <div class="flex-shrink-0 w-10 h-10 bg-[#00f0ff] text-black flex items-center justify-center font-baslik font-bold text-lg">3</div>
+          <div>
+            <h4 class="font-baslik font-semibold text-[#dbfcff] mb-1 text-lg">Karnenle bir şeyler yap</h4>
+            <p class="text-[#b9cacb] text-sm leading-relaxed">Batarya notunu gör, sigorta raporu oluştur, aracını satarken alıcıya gönder. Hepsi bir link.</p>
+          </div>
         </div>
       </div>
-      <div class="step-line"></div>
-      <div class="flex gap-5 items-start">
-        <div class="flex-shrink-0 w-10 h-10 bg-[#00f0ff] text-black flex items-center justify-center font-baslik font-bold text-lg">2</div>
-        <div class="pb-4">
-          <h4 class="font-baslik font-semibold text-[#dbfcff] mb-1 text-lg">Sür ve şarj et</h4>
-          <p class="text-[#b9cacb] text-sm leading-relaxed">Arka planda çalışır, bir şey yapman gerekmez. Şarj yaptıkça, yolculuk yaptıkça DMyC aracını tanımaya başlar.</p>
+
+      <!-- ekran galerisi -->
+      <div class="flex flex-col items-center gap-4 flex-shrink-0">
+        <div id="scr-touch" style="touch-action:pan-y;user-select:none;">
+          <img id="scr-img" src="" alt="" style="max-height:60vh;max-width:min(280px,80vw);width:auto;height:auto;border-radius:4px;box-shadow:0 0 60px rgba(0,240,255,0.1),0 24px 48px rgba(0,0,0,0.7);transition:opacity .25s;display:block;"/>
         </div>
+        <div id="scr-label" style="color:#00f0ff;font-size:12px;font-weight:700;font-family:'Space Grotesk',sans-serif;"></div>
+        <div id="scr-dots" style="display:flex;gap:6px;"></div>
       </div>
-      <div class="step-line"></div>
-      <div class="flex gap-5 items-start">
-        <div class="flex-shrink-0 w-10 h-10 bg-[#00f0ff] text-black flex items-center justify-center font-baslik font-bold text-lg">3</div>
-        <div>
-          <h4 class="font-baslik font-semibold text-[#dbfcff] mb-1 text-lg">Karnenle bir şeyler yap</h4>
-          <p class="text-[#b9cacb] text-sm leading-relaxed">Batarya notunu gör, sigorta raporu oluştur, aracını satarken alıcıya gönder. Hepsi bir link.</p>
-        </div>
-      </div>
+
     </div>
   </section>
+
+  <script>
+  const SCREENS = [
+    { src: './assets/Ekran%20Resimleri/Giris-Sayfasi.webp',         label: 'Giriş' },
+    { src: './assets/Ekran%20Resimleri/%C4%B0lk%20Sayfa.webp',      label: 'Ana Ekran' },
+    { src: './assets/Ekran%20Resimleri/Karne-Ekrani.webp',           label: 'EV Karnesi' },
+    { src: './assets/Ekran%20Resimleri/Giris%20Karne%20Ekrani.webp', label: 'Karne Girişi' },
+    { src: './assets/Ekran%20Resimleri/Sarj%20Ekran%C4%B1.webp',    label: 'Şarj Takibi' },
+    { src: './assets/Ekran%20Resimleri/Menzil-Plan%C4%B1.webp',     label: 'Menzil Planı' },
+    { src: './assets/Ekran%20Resimleri/Arac-Karnesi.webp',           label: 'Araç Karnesi' },
+  ];
+  let scrIdx = 0;
+  function scrRender() {
+    const s = SCREENS[scrIdx];
+    const img = document.getElementById('scr-img');
+    img.style.opacity = '0';
+    setTimeout(() => { img.src = s.src; img.style.opacity = '1'; }, 120);
+    document.getElementById('scr-label').textContent = s.label;
+    document.getElementById('scr-dots').childNodes.forEach((d, i) => {
+      d.style.background = i === scrIdx ? '#00f0ff' : 'rgba(255,255,255,0.15)';
+      d.style.width = i === scrIdx ? '18px' : '6px';
+    });
+  }
+  function scrNav(dir) { scrIdx = (scrIdx + dir + SCREENS.length) % SCREENS.length; scrRender(); }
+  const dotsEl = document.getElementById('scr-dots');
+  SCREENS.forEach((_, i) => {
+    const d = document.createElement('div');
+    d.style.cssText = 'height:6px;border-radius:3px;cursor:pointer;transition:all .25s;';
+    d.onclick = () => { scrIdx = i; scrRender(); };
+    dotsEl.appendChild(d);
+  });
+  scrRender();
+  let _tx = 0;
+  const touch = document.getElementById('scr-touch');
+  touch.addEventListener('touchstart', e => { _tx = e.touches[0].clientX; }, { passive: true });
+  touch.addEventListener('touchend', e => {
+    const dx = e.changedTouches[0].clientX - _tx;
+    if (Math.abs(dx) > 40) scrNav(dx < 0 ? 1 : -1);
+  }, { passive: true });
+  </script>
 
   <!-- RAPORLAR -->
   <section class="px-6 py-20 bg-surface-container">
