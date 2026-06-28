@@ -7866,6 +7866,10 @@ function canContinue(
     return Boolean(selectedVehicle);
   }
 
+  if (step === 'assessment') {
+    return true;
+  }
+
   return false;
 }
 
