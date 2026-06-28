@@ -508,7 +508,7 @@ export default async function PremiumReportPage({
               OLUŞTURMA: <span style={{ color:'#dfe3e4' }}>{createdAt}</span>
             </p>
             <p style={{ fontSize:'10px', color:'rgba(132,148,144,0.6)', fontStyle:'italic' }}>
-              © 2025 DMyC Digital Mobility Control. Tüm hakları saklıdır.
+              © 2025 DMyC Describe My Car. Tüm hakları saklıdır.
             </p>
           </div>
           <div className="rpt-card" style={{ textAlign:'right' }}>
