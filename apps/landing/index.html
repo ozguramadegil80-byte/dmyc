@@ -395,11 +395,85 @@
 <footer class="bg-surface border-t border-white/10 py-12 px-6 text-center">
   <img alt="DMyC" class="h-10 w-auto mx-auto mb-6 opacity-50" src="./assets/yatay-logo.png"/>
   <div class="flex justify-center gap-6 mb-6 text-[#b9cacb] text-sm">
-    <a class="hover:text-[#00f0ff] transition-colors" href="https://app.dmyc.digital/kullanim-kosullari" target="_blank" rel="noopener">Kullanım Koşulları</a>
-    <a class="hover:text-[#00f0ff] transition-colors" href="https://app.dmyc.digital/kvkk" target="_blank" rel="noopener">KVKK</a>
+    <button onclick="openModal('modal-kullanim')" class="hover:text-[#00f0ff] transition-colors cursor-pointer bg-transparent border-0 text-[#b9cacb] text-sm font-normal p-0">Kullanım Koşulları</button>
+    <button onclick="openModal('modal-kvkk')" class="hover:text-[#00f0ff] transition-colors cursor-pointer bg-transparent border-0 text-[#b9cacb] text-sm font-normal p-0">KVKK</button>
   </div>
   <p class="text-[#b9cacb]/30 text-xs">© 2026 DMyC · dmyc.digital</p>
 </footer>
+
+<!-- ── Kullanım Koşulları Modal ── -->
+<div id="modal-kullanim" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);overflow-y:auto;" onclick="if(event.target===this)closeModal('modal-kullanim')">
+  <div style="max-width:720px;margin:40px auto;background:#0d1a1c;border:1px solid rgba(255,255,255,0.1);border-radius:16px;padding:32px 28px 40px;position:relative;">
+    <button onclick="closeModal('modal-kullanim')" style="position:absolute;top:16px;right:16px;background:rgba(255,255,255,0.08);border:none;color:#fff;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;">×</button>
+    <h2 style="color:#dbfcff;font-size:22px;font-weight:700;margin:0 0 4px;">Kullanım Koşulları</h2>
+    <p style="color:rgba(255,255,255,0.3);font-size:12px;margin:0 0 32px;">Sürüm 1.0 · Yürürlük: 1 Temmuz 2026</p>
+    <div id="toc-kullanim" style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:16px 20px;margin-bottom:32px;">
+      <p style="font-size:11px;font-weight:700;color:rgba(255,255,255,0.3);letter-spacing:.1em;margin:0 0 10px;">İÇİNDEKİLER</p>
+      <div style="display:flex;flex-direction:column;gap:5px;">
+        <a href="#kk-1" style="color:#71ffe8;font-size:13px;text-decoration:none;opacity:.8;">1. Taraflar ve Kapsam</a>
+        <a href="#kk-2" style="color:#71ffe8;font-size:13px;text-decoration:none;opacity:.8;">2. Hizmetin Tanımı</a>
+        <a href="#kk-3" style="color:#71ffe8;font-size:13px;text-decoration:none;opacity:.8;">3. Hesap Oluşturma ve Güvenlik</a>
+        <a href="#kk-4" style="color:#71ffe8;font-size:13px;text-decoration:none;opacity:.8;">4. Kullanıcı Yükümlülükleri</a>
+        <a href="#kk-5" style="color:#71ffe8;font-size:13px;text-decoration:none;opacity:.8;">5. Ücretlendirme ve Abonelik</a>
+        <a href="#kk-6" style="color:#71ffe8;font-size:13px;text-decoration:none;opacity:.8;">6. Sorumluluk Sınırlaması</a>
+        <a href="#kk-7" style="color:#71ffe8;font-size:13px;text-decoration:none;opacity:.8;">7. Raporların Hukuki Niteliği</a>
+        <a href="#kk-8" style="color:#71ffe8;font-size:13px;text-decoration:none;opacity:.8;">8. Fikri Mülkiyet</a>
+        <a href="#kk-9" style="color:#71ffe8;font-size:13px;text-decoration:none;opacity:.8;">9. Hizmetin Sona Ermesi</a>
+        <a href="#kk-10" style="color:#71ffe8;font-size:13px;text-decoration:none;opacity:.8;">10. Uygulanacak Hukuk</a>
+        <a href="#kk-11" style="color:#71ffe8;font-size:13px;text-decoration:none;opacity:.8;">11. Koşullarda Değişiklik</a>
+        <a href="#kk-12" style="color:#71ffe8;font-size:13px;text-decoration:none;opacity:.8;">12. İletişim</a>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:32px;color:#b0c4c6;font-size:14px;line-height:1.75;">
+      <section id="kk-1"><h3 style="color:#dbfcff;font-size:15px;font-weight:700;margin:0 0 12px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.08);">1. Taraflar ve Kapsam</h3><p style="margin:0 0 8px;">Bu Kullanım Koşulları ("Koşullar"), DMyC – Digital Mobility Control ("DMyC", "biz") tarafından sunulan mobil uygulama, web uygulaması ve ilgili dijital hizmetlerin ("Hizmet") kullanımını düzenler.</p><p style="margin:0;">Uygulamayı indirerek, hesap oluşturarak veya Hizmeti herhangi bir şekilde kullanarak bu Koşulları okuduğunuzu, anladığınızı ve kabul ettiğinizi beyan edersiniz.</p></section>
+      <section id="kk-2"><h3 style="color:#dbfcff;font-size:15px;font-weight:700;margin:0 0 12px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.08);">2. Hizmetin Tanımı</h3><p style="margin:0 0 8px;">DMyC; elektrikli araç sahiplerine şarj takibi, sürüş analizi, batarya durumu izleme, EV karnesi ve kasko değer karnesi üretimi gibi araç yönetim hizmetleri sunar.</p><p style="margin:0 0 8px;">Raporlar ve analizler, yalnızca DMyC platformu üzerinden kaydedilen kullanım dönemine ait verilere dayalı olarak algoritmik yöntemlerle üretilir. Bu çıktılar bilgilendirme amaçlıdır; resmi eksper raporu, sigorta belgesi veya teknik muayene belgesi niteliği taşımaz.</p><p style="margin:0;">DMyC, hizmet kapsamını zaman zaman güncelleyebilir. Önemli değişiklikler uygulama içi bildirim ile duyurulur.</p></section>
+      <section id="kk-3"><h3 style="color:#dbfcff;font-size:15px;font-weight:700;margin:0 0 12px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.08);">3. Hesap Oluşturma ve Güvenlik</h3><p style="margin:0 0 8px;">Hizmeti kullanabilmek için geçerli bir e-posta adresi ile hesap oluşturmanız gerekmektedir. 18 yaşından küçükseniz ebeveyn veya yasal vasi iznini almadan kayıt olamazsınız.</p><p style="margin:0 0 8px;">Hesap güvenliğinizden tamamen siz sorumlusunuz. Yetkisiz erişim şüphesi durumunda derhal info@dmyc.digital adresine bildirin.</p><p style="margin:0;">Sahte veya yanıltıcı bilgilerle hesap oluşturmak yasaktır.</p></section>
+      <section id="kk-4"><h3 style="color:#dbfcff;font-size:15px;font-weight:700;margin:0 0 12px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.08);">4. Kullanıcı Yükümlülükleri</h3><p style="margin:0 0 8px;">Hizmeti yalnızca kişisel, ticari olmayan amaçlarla kullanabilirsiniz. Aşağıdaki eylemler yasaktır:</p><p style="margin:0 0 4px;">• Hizmeti yasadışı amaçlarla kullanmak.</p><p style="margin:0 0 4px;">• Sisteme zarar verebilecek kötü amaçlı kod göndermek.</p><p style="margin:0 0 4px;">• API'ye otomatik botlarla erişim sağlamak.</p><p style="margin:0 0 4px;">• Başkalarının araç verilerini izinsiz görüntülemek veya paylaşmak.</p><p style="margin:0;">• Uygulamanın kaynak kodunu tersine mühendislik yoluyla çözmeye çalışmak.</p></section>
+      <section id="kk-5"><h3 style="color:#dbfcff;font-size:15px;font-weight:700;margin:0 0 12px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.08);">5. Ücretlendirme ve Abonelik</h3><p style="margin:0 0 8px;">DMyC'nin temel özellikleri ücretsiz sunulmaktadır. EV Karnesi ve Kasko Değer Karnesi gibi premium raporlar ücrete tabi olabilir; güncel fiyatlar uygulama içinde belirtilir.</p><p style="margin:0;">Rapor üretimi başlatılmış ise hizmet ifa edilmiş sayılır ve ücret iadesi yapılmaz.</p></section>
+      <section id="kk-6"><h3 style="color:#dbfcff;font-size:15px;font-weight:700;margin:0 0 12px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.08);">6. Sorumluluk Sınırlaması</h3><p style="margin:0 0 8px;">DMyC, algoritmik çıktıların ve kullanıcı tarafından girilen bilgilerin kesin doğruluğunu garanti etmez.</p><p style="margin:0;">Araç satış, sigorta veya finansal kararlarınızı yalnızca DMyC raporlarına dayandırmamanızı tavsiye ederiz. Azami sorumluluğumuz, ilgili dönemde ödediğiniz hizmet bedeli ile sınırlıdır.</p></section>
+      <section id="kk-7"><h3 style="color:#dbfcff;font-size:15px;font-weight:700;margin:0 0 12px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.08);">7. Raporların Hukuki Niteliği</h3><p style="margin:0 0 8px;">EV Karnesi ve Kasko Değer Karnesi raporları, algoritmik tahminlerdir. Bu raporlar; resmi ekspertiz belgesi, sigorta şirketleri tarafından düzenlenen kasko değer belgesi veya herhangi bir resmi kurum belgesi değildir.</p><p style="margin:0;">Raporlarda belirtilen değer aralıkları tahmini nitelikte olup gerçek piyasa değeri fiziksel muayene ve resmi belgeler esas alınarak belirlenir.</p></section>
+      <section id="kk-8"><h3 style="color:#dbfcff;font-size:15px;font-weight:700;margin:0 0 12px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.08);">8. Fikri Mülkiyet</h3><p style="margin:0 0 8px;">DMyC markası, logosu, uygulama tasarımı ve algoritmalarının tüm hakları DMyC'ye aittir.</p><p style="margin:0;">Kullanıcıların platforma yüklediği veriler kullanıcıya aittir. DMyC bu verileri hizmet sunumu ve iyileştirme amacıyla kullanır; üçüncü taraflara satmaz.</p></section>
+      <section id="kk-9"><h3 style="color:#dbfcff;font-size:15px;font-weight:700;margin:0 0 12px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.08);">9. Hizmetin Sona Ermesi</h3><p style="margin:0 0 8px;">Hesabınızı istediğiniz zaman uygulama ayarları üzerinden kapatabilirsiniz. Kapatma talebinden sonra verileriniz 30 gün içinde silinir.</p><p style="margin:0;">DMyC, bu Koşulları ihlal ettiğiniz durumlarda hesabınızı askıya alabilir veya kapatabilir.</p></section>
+      <section id="kk-10"><h3 style="color:#dbfcff;font-size:15px;font-weight:700;margin:0 0 12px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.08);">10. Uygulanacak Hukuk</h3><p style="margin:0;">Bu Koşullar Türk Hukuku'na tabidir. Doğabilecek uyuşmazlıklarda İstanbul Mahkemeleri yetkilidir.</p></section>
+      <section id="kk-11"><h3 style="color:#dbfcff;font-size:15px;font-weight:700;margin:0 0 12px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.08);">11. Koşullarda Değişiklik</h3><p style="margin:0;">DMyC bu Koşulları zaman zaman güncelleyebilir. Önemli değişiklikler, yürürlük tarihinden en az 15 gün önce bildirilir.</p></section>
+      <section id="kk-12"><h3 style="color:#dbfcff;font-size:15px;font-weight:700;margin:0 0 12px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.08);">12. İletişim</h3><p style="margin:0;">Bu Koşullar hakkında sorularınız için: <a href="mailto:info@dmyc.digital" style="color:#71ffe8;">info@dmyc.digital</a></p></section>
+    </div>
+  </div>
+</div>
+
+<!-- ── KVKK Modal ── -->
+<div id="modal-kvkk" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);overflow-y:auto;" onclick="if(event.target===this)closeModal('modal-kvkk')">
+  <div style="max-width:720px;margin:40px auto;background:#0d1a1c;border:1px solid rgba(255,255,255,0.1);border-radius:16px;padding:32px 28px 40px;position:relative;">
+    <button onclick="closeModal('modal-kvkk')" style="position:absolute;top:16px;right:16px;background:rgba(255,255,255,0.08);border:none;color:#fff;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;">×</button>
+    <h2 style="color:#dbfcff;font-size:22px;font-weight:700;margin:0 0 4px;">KVKK Aydınlatma Metni</h2>
+    <p style="color:rgba(255,255,255,0.3);font-size:12px;margin:0 0 32px;">Sürüm 1.0 · Yürürlük: 1 Temmuz 2026 · 6698 Sayılı Kanun</p>
+    <div style="display:flex;flex-direction:column;gap:32px;color:#b0c4c6;font-size:14px;line-height:1.75;">
+      <section><h3 style="color:#dbfcff;font-size:15px;font-weight:700;margin:0 0 12px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.08);">1. Veri Sorumlusu</h3><p style="margin:0 0 8px;">6698 sayılı Kişisel Verilerin Korunması Kanunu ("KVKK") uyarınca, kişisel verileriniz DMyC – Digital Mobility Control tarafından veri sorumlusu sıfatıyla işlenmektedir.</p><p style="margin:0;">İletişim: <a href="mailto:kvkk@dmyc.digital" style="color:#71ffe8;">kvkk@dmyc.digital</a></p></section>
+      <section><h3 style="color:#dbfcff;font-size:15px;font-weight:700;margin:0 0 12px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.08);">2. İşlenen Kişisel Veriler</h3><p style="margin:0 0 8px;"><strong style="color:#dbfcff;">Kimlik ve İletişim:</strong> Ad, soyad, e-posta adresi, telefon numarası.</p><p style="margin:0 0 8px;"><strong style="color:#dbfcff;">Araç Verileri:</strong> Araç markası, modeli, yılı, şarj sayısı, şarj türü (AC/DC), tahmini EFC, sürüş verisi, kilometre bilgisi.</p><p style="margin:0 0 8px;"><strong style="color:#dbfcff;">Konum Verileri:</strong> Yolculuk rotaları, şarj istasyonu konumları (yalnızca kullanıcı izniyle ve aktif paylaşımda).</p><p style="margin:0 0 8px;"><strong style="color:#dbfcff;">Kullanım Verileri:</strong> Uygulama içi etkileşimler, özellik kullanım istatistikleri, hata raporları.</p><p style="margin:0;"><strong style="color:#dbfcff;">Görsel Veriler:</strong> Kasko Değer Karnesi için yüklenen araç fotoğrafları.</p></section>
+      <section><h3 style="color:#dbfcff;font-size:15px;font-weight:700;margin:0 0 12px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.08);">3. İşleme Amaçları ve Hukuki Dayanakları</h3><p style="margin:0 0 8px;"><strong style="color:#dbfcff;">Hizmet Sunumu</strong> (Sözleşmenin ifası – md. 5/2-c): Hesap oluşturma, araç takibi, rapor üretimi.</p><p style="margin:0 0 8px;"><strong style="color:#dbfcff;">Uygulama İyileştirme</strong> (Meşru menfaat – md. 5/2-f): Hata tespiti, performans analizi.</p><p style="margin:0 0 8px;"><strong style="color:#dbfcff;">Yasal Yükümlülük</strong> (md. 5/2-ç): İlgili mevzuat kapsamındaki saklama yükümlülükleri.</p><p style="margin:0;"><strong style="color:#dbfcff;">Pazarlama</strong> (Açık rıza – md. 5/1): Kampanya ve güncelleme bildirimleri (yalnızca onay verilmesi halinde).</p></section>
+      <section><h3 style="color:#dbfcff;font-size:15px;font-weight:700;margin:0 0 12px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.08);">4. Verilerin Aktarımı</h3><p style="margin:0 0 8px;">Verileriniz; altyapı sağlayıcıları, AI servis sağlayıcıları (yalnızca araç verisi, kimlik aktarılmaz) ve yasal zorunluluk durumunda yetkili kamu kurumlarıyla paylaşılabilir.</p><p style="margin:0;">Kişisel verileriniz hiçbir koşulda üçüncü taraflara satılmaz.</p></section>
+      <section><h3 style="color:#dbfcff;font-size:15px;font-weight:700;margin:0 0 12px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.08);">5. Saklama Süresi</h3><p style="margin:0 0 8px;">Hesap kapatma talebini izleyen 30 gün içinde kişisel verileriniz silinir.</p><p style="margin:0;">Yasal saklama yükümlülüğü bulunan veriler (ör. fatura kayıtları) ilgili mevzuatta öngörülen süre boyunca saklanır.</p></section>
+      <section><h3 style="color:#dbfcff;font-size:15px;font-weight:700;margin:0 0 12px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.08);">6. Haklarınız (KVKK Madde 11)</h3><p style="margin:0 0 4px;">• Kişisel verilerinizin işlenip işlenmediğini öğrenme</p><p style="margin:0 0 4px;">• İşlenmiş ise bilgi talep etme</p><p style="margin:0 0 4px;">• Eksik / yanlış verilerin düzeltilmesini isteme</p><p style="margin:0 0 4px;">• Silinmesini veya yok edilmesini isteme</p><p style="margin:0 0 4px;">• Otomatik sistemlerle aleyhinize sonuç çıkarılmasına itiraz etme</p><p style="margin:0;">• Kanuna aykırı işleme nedeniyle uğradığınız zararın giderilmesini talep etme</p></section>
+      <section><h3 style="color:#dbfcff;font-size:15px;font-weight:700;margin:0 0 12px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.08);">7. Başvuru Yöntemi</h3><p style="margin:0 0 8px;">Haklarınızı kullanmak için <a href="mailto:kvkk@dmyc.digital" style="color:#71ffe8;">kvkk@dmyc.digital</a> adresine e-posta gönderebilirsiniz. Talebiniz en geç 30 gün içinde yanıtlanır.</p><p style="margin:0;">Yanıtı yetersiz bulmanız durumunda Kişisel Verileri Koruma Kurumu'na başvurabilirsiniz: <a href="https://www.kvkk.gov.tr" target="_blank" rel="noopener" style="color:#71ffe8;">www.kvkk.gov.tr</a></p></section>
+    </div>
+  </div>
+</div>
+
+<script>
+function openModal(id) {
+  document.getElementById(id).style.display = 'block';
+  document.body.style.overflow = 'hidden';
+}
+function closeModal(id) {
+  document.getElementById(id).style.display = 'none';
+  document.body.style.overflow = '';
+}
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    ['modal-kullanim','modal-kvkk'].forEach(closeModal);
+  }
+});
+</script>
 
 <!-- Back to Top -->
 <button id="btt" onclick="window.scrollTo({top:0,behavior:'smooth'})"
