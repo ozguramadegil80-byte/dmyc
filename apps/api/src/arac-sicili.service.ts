@@ -102,6 +102,24 @@ function computeNextInspectionDate(
   return null;
 }
 
+// ─── Mappers ─────────────────────────────────────────────────────────────────
+
+function mapInspectionRow(row: Record<string, unknown> | null) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    vehicleId: row.vehicle_id,
+    firstRegistrationDate: row.first_registration_date ?? null,
+    firstRegistrationYear: row.first_registration_year ?? null,
+    lastInspectionDate: row.last_inspection_date ?? null,
+    nextInspectionDate: row.next_inspection_date ?? null,
+    result: row.result ?? 'unknown',
+    confidence: row.confidence ?? 'user_declared',
+    isCurrent: row.is_current,
+    createdAt: row.created_at,
+  };
+}
+
 // ─── Service ─────────────────────────────────────────────────────────────────
 
 @Injectable()
@@ -117,7 +135,7 @@ export class AracSiciliService {
        ORDER BY created_at DESC LIMIT 1`,
       [vehicleId],
     );
-    return res.rows[0] ?? null;
+    return mapInspectionRow(res.rows[0] ?? null);
   }
 
   async upsertInspection(vehicleId: string, body: InspectionUpsertBody) {
@@ -152,7 +170,7 @@ export class AracSiciliService {
         body.notes ?? null,
       ],
     );
-    return res.rows[0];
+    return mapInspectionRow(res.rows[0]);
   }
 
   // ── Bakım Servis Olayları ─────────────────────────────────────────────────

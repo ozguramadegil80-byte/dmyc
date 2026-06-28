@@ -227,15 +227,17 @@ const HVAC_LEARNED_KEY_COOLING = '@dmyc/hvac_cooling_learned';
 const HVAC_LEARNED_KEY_HEATING = '@dmyc/hvac_heating_learned';
 const AUTO_TRIP_ENABLED_KEY = '@dmyc/auto_trip_enabled';
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: false,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+if (Platform.OS !== 'web') {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: false,
+      shouldSetBadge: false,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
+  });
+}
 
 type RegistrationForm = {
   username: string;
@@ -797,6 +799,8 @@ export default function App() {
 
   // Bildirim izni + push token kaydı + notification tap handler
   useEffect(() => {
+    if (Platform.OS === 'web') return;
+
     Notifications.requestPermissionsAsync().then(({ status }) => {
       if (status === 'granted') {
         Notifications.getExpoPushTokenAsync({ projectId: '17ef6b8f-edce-468b-ab75-58f16c17f406' })
@@ -1536,6 +1540,7 @@ export default function App() {
   };
 
   const scheduleUnknownRouteNotification = (lat: number, lng: number) => {
+    if (Platform.OS === 'web') return;
     if (unknownRouteNotifyTimerRef.current) {
       clearTimeout(unknownRouteNotifyTimerRef.current);
     }
@@ -1547,7 +1552,7 @@ export default function App() {
           body: 'Farklı bir konumdan gittiğinizi görüyorum. Bu yolculuk araç karnesine işlenecektir — rotayı kaydetmek ister misiniz?',
           data: { type: 'unknown_route', lat, lng },
         },
-        trigger: null, // hemen gönder
+        trigger: null,
       });
     }, UNKNOWN_ROUTE_NOTIFY_MS);
   };
@@ -1560,6 +1565,7 @@ export default function App() {
   };
 
   const scheduleHvacNotification = async (trip: { id: string; tempC: number; type: 'cooling' | 'heating' }) => {
+    if (Platform.OS === 'web') return;
     const learnedKey = trip.type === 'cooling' ? HVAC_LEARNED_KEY_COOLING : HVAC_LEARNED_KEY_HEATING;
     const learned = await AsyncStorage.getItem(learnedKey).catch(() => null);
     if (learned && learned !== 'unknown') return;
@@ -3254,7 +3260,14 @@ export default function App() {
             }
           }}
           onOpenSurucu={() => setStep('surucu')}
-          onOpenSicilEntry={() => { setSicilReturnStep('arac'); setStep('sicil'); }}
+          onOpenSicilEntry={() => {
+            setSicilReturnStep('arac');
+            setSicilFirstRegYear('');
+            setSicilLastInspectionDate('');
+            setSicilNoInspectionYet(false);
+            setSicilLastServiceKm('');
+            setStep('sicil');
+          }}
           premiumReport={premiumReport}
           publicReport={publicReport}
           registrySummary={registrySummary}
@@ -3613,27 +3626,8 @@ function LoginStep({ error, form, language, onChange, onChangeLanguage, onOpenRe
   );
 }
 
-function LanguageFlags({ language, onChange }: { language: Locale; onChange: (locale: Locale) => void }) {
-  return (
-    <View accessibilityLabel="Dil seçimi" style={styles.languageFlags}>
-      <Pressable
-        accessibilityLabel="Türkçe"
-        accessibilityRole="button"
-        onPress={() => onChange('tr')}
-        style={[styles.languageFlagButton, language === 'tr' ? styles.languageFlagButtonActive : null]}
-      >
-        <Text style={styles.languageFlagEmoji}>🇹🇷</Text>
-      </Pressable>
-      <Pressable
-        accessibilityLabel="English"
-        accessibilityRole="button"
-        onPress={() => onChange('en')}
-        style={[styles.languageFlagButton, language === 'en' ? styles.languageFlagButtonActive : null]}
-      >
-        <Text style={styles.languageFlagEmoji}>🇬🇧</Text>
-      </Pressable>
-    </View>
-  );
+function LanguageFlags(_props: { language: Locale; onChange: (locale: Locale) => void }) {
+  return null;
 }
 
 type RegisterStepProps = {

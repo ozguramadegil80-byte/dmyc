@@ -84,9 +84,12 @@
 <!-- Nav -->
 <header class="fixed top-0 w-full z-50 bg-[#051424]/80 backdrop-blur-xl border-b border-white/10 h-16 flex justify-between items-center px-6 md:px-[240px]">
   <img alt="DMyC" class="h-12 w-auto" src="./assets/yatay-logo.png"/>
-  <a href="#indir" class="text-[#00f0ff] text-sm font-bold px-4 py-1.5 border border-[#00f0ff]/30 bg-[#00f0ff]/10 hover:bg-[#00f0ff]/20 transition-all">
-    Android İndir
-  </a>
+  <div class="flex items-center gap-3">
+    <a href="#demo" class="text-[#b9cacb] text-sm hover:text-[#00f0ff] transition-colors hidden md:inline">Demo</a>
+    <a href="#indir" class="text-[#00f0ff] text-sm font-bold px-4 py-1.5 border border-[#00f0ff]/30 bg-[#00f0ff]/10 hover:bg-[#00f0ff]/20 transition-all">
+      Android İndir
+    </a>
+  </div>
 </header>
 
 <main class="pt-16">
@@ -147,6 +150,258 @@
       </div>
     </div>
   </section>
+
+  <!-- DEMO GARAJ -->
+  <section class="px-6 py-20 bg-surface-container" id="demo">
+    <div class="max-w-5xl mx-auto">
+
+      <!-- header -->
+      <div class="flex items-center gap-2 mb-2">
+        <span class="w-2 h-2 rounded-full bg-[#00f0ff] animate-pulse"></span>
+        <span class="text-[#00f0ff] text-xs font-bold tracking-widest uppercase">Canlı Demo</span>
+      </div>
+      <h2 class="font-baslik text-2xl font-bold text-[#dbfcff] mb-3">DMyC Demo Garajı</h2>
+      <p class="text-[#b9cacb] text-sm mb-10 max-w-md">Örnek bir aracın yaşayan raporuna dokun. Kartlara bas, yolculuk ekle — sistemin nasıl öğrendiğini gör.</p>
+
+      <div class="flex flex-col lg:flex-row gap-10 items-start">
+
+        <!-- ── Phone mockup ──────────────────────────────────────── -->
+        <div class="flex-shrink-0 mx-auto lg:mx-0" style="width:320px;">
+          <!-- phone shell -->
+          <div style="background:#0a0f10;border:2px solid rgba(0,240,255,0.15);border-radius:36px;padding:14px 12px;box-shadow:0 0 60px rgba(0,240,255,0.06),0 24px 48px rgba(0,0,0,0.6);position:relative;">
+            <!-- notch -->
+            <div style="width:80px;height:20px;background:#000;border-radius:10px;margin:0 auto 10px;"></div>
+
+            <!-- app header -->
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:0 6px 10px;border-bottom:1px solid rgba(255,255,255,0.06);">
+              <div>
+                <div style="color:#dbfcff;font-weight:700;font-size:13px;font-family:'Space Grotesk',sans-serif;">Togg T10F V1</div>
+                <div style="color:#5e7a7e;font-size:10px;">2024 · İstanbul · 75.000 km</div>
+              </div>
+              <div style="width:32px;height:32px;border-radius:50%;background:rgba(0,240,255,0.1);border:1px solid rgba(0,240,255,0.2);display:flex;align-items:center;justify-content:center;">
+                <span style="color:#00f0ff;font-size:12px;font-weight:700;">O</span>
+              </div>
+            </div>
+
+            <!-- calibration bar -->
+            <div id="demo-calib" style="background:rgba(0,240,255,0.05);border:1px solid rgba(0,240,255,0.12);border-radius:8px;padding:8px 10px;margin:10px 0;display:flex;align-items:center;justify-content:space-between;">
+              <div>
+                <div style="color:#5e7a7e;font-size:9px;letter-spacing:.06em;text-transform:uppercase;">Kalibrasyon</div>
+                <div id="demo-calib-label" style="color:#00f0ff;font-size:11px;font-weight:600;">3 / 5 veri tamamlandı</div>
+              </div>
+              <div style="display:flex;gap:3px;">
+                <div id="dot0" style="width:10px;height:10px;border-radius:50%;background:#00f0ff;"></div>
+                <div id="dot1" style="width:10px;height:10px;border-radius:50%;background:#00f0ff;"></div>
+                <div id="dot2" style="width:10px;height:10px;border-radius:50%;background:#00f0ff;"></div>
+                <div id="dot3" style="width:10px;height:10px;border-radius:50%;background:rgba(255,255,255,0.12);"></div>
+                <div id="dot4" style="width:10px;height:10px;border-radius:50%;background:rgba(255,255,255,0.12);"></div>
+              </div>
+            </div>
+
+            <!-- insight feed -->
+            <div id="demo-insight" style="display:none;background:rgba(0,240,255,0.04);border:1px solid rgba(0,240,255,0.15);border-radius:6px;padding:7px 10px;margin-bottom:8px;font-size:10px;color:#71ffe8;line-height:1.5;"></div>
+
+            <!-- data cards grid -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px;">
+
+              <div class="demo-card" data-key="menzil" style="background:rgba(17,26,28,0.7);border:1px solid rgba(255,255,255,0.07);border-radius:10px;padding:10px;cursor:pointer;transition:border-color .2s;">
+                <div style="color:#5e7a7e;font-size:9px;letter-spacing:.05em;text-transform:uppercase;margin-bottom:4px;">Gerçek Menzil</div>
+                <div style="color:#dbfcff;font-size:18px;font-weight:700;font-family:'Space Grotesk',sans-serif;" id="demo-menzil">387 km</div>
+                <div style="color:#5e7a7e;font-size:9px;">WLTP: 513 km</div>
+              </div>
+
+              <div class="demo-card" data-key="batarya" style="background:rgba(17,26,28,0.7);border:1px solid rgba(255,255,255,0.07);border-radius:10px;padding:10px;cursor:pointer;transition:border-color .2s;">
+                <div style="color:#5e7a7e;font-size:9px;letter-spacing:.05em;text-transform:uppercase;margin-bottom:4px;">Batarya Sinyali</div>
+                <div style="color:#a3e635;font-size:18px;font-weight:700;font-family:'Space Grotesk',sans-serif;">B+</div>
+                <div style="color:#5e7a7e;font-size:9px;">Dengeli kullanım</div>
+              </div>
+
+              <div class="demo-card" data-key="maliyet" style="background:rgba(17,26,28,0.7);border:1px solid rgba(255,255,255,0.07);border-radius:10px;padding:10px;cursor:pointer;transition:border-color .2s;">
+                <div style="color:#5e7a7e;font-size:9px;letter-spacing:.05em;text-transform:uppercase;margin-bottom:4px;">Aylık Maliyet</div>
+                <div style="color:#dbfcff;font-size:18px;font-weight:700;font-family:'Space Grotesk',sans-serif;" id="demo-maliyet">₺485</div>
+                <div style="color:#5e7a7e;font-size:9px;">~1.450 km/ay</div>
+              </div>
+
+              <div class="demo-card" data-key="surus" style="background:rgba(17,26,28,0.7);border:1px solid rgba(255,255,255,0.07);border-radius:10px;padding:10px;cursor:pointer;transition:border-color .2s;">
+                <div style="color:#5e7a7e;font-size:9px;letter-spacing:.05em;text-transform:uppercase;margin-bottom:4px;">Sürüş Skoru</div>
+                <div style="color:#facc15;font-size:18px;font-weight:700;font-family:'Space Grotesk',sans-serif;" id="demo-skor">72 / 100</div>
+                <div style="color:#5e7a7e;font-size:9px;">Orta verimli</div>
+              </div>
+
+              <div class="demo-card" data-key="deger" style="background:rgba(17,26,28,0.7);border:1px solid rgba(255,255,255,0.07);border-radius:10px;padding:10px;cursor:pointer;transition:border-color .2s;">
+                <div style="color:#5e7a7e;font-size:9px;letter-spacing:.05em;text-transform:uppercase;margin-bottom:4px;">Tahmini Değer</div>
+                <div style="color:#dbfcff;font-size:13px;font-weight:700;font-family:'Space Grotesk',sans-serif;">₺547K – ₺668K</div>
+                <div style="color:#5e7a7e;font-size:9px;">Yaş · EFC · km</div>
+              </div>
+
+              <div class="demo-card" data-key="muayene" style="background:rgba(17,26,28,0.7);border:1px solid rgba(255,255,255,0.07);border-radius:10px;padding:10px;cursor:pointer;transition:border-color .2s;">
+                <div style="color:#5e7a7e;font-size:9px;letter-spacing:.05em;text-transform:uppercase;margin-bottom:4px;">Sonraki Muayene</div>
+                <div style="color:#dbfcff;font-size:13px;font-weight:700;font-family:'Space Grotesk',sans-serif;">Mar 2026</div>
+                <div style="color:#5e7a7e;font-size:9px;">9 ay kaldı</div>
+              </div>
+
+            </div>
+
+            <!-- action buttons -->
+            <div style="display:flex;gap:6px;">
+              <button id="demo-trip-btn" onclick="demoAddTrip()" style="flex:1;background:rgba(0,240,255,0.08);border:1px solid rgba(0,240,255,0.25);border-radius:8px;color:#00f0ff;font-size:11px;font-weight:700;padding:9px 4px;cursor:pointer;font-family:'Space Grotesk',sans-serif;letter-spacing:.03em;transition:background .2s;">
+                + Yolculuk Ekle
+              </button>
+              <button onclick="demoAddCharge()" style="flex:1;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#b9cacb;font-size:11px;font-weight:600;padding:9px 4px;cursor:pointer;font-family:'Space Grotesk',sans-serif;letter-spacing:.03em;transition:background .2s;">
+                + Şarj Ekle
+              </button>
+            </div>
+
+          </div><!-- /phone shell -->
+        </div>
+
+        <!-- ── Card detail panel ──────────────────────────────────── -->
+        <div class="flex-1">
+          <div id="demo-panel" style="background:rgba(17,26,28,0.5);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:28px;min-height:320px;transition:all .3s;">
+            <div id="demo-panel-default">
+              <p style="color:#5e7a7e;font-size:13px;margin:0 0 24px;">Sol taraftaki kartlardan birine bas, detaylı açıklamayı gör.</p>
+              <div style="display:flex;flex-direction:column;gap:10px;">
+                <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:rgba(0,240,255,0.04);border:1px solid rgba(0,240,255,0.1);border-radius:8px;">
+                  <span class="material-symbols-outlined" style="color:#00f0ff;font-size:18px;">route</span>
+                  <span style="color:#b9cacb;font-size:12px;">3 rota tanındı — Ev↔İş, Market, Şarj İstasyonu</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:rgba(0,240,255,0.04);border:1px solid rgba(0,240,255,0.1);border-radius:8px;">
+                  <span class="material-symbols-outlined" style="color:#00f0ff;font-size:18px;">bolt</span>
+                  <span style="color:#b9cacb;font-size:12px;">AC / DC oranı: %78 / %22 — Batarya dostu kullanım</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:rgba(0,240,255,0.04);border:1px solid rgba(0,240,255,0.1);border-radius:8px;">
+                  <span class="material-symbols-outlined" style="color:#00f0ff;font-size:18px;">savings</span>
+                  <span style="color:#b9cacb;font-size:12px;">Bu ay yakıt tasarrufu: ~₺2.840 benzin muadili</span>
+                </div>
+              </div>
+            </div>
+            <div id="demo-panel-content" style="display:none;">
+              <div id="demo-panel-icon" style="font-size:32px;margin-bottom:12px;"></div>
+              <div id="demo-panel-title" style="color:#dbfcff;font-size:17px;font-weight:700;font-family:'Space Grotesk',sans-serif;margin-bottom:8px;"></div>
+              <div id="demo-panel-value" style="color:#00f0ff;font-size:28px;font-weight:800;font-family:'Space Grotesk',sans-serif;margin-bottom:12px;"></div>
+              <div id="demo-panel-desc" style="color:#b9cacb;font-size:13px;line-height:1.7;"></div>
+              <button onclick="demoClosePanel()" style="margin-top:20px;background:none;border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#5e7a7e;font-size:12px;padding:6px 14px;cursor:pointer;">← Geri</button>
+            </div>
+          </div>
+
+          <!-- bottom CTA -->
+          <div style="margin-top:20px;padding:20px;background:linear-gradient(135deg,rgba(0,240,255,0.06),rgba(0,100,120,0.08));border:1px solid rgba(0,240,255,0.15);border-radius:12px;">
+            <p style="color:#dbfcff;font-size:14px;font-weight:600;margin:0 0 4px;font-family:'Space Grotesk',sans-serif;">Kendi aracın için DMyC Karnesi oluştur</p>
+            <p style="color:#5e7a7e;font-size:12px;margin:0 0 14px;">Gerçek verilerin. Gerçek menzil. Gerçek sicil.</p>
+            <a href="#indir" style="display:inline-flex;align-items:center;gap:6px;background:#00f0ff;color:#000;font-size:12px;font-weight:700;font-family:'Space Grotesk',sans-serif;padding:9px 18px;border-radius:6px;text-decoration:none;letter-spacing:.04em;text-transform:uppercase;">
+              <span class="material-symbols-outlined" style="font-size:16px;font-variation-settings:'FILL' 1">android</span>
+              Android İndir
+            </a>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <script>
+  // ── Demo card data ──────────────────────────────────────────────────────────
+  const DEMO_CARDS = {
+    menzil: {
+      icon: '🛣️',
+      title: 'Gerçek Menzil Tahmini',
+      value: '387 km',
+      desc: 'Üreticinin belirttiği WLTP menzili (513 km) senin için geçerli değil. DMyC güzergahını, sürüş stilini, hava koşullarını ve şarj alışkanlıklarını analiz ederek sana özel gerçek menzil tahmini üretir.\n\nBu tahminin güveni yolculuk eklendikçe artar.',
+    },
+    batarya: {
+      icon: '🔋',
+      title: 'Batarya Sağlık Sinyali',
+      value: 'B+',
+      desc: 'Bu bir teşhis değildir. DMyC; şarj geçmişini, menzil tutarsızlıklarını, hızlı şarj oranını ve kullanım örüntülerini karşılaştırarak bataryada olağandışı sapma olup olmadığını gösterir.\n\nB+ → Dengeli kullanım. DC şarj oranı %22 — batarya dostu aralıkta.',
+    },
+    maliyet: {
+      icon: '⚡',
+      title: 'Aylık Enerji Maliyeti',
+      value: '₺485',
+      desc: 'Geçen ayki şarj verilerine dayanarak hesaplanır. Ortalama kWh başına tarife, toplam tüketim ve AC/DC dağılımı hesaba katılır.\n\nBenzin muadili: ~₺3.325 · Tasarruf: ₺2.840/ay',
+    },
+    surus: {
+      icon: '🏎️',
+      title: 'Sürüş Skoru',
+      value: '72 / 100',
+      desc: 'Her yolculuk sonrası güncellenir. Ani hızlanma, sert fren ve yüksek hız menzili kısaltır — bu faktörler 0–100 skora çevrilir.\n\nDüşük skor → push bildirimi → "Bu hafta daha verimli sürseydin +17 km ekstra menzil elde ederdin."',
+    },
+    deger: {
+      icon: '💰',
+      title: 'Tahmini İkinci El Değer',
+      value: '₺547K – ₺668K',
+      desc: 'Araç yaşı, kilometre, batarya EFC notu ve piyasa referans fiyatı kullanılarak algoritma tarafından hesaplanır.\n\nBu değer resmi ekspertiz değildir; satış görüşmeleri ve kasko talepleri için başlangıç referansı olarak kullanılabilir.',
+    },
+    muayene: {
+      icon: '📋',
+      title: 'Araç Sicili',
+      value: 'Mar 2026',
+      desc: 'İlk tescil yılı ve son TÜVTÜRK muayene tarihine göre bir sonraki muayene tarihi otomatik hesaplanır.\n\nMuayene geçmişi, servis kayıtları ve kilometre bilgisi kasko raporuna otomatik yansır.',
+    },
+  };
+
+  // ── Panel ───────────────────────────────────────────────────────────────────
+  function demoShowCard(key) {
+    const d = DEMO_CARDS[key];
+    if (!d) return;
+    document.getElementById('demo-panel-default').style.display = 'none';
+    document.getElementById('demo-panel-content').style.display = 'block';
+    document.getElementById('demo-panel-icon').textContent = d.icon;
+    document.getElementById('demo-panel-title').textContent = d.title;
+    document.getElementById('demo-panel-value').textContent = d.value;
+    document.getElementById('demo-panel-desc').innerHTML = d.desc.replace(/\n/g,'<br>');
+    document.querySelectorAll('.demo-card').forEach(c => c.style.borderColor = 'rgba(255,255,255,0.07)');
+    const active = document.querySelector('[data-key="' + key + '"]');
+    if (active) active.style.borderColor = 'rgba(0,240,255,0.4)';
+  }
+
+  function demoClosePanel() {
+    document.getElementById('demo-panel-default').style.display = 'block';
+    document.getElementById('demo-panel-content').style.display = 'none';
+    document.querySelectorAll('.demo-card').forEach(c => c.style.borderColor = 'rgba(255,255,255,0.07)');
+  }
+
+  document.querySelectorAll('.demo-card').forEach(card => {
+    card.addEventListener('click', () => demoShowCard(card.dataset.key));
+  });
+
+  // ── Yolculuk ekle ──────────────────────────────────────────────────────────
+  let demoTripCount = 0;
+  const TRIP_EVENTS = [
+    { label: '🗺️ Ev → İş rotası tanındı', sub: 'Bu rotada beklenen tüketim: 16.8 kWh/100 km · Bugünkü: normalden %9 yüksek', calib: '4 / 5 veri tamamlandı', dots: 4, skor: 76, menzil: '391 km', maliyet: '₺461' },
+    { label: '⚡ Enerji tasarrufu tespit edildi', sub: 'Düşük hız bölgelerinde rejeneratif frenleme artışı → +4 km ekstra menzil', calib: '5 / 5 · Kalibrasyon Tamamlandı', dots: 5, skor: 79, menzil: '394 km', maliyet: '₺448' },
+  ];
+
+  function demoAddTrip() {
+    if (demoTripCount >= TRIP_EVENTS.length) return;
+    const ev = TRIP_EVENTS[demoTripCount++];
+    // calibration
+    document.getElementById('demo-calib-label').textContent = ev.calib;
+    for (let i = 0; i < 5; i++) {
+      document.getElementById('dot' + i).style.background = i < ev.dots ? '#00f0ff' : 'rgba(255,255,255,0.12)';
+    }
+    // metrics
+    document.getElementById('demo-menzil').textContent = ev.menzil;
+    document.getElementById('demo-skor').textContent = ev.skor + ' / 100';
+    document.getElementById('demo-maliyet').textContent = ev.maliyet;
+    // insight
+    const ins = document.getElementById('demo-insight');
+    ins.style.display = 'block';
+    ins.innerHTML = '<strong>' + ev.label + '</strong><br>' + ev.sub;
+    // disable when done
+    if (demoTripCount >= TRIP_EVENTS.length) {
+      document.getElementById('demo-trip-btn').textContent = '✓ Kalibrasyon tam';
+      document.getElementById('demo-trip-btn').style.opacity = '0.5';
+      document.getElementById('demo-trip-btn').style.cursor = 'default';
+    }
+  }
+
+  function demoAddCharge() {
+    const ins = document.getElementById('demo-insight');
+    ins.style.display = 'block';
+    ins.innerHTML = '<strong>🔌 Şarj verisi işlendi</strong><br>%25 → %80 · AC · 7.4 kW · 4s 12dk · Maliyet: ₺67';
+  }
+  </script>
 
   <!-- ÖZELLİKLER -->
   <section class="px-6 py-20 bg-surface-container-low" id="ozellikler">
