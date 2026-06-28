@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
-import LegalPage from '@/components/LegalPage';
-import doc from '@/data/legal/kullanim-kosullari.json';
+import LegalPage from '../../src/components/LegalPage';
+import doc from '../../src/data/legal/kullanim-kosullari.json';
 
 export const metadata: Metadata = {
   title: 'Kullanım Koşulları — DMyC',

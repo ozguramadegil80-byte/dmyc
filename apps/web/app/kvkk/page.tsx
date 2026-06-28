@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
-import LegalPage from '@/components/LegalPage';
-import doc from '@/data/legal/kvkk.json';
+import LegalPage from '../../src/components/LegalPage';
+import doc from '../../src/data/legal/kvkk.json';
 
 export const metadata: Metadata = {
   title: 'KVKK Aydınlatma Metni — DMyC',
