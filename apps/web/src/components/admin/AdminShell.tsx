@@ -196,7 +196,7 @@ export function AdminShell({
         </header>
 
         {/* Page content */}
-        <main style={{ flex: 1, padding: 28, overflowX: 'hidden' }}>
+        <main className="admin-root" style={{ flex: 1, padding: 28, overflowX: 'hidden' }}>
           {children}
         </main>
       </div>
