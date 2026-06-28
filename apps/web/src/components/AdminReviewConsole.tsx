@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
   Archive,
   CheckCircle2,
@@ -15,6 +16,7 @@ import {
 } from 'lucide-react';
 import { t } from '../i18n';
 import {
+  approveReviewEvidenceBatch,
   createReviewDecision,
   fetchAdminVehicleSpecs,
   fetchVehicleBrandAssets,
@@ -67,6 +69,63 @@ const decisionTypes = [
   'create_new_variant',
   'archive_legacy_spec',
 ];
+
+const decisionTypeLabels: Record<string, string> = {
+  archive_legacy_spec: 'Eski kaydı arşivle',
+  create_new_variant: 'Yeni varyant oluştur',
+  keep_existing_spec: 'Mevcut bilgiyi koru',
+  mark_needs_more_evidence: 'Daha fazla kanıt iste',
+  update_existing_spec: 'Mevcut araç bilgisini güncelle',
+};
+
+const decisionStatusLabels: Record<string, string> = {
+  approved: 'Onaylandı',
+  pending: 'Bekliyor',
+  rejected: 'Reddedildi',
+};
+
+const evidenceStatusLabels: Record<string, string> = {
+  applied: 'Uygulandı',
+  applied_partial: 'Kısmen uygulandı',
+  archived_reference: 'Arşiv referansı',
+  pending_review: 'İnceleme bekliyor',
+};
+
+const verificationLevelLabels: Record<string, string> = {
+  inferred: 'Tahmini',
+  official: 'Resmi kaynak',
+  official_source: 'Resmi kaynak',
+  research_needed: 'Araştırma gerekli',
+  seed: 'İlk veri',
+  verified: 'Doğrulandı',
+};
+
+const fieldLabelOverrides: Record<string, string> = {
+  battery_gross_kwh: 'Batarya brüt kapasite (kWh)',
+  battery_net_kwh: 'Kullanılabilir batarya (kWh)',
+  battery_chemistry: 'Batarya kimyası',
+  ac_max_kw: 'AC şarj gücü (kW)',
+  charging_port_type: 'Şarj port tipi',
+  curb_weight_kg: 'Boş ağırlık (kg)',
+  dc_max_kw: 'DC hızlı şarj gücü (kW)',
+  drive_type: 'Çekiş tipi',
+  heat_pump_available: 'Isı pompası mevcut mu?',
+  heat_pump_standard: 'Isı pompası standart mı?',
+  known_issues: 'Bilinen veri sorunları',
+  official_efficiency_wh_km: 'Resmi tüketim (Wh/km)',
+  range_type: 'Menzil tipi',
+  recommended_daily_soc_max: 'Önerilen günlük şarj üst sınırı (%)',
+  recommended_daily_soc_min: 'Önerilen günlük şarj alt sınırı (%)',
+  seats: 'Koltuk sayısı',
+  source_name: 'Kaynak adı',
+  source_url: 'Kaynak bağlantısı',
+  stats: 'Veri durumu',
+  towing_capacity_kg: 'Çekme kapasitesi (kg)',
+  trim: 'Donanım paketi',
+  vehicle_class: 'Araç sınıfı',
+  verification_level: 'Doğrulama seviyesi',
+  wltp_range_km: 'WLTP menzil (km)',
+};
 
 const qualityFilters: Array<{ key: QualityFilter; label: string; description: string }> = [
   {
@@ -166,6 +225,7 @@ export function AdminReviewConsole({
   adminUsername,
   apiError = false,
 }: Props) {
+  const searchParams = useSearchParams();
   const preferredSpecId =
     initialVehicleSpecs.find(
       (item) =>
@@ -203,7 +263,10 @@ export function AdminReviewConsole({
   const [resultingVerificationLevel, setResultingVerificationLevel] = useState('');
   const [rationale, setRationale] = useState('');
   const [isSavingDecision, setIsSavingDecision] = useState(false);
+  const [isApprovingEvidence, setIsApprovingEvidence] = useState(false);
+  const [selectedApprovalEvidenceIds, setSelectedApprovalEvidenceIds] = useState<string[]>([]);
   const [message, setMessage] = useState<string | null>(null);
+  const requestedSpecId = searchParams.get('specId');
 
   const selectedSpec = vehicleSpecs.find((item) => item.id === selectedSpecId) ?? vehicleSpecs[0] ?? null;
   const brands = useMemo(() => {
@@ -223,6 +286,10 @@ export function AdminReviewConsole({
   const relatedDecisions = selectedEvidence
     ? decisions.filter((decision) => decision.evidenceId === selectedEvidence.id)
     : [];
+  const approvableEvidence = useMemo(() => evidence.filter(canApproveEvidence), [evidence]);
+  const selectedApprovalCount = selectedApprovalEvidenceIds.filter((id) =>
+    approvableEvidence.some((item) => item.id === id),
+  ).length;
   const selectedTrust = useMemo(
     () => (selectedSpec ? calculateDataTrust(selectedSpec) : null),
     [selectedSpec],
@@ -358,6 +425,21 @@ export function AdminReviewConsole({
   }, [filteredSpecs, selectedBrand, selectedSpecId]);
 
   useEffect(() => {
+    if (activeView !== 'vehicles' || !requestedSpecId) {
+      return;
+    }
+
+    const requestedSpec = vehicleSpecs.find((item) => item.id === requestedSpecId);
+    if (!requestedSpec) {
+      return;
+    }
+
+    setSelectedBrand(requestedSpec.brand);
+    setQualityFilter(bestQualityFilterForSpec(requestedSpec));
+    setSelectedSpecId(requestedSpec.id);
+  }, [activeView, requestedSpecId, vehicleSpecs]);
+
+  useEffect(() => {
     if (!selectedSpec) {
       setSpecDraft({});
       return;
@@ -373,11 +455,76 @@ export function AdminReviewConsole({
 
     const defaultField = selectedEvidence.conflictFields[0] ?? Object.keys(selectedEvidence.fieldValues)[0] ?? 'verification_level';
     setFieldKey(defaultField);
-    setFieldValue(formatUnknownValue(selectedEvidence.fieldValues[defaultField]));
+    setFieldValue(formatEditableFieldValue(selectedEvidence.fieldValues[defaultField]));
     setDecisionType(defaultDecisionType(selectedEvidence));
     setResultingVerificationLevel(selectedEvidence.vehicle?.verificationLevel ?? '');
     setRationale(defaultRationale(selectedEvidence));
   }, [selectedEvidence]);
+
+  useEffect(() => {
+    const approvableIds = new Set(approvableEvidence.map((item) => item.id));
+    setSelectedApprovalEvidenceIds((current) => current.filter((id) => approvableIds.has(id)));
+  }, [approvableEvidence]);
+
+  function chooseDecisionField(nextField: string) {
+    setFieldKey(nextField);
+    if (selectedEvidence) {
+      setFieldValue(formatEditableFieldValue(selectedEvidence.fieldValues[nextField]));
+    }
+  }
+
+  function toggleApprovalSelection(id: string) {
+    setSelectedApprovalEvidenceIds((current) =>
+      current.includes(id) ? current.filter((item) => item !== id) : [...current, id],
+    );
+  }
+
+  function toggleAllApprovalSelection() {
+    const approvableIds = approvableEvidence.map((item) => item.id);
+
+    setSelectedApprovalEvidenceIds((current) =>
+      current.length === approvableIds.length ? [] : approvableIds,
+    );
+  }
+
+  async function approveEvidence(ids?: string[]) {
+    const idsToApprove = ids?.filter(Boolean) ?? [];
+    const approvingAllPending = idsToApprove.length === 0;
+    const confirmationText = approvingAllPending
+      ? `${approvableEvidence.length} bekleyen kanıt onaylanıp araç kataloguna işlenecek. Devam edelim mi?`
+      : `${idsToApprove.length} seçili kanıt onaylanıp araç kataloguna işlenecek. Devam edelim mi?`;
+
+    if ((approvingAllPending && approvableEvidence.length === 0) || (!approvingAllPending && idsToApprove.length === 0)) {
+      setMessage('Onaylanacak kanıt seçilmedi.');
+      return;
+    }
+
+    if (!window.confirm(confirmationText)) {
+      return;
+    }
+
+    setIsApprovingEvidence(true);
+    setMessage(null);
+
+    try {
+      const result = await approveReviewEvidenceBatch({
+        evidenceIds: approvingAllPending ? undefined : idsToApprove,
+        marketCode: selectedMarket,
+        decidedBy,
+        publishToCatalog: true,
+        resultingVerificationLevel: 'verified',
+      });
+
+      setDecisions((current) => [...result.decisions, ...current]);
+      setSelectedApprovalEvidenceIds([]);
+      await refresh();
+      setMessage(`${result.approved} kanıt onaylandı, ${result.skipped} kayıt atlandı.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Kanıtlar onaylanamadı.');
+    } finally {
+      setIsApprovingEvidence(false);
+    }
+  }
 
   async function loadBrandAssets() {
     try {
@@ -947,6 +1094,36 @@ export function AdminReviewConsole({
               <h3>Evidence</h3>
               <span>{evidence.length} kayıt</span>
             </div>
+            <div className="bulk-approval-bar">
+              <button
+                className="icon-button text-button"
+                type="button"
+                onClick={toggleAllApprovalSelection}
+                disabled={isApprovingEvidence || approvableEvidence.length === 0}
+              >
+                {selectedApprovalCount === approvableEvidence.length && approvableEvidence.length > 0
+                  ? 'Seçimi temizle'
+                  : 'Bekleyenleri seç'}
+              </button>
+              <button
+                className="icon-button text-button"
+                type="button"
+                onClick={() => approveEvidence(selectedApprovalEvidenceIds)}
+                disabled={isApprovingEvidence || selectedApprovalCount === 0}
+              >
+                <CheckCircle2 size={16} />
+                Seçiliyi onayla ({selectedApprovalCount})
+              </button>
+              <button
+                className="primary-button compact-button"
+                type="button"
+                onClick={() => approveEvidence()}
+                disabled={isApprovingEvidence || approvableEvidence.length === 0}
+              >
+                <CheckCircle2 size={16} />
+                {isApprovingEvidence ? 'Onaylanıyor' : `Tüm bekleyenleri onayla (${approvableEvidence.length})`}
+              </button>
+            </div>
             <div className="evidence-list">
               {evidence.map((item) => (
                 <button
@@ -955,12 +1132,19 @@ export function AdminReviewConsole({
                   type="button"
                   onClick={() => setSelectedEvidenceId(item.id)}
                 >
-                  <span className={`status-dot ${statusTone(item.evidenceStatus)}`} />
+                  <input
+                    aria-label={`${formatEvidenceName(item)} onay seçimi`}
+                    checked={selectedApprovalEvidenceIds.includes(item.id)}
+                    disabled={!canApproveEvidence(item) || isApprovingEvidence}
+                    type="checkbox"
+                    onChange={() => toggleApprovalSelection(item.id)}
+                    onClick={(event) => event.stopPropagation()}
+                  />
                   <span>
                     <strong>{formatEvidenceName(item)}</strong>
                     <small>{item.sourceName}</small>
                   </span>
-                  <span className={`status-badge ${statusTone(item.evidenceStatus)}`}>{item.evidenceStatus}</span>
+                  <span className={`status-badge ${statusTone(item.evidenceStatus)}`}>{formatEvidenceStatus(item.evidenceStatus)}</span>
                 </button>
               ))}
             </div>
@@ -974,13 +1158,23 @@ export function AdminReviewConsole({
                     <p className="eyebrow">Seçili kanıt</p>
                     <h2>{formatEvidenceName(selectedEvidence)}</h2>
                   </div>
-                  <a className="icon-button text-button" href={selectedEvidence.sourceUrl} target="_blank" rel="noreferrer">
-                    Kaynağı aç
-                  </a>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                    {selectedEvidence.vehicleSpecId ? (
+                      <Link
+                        className="icon-button text-button"
+                        href={`/admin/vehicles?specId=${encodeURIComponent(selectedEvidence.vehicleSpecId)}`}
+                      >
+                        Katalogda düzenle
+                      </Link>
+                    ) : null}
+                    <a className="icon-button text-button" href={selectedEvidence.sourceUrl} target="_blank" rel="noreferrer">
+                      Kaynağı aç
+                    </a>
+                  </div>
                 </div>
 
                 <div className="detail-grid">
-                  <InfoBlock label="Durum" value={selectedEvidence.evidenceStatus} />
+                  <InfoBlock label="Durum" value={formatEvidenceStatus(selectedEvidence.evidenceStatus)} />
                   <InfoBlock label="Kaynak" value={selectedEvidence.sourceName} />
                   <InfoBlock label="Güven" value={selectedEvidence.confidenceScore?.toString() ?? 'boş'} />
                   <InfoBlock label="Bağlı araç" value={selectedEvidence.vehicle ? formatEvidenceVehicle(selectedEvidence) : 'eşleşme yok'} />
@@ -992,7 +1186,7 @@ export function AdminReviewConsole({
                     {selectedEvidence.conflictFields.length > 0 ? (
                       <ul className="missing-list">
                         {selectedEvidence.conflictFields.map((field) => (
-                          <li key={field}>{field}</li>
+                          <li key={field}>{formatFieldLabel(field)}</li>
                         ))}
                       </ul>
                     ) : (
@@ -1004,7 +1198,7 @@ export function AdminReviewConsole({
                     <div className="chips">
                       {Object.entries(selectedEvidence.fieldValues).slice(0, 8).map(([key, value]) => (
                         <span className="chip" key={key}>
-                          {key}: {formatUnknownValue(value)}
+                          {formatFieldLabel(key)}: {formatFieldDisplayValue(key, value)}
                         </span>
                       ))}
                     </div>
@@ -1023,8 +1217,8 @@ export function AdminReviewConsole({
                         relatedDecisions.map((decision) => (
                           <article className="decision-item" key={decision.id}>
                             <div className="decision-head">
-                              <strong>{decision.decisionType}</strong>
-                              <span>{decision.decisionStatus}</span>
+                              <strong>{formatDecisionType(decision.decisionType)}</strong>
+                              <span>{formatDecisionStatus(decision.decisionStatus)}</span>
                             </div>
                             <p>{decision.rationale ?? 'Gerekçe yok.'}</p>
                           </article>
@@ -1042,7 +1236,7 @@ export function AdminReviewConsole({
                       <select value={decisionType} onChange={(event) => setDecisionType(event.target.value)}>
                         {decisionTypes.map((item) => (
                           <option key={item} value={item}>
-                            {item}
+                            {formatDecisionType(item)}
                           </option>
                         ))}
                       </select>
@@ -1054,7 +1248,13 @@ export function AdminReviewConsole({
                     <div className="form-pair">
                       <label>
                         Alan
-                        <input value={fieldKey} onChange={(event) => setFieldKey(event.target.value)} />
+                        <select value={fieldKey} onChange={(event) => chooseDecisionField(event.target.value)}>
+                          {decisionFieldOptions(selectedEvidence).map((field) => (
+                            <option key={field} value={field}>
+                              {formatFieldLabel(field)}
+                            </option>
+                          ))}
+                        </select>
                       </label>
                       <label>
                         Değer
@@ -1063,7 +1263,14 @@ export function AdminReviewConsole({
                     </div>
                     <label>
                       Son doğrulama seviyesi
-                      <input value={resultingVerificationLevel} onChange={(event) => setResultingVerificationLevel(event.target.value)} />
+                      <select value={resultingVerificationLevel} onChange={(event) => setResultingVerificationLevel(event.target.value)}>
+                        <option value="">Boş bırak</option>
+                        {['official_source', 'verified', 'inferred', 'research_needed'].map((level) => (
+                          <option key={level} value={level}>
+                            {formatVerificationLevel(level)}
+                          </option>
+                        ))}
+                      </select>
                     </label>
                     <label>
                       Gerekçe
@@ -1354,6 +1561,26 @@ function matchesQualityFilter(spec: AdminVehicleSpec, filter: QualityFilter) {
   }
 }
 
+function bestQualityFilterForSpec(spec: AdminVehicleSpec): QualityFilter {
+  if (isBackgroundBacklogSpec(spec)) {
+    return 'background_backlog';
+  }
+
+  if (isNeedsResearch(spec)) {
+    return 'needs_research';
+  }
+
+  if (isMissingImage(spec)) {
+    return 'missing_images';
+  }
+
+  if (isWeakSource(spec)) {
+    return 'weak_source';
+  }
+
+  return 'active_catalog';
+}
+
 function qualityFilterLabel(filter: QualityFilter) {
   return qualityFilters.find((item) => item.key === filter)?.label ?? 'Filtre';
 }
@@ -1487,6 +1714,10 @@ function statusTone(status: string) {
   return 'pending';
 }
 
+function canApproveEvidence(item: ReviewEvidence) {
+  return item.evidenceStatus === 'pending_review' && Boolean(item.vehicleSpecId);
+}
+
 function defaultDecisionType(item: ReviewEvidence) {
   if (item.evidenceStatus === 'archived_reference') {
     return 'archive_legacy_spec';
@@ -1500,7 +1731,7 @@ function defaultDecisionType(item: ReviewEvidence) {
 }
 
 function defaultRationale(item: ReviewEvidence) {
-  const fields = item.conflictFields.length > 0 ? item.conflictFields.join(', ') : 'kaynak değerleri';
+  const fields = item.conflictFields.length > 0 ? item.conflictFields.map(formatFieldLabel).join(', ') : 'kaynak değerleri';
   return `${formatEvidenceName(item)} için ${fields} kontrol edildi.`;
 }
 
@@ -1514,6 +1745,87 @@ function formatUnknownValue(value: unknown) {
   }
 
   return String(value);
+}
+
+function formatFieldDisplayValue(key: string, value: unknown) {
+  if (key === 'verification_level' || key === 'market_verification_level') {
+    return formatVerificationLevel(String(value ?? ''));
+  }
+
+  if (key === 'source_url' || key === 'market_source_url') {
+    return value ? 'Kaynak bağlantısı' : '';
+  }
+
+  if (typeof value === 'boolean') {
+    return value ? 'Evet' : 'Hayır';
+  }
+
+  if (Array.isArray(value)) {
+    return value.length > 0 ? value.join(', ') : '';
+  }
+
+  return formatUnknownValue(value);
+}
+
+function formatEditableFieldValue(value: unknown) {
+  if (value === null || value === undefined || value === '') {
+    return '';
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => formatUnknownValue(item)).filter(Boolean).join(', ');
+  }
+
+  if (typeof value === 'object') {
+    return Object.entries(value as Record<string, unknown>)
+      .map(([key, nestedValue]) => `${formatFieldLabel(key)}: ${formatUnknownValue(nestedValue)}`)
+      .join(', ');
+  }
+
+  return formatUnknownValue(value);
+}
+
+function formatDecisionStatus(value: string) {
+  return decisionStatusLabels[value] ?? humanizeCode(value);
+}
+
+function formatDecisionType(value: string) {
+  return decisionTypeLabels[value] ?? humanizeCode(value);
+}
+
+function formatEvidenceStatus(value: string) {
+  return evidenceStatusLabels[value] ?? humanizeCode(value);
+}
+
+function formatFieldLabel(value: string) {
+  const specField = specFields.find((field) => field.jsonKey === value || field.key === value);
+  return specField?.label ?? fieldLabelOverrides[value] ?? humanizeCode(value);
+}
+
+function formatVerificationLevel(value: string) {
+  if (!value) {
+    return 'Boş bırak';
+  }
+
+  return verificationLevelLabels[value] ?? humanizeCode(value);
+}
+
+function decisionFieldOptions(item: ReviewEvidence) {
+  const fields = [...item.conflictFields, ...Object.keys(item.fieldValues)];
+  const unique = Array.from(new Set(fields.filter(Boolean)));
+  return unique.length > 0 ? unique : ['verification_level'];
+}
+
+function humanizeCode(value: string) {
+  if (!value) {
+    return '';
+  }
+
+  return value
+    .replace(/_/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/^./, (char) => char.toLocaleUpperCase('tr-TR'));
 }
 
 function formatEvidenceVehicle(item: ReviewEvidence) {

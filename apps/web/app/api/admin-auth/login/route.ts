@@ -19,7 +19,7 @@ export async function POST(request: Request) {
   const marketCode = normalizeMarket(body.marketCode);
   const contentLocale = normalizeContentLocale(body.contentLocale, marketCode);
 
-  if (!credentialsAreValid(username, password)) {
+  if (!(await credentialsAreValid(username, password))) {
     return NextResponse.json({ error: 'Kullanıcı adı veya şifre hatalı.' }, { status: 401 });
   }
 

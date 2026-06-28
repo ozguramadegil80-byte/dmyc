@@ -52,6 +52,20 @@ type AdminUpdateUserBody = {
   passwordConfirmation?: string;
 };
 
+type AdminProfileBody = {
+  avatarUrl?: string;
+  email?: string;
+  fullName?: string;
+  password?: string;
+  passwordConfirmation?: string;
+  username?: string;
+};
+
+type AdminCredentialBody = {
+  password?: string;
+  username?: string;
+};
+
 @Injectable()
 export class VehiclesService {
   constructor(
@@ -167,6 +181,7 @@ export class VehiclesService {
     }
 
     await this.premiumAccess.ensureTrialForUser(user.id);
+    await this.db.query('UPDATE users SET last_login_at = NOW() WHERE id = $1', [user.id]);
 
     return {
       id: user.id,
@@ -703,7 +718,8 @@ export class VehiclesService {
             )) FILTER (WHERE v.id IS NOT NULL),
             '[]'::jsonb
           ) AS vehicles,
-          max(t.started_at) AS "lastTripAt"
+          max(t.started_at) AS "lastTripAt",
+          u.last_login_at AS "lastLoginAt"
         FROM users u
         LEFT JOIN vehicle_ownerships vo ON vo.user_id = u.id
         LEFT JOIN vehicles v ON v.id = vo.vehicle_id
@@ -714,6 +730,108 @@ export class VehiclesService {
     );
 
     return result.rows;
+  }
+
+  async getAdminProfile() {
+    await this.ensureAdminProfileTable();
+    const result = await this.db.query(
+      `
+        SELECT
+          username,
+          email,
+          full_name AS "fullName",
+          avatar_url AS "avatarUrl",
+          updated_at AS "updatedAt"
+        FROM admin_profiles
+        WHERE id = 'default'
+        LIMIT 1
+      `,
+    );
+
+    return result.rows[0] ?? {
+      avatarUrl: '',
+      email: '',
+      fullName: 'Panel Yöneticisi',
+      username: process.env.DMYC_ADMIN_USERNAME ?? 'admin',
+      updatedAt: new Date(0).toISOString(),
+    };
+  }
+
+  async updateAdminProfile(body: AdminProfileBody) {
+    await this.ensureAdminProfileTable();
+
+    const username = normalizeText(body.username);
+    const email = normalizeText(body.email);
+    const fullName = normalizeText(body.fullName);
+    const avatarUrl = normalizeText(body.avatarUrl);
+    const passwordHash = this.nextAdminPasswordHash(body);
+
+    const result = await this.db.query(
+      `
+        INSERT INTO admin_profiles (id, username, email, full_name, avatar_url, password_hash, updated_at)
+        VALUES (
+          'default',
+          COALESCE($1, $6),
+          $2,
+          COALESCE($3, 'Panel Yöneticisi'),
+          $4,
+          $5,
+          now()
+        )
+        ON CONFLICT (id) DO UPDATE
+        SET
+          username = COALESCE(EXCLUDED.username, admin_profiles.username),
+          email = EXCLUDED.email,
+          full_name = COALESCE(EXCLUDED.full_name, admin_profiles.full_name),
+          avatar_url = EXCLUDED.avatar_url,
+          password_hash = COALESCE(EXCLUDED.password_hash, admin_profiles.password_hash),
+          updated_at = now()
+        RETURNING
+          username,
+          email,
+          full_name AS "fullName",
+          avatar_url AS "avatarUrl",
+          updated_at AS "updatedAt"
+      `,
+      [username, email, fullName, avatarUrl, passwordHash, process.env.DMYC_ADMIN_USERNAME ?? 'admin'],
+    );
+
+    return result.rows[0];
+  }
+
+  async verifyAdminProfileCredentials(body: AdminCredentialBody) {
+    await this.ensureAdminProfileTable();
+
+    const username = normalizeText(body.username) ?? '';
+    const password = body.password ?? '';
+    const result = await this.db.query<{
+      password_hash: string | null;
+      username: string;
+    }>(
+      `
+        SELECT username, password_hash
+        FROM admin_profiles
+        WHERE id = 'default'
+        LIMIT 1
+      `,
+    );
+
+    const profile = result.rows[0];
+
+    if (profile?.password_hash) {
+      return {
+        ok: username === profile.username && verifyPasswordHash(password, profile.password_hash),
+        source: 'database',
+      };
+    }
+
+    const expectedUsername = process.env.DMYC_ADMIN_USERNAME ?? 'admin';
+    const expectedPassword = process.env.DMYC_ADMIN_PASSWORD ?? 'DMyC-admin-2026';
+
+    return {
+      ok: username === expectedUsername && password === expectedPassword,
+      source: 'environment',
+    };
   }
 
   async createAdminUser(body: CreateUserBody) {
@@ -850,6 +968,49 @@ export class VehiclesService {
     }
 
     return user;
+  }
+
+  private nextAdminPasswordHash(body: AdminProfileBody) {
+    if (body.password === undefined && body.passwordConfirmation === undefined) {
+      return null;
+    }
+
+    if (!body.password && !body.passwordConfirmation) {
+      return null;
+    }
+
+    if (!body.password || body.password.length < 8) {
+      throw new BadRequestException('Admin şifresi en az 8 karakter olmalı.');
+    }
+
+    if (body.password !== body.passwordConfirmation) {
+      throw new BadRequestException('Admin şifre doğrulaması eşleşmiyor.');
+    }
+
+    return hashPassword(body.password);
+  }
+
+  private async ensureAdminProfileTable() {
+    await this.db.query(`
+      CREATE TABLE IF NOT EXISTS admin_profiles (
+        id TEXT PRIMARY KEY DEFAULT 'default',
+        username TEXT NOT NULL DEFAULT 'admin',
+        email TEXT,
+        full_name TEXT NOT NULL DEFAULT 'Panel Yöneticisi',
+        avatar_url TEXT,
+        password_hash TEXT,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+
+    await this.db.query(
+      `
+        INSERT INTO admin_profiles (id, username, full_name)
+        VALUES ('default', $1, 'Panel Yöneticisi')
+        ON CONFLICT (id) DO NOTHING
+      `,
+      [process.env.DMYC_ADMIN_USERNAME ?? 'admin'],
+    );
   }
 }
 

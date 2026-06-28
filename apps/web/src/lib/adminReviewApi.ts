@@ -108,6 +108,7 @@ export type AdminUser = {
   vehicleCount: number;
   vehicles: Array<{ id: string; displayName: string; ownershipStatus: string }>;
   lastTripAt: string | null;
+  lastLoginAt: string | null;
 };
 
 export type AdminUserPayload = {
@@ -224,6 +225,27 @@ export async function createReviewDecision(payload: {
   rationale: string;
 }) {
   return fetchJson<ReviewDecision>('/admin/vehicle-review/decisions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function approveReviewEvidenceBatch(payload: {
+  evidenceIds?: string[];
+  marketCode?: string;
+  decidedBy?: string;
+  publishToCatalog?: boolean;
+  resultingVerificationLevel?: string;
+}) {
+  return fetchJson<{
+    approved: number;
+    skipped: number;
+    skippedItems: Array<{ evidenceId: string; reason: string }>;
+    decisions: ReviewDecision[];
+  }>('/admin/vehicle-review/evidence/approve-batch', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

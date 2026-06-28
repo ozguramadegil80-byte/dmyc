@@ -144,6 +144,24 @@ export class AppController {
     return this.vehicles.deleteAdminUser(id);
   }
 
+  @Get('admin/profile')
+  @UseGuards(AdminApiKeyGuard)
+  getAdminProfile() {
+    return this.vehicles.getAdminProfile();
+  }
+
+  @Patch('admin/profile')
+  @UseGuards(AdminApiKeyGuard)
+  updateAdminProfile(@Body() body: Parameters<VehiclesService['updateAdminProfile']>[0]) {
+    return this.vehicles.updateAdminProfile(body);
+  }
+
+  @Post('admin/profile/verify')
+  @UseGuards(AdminApiKeyGuard)
+  verifyAdminProfile(@Body() body: Parameters<VehiclesService['verifyAdminProfileCredentials']>[0]) {
+    return this.vehicles.verifyAdminProfileCredentials(body);
+  }
+
   @Get('admin/vehicle-review/evidence')
   @UseGuards(AdminApiKeyGuard)
   listVehicleReviewEvidence(@Query('status') status?: string) {
@@ -208,6 +226,12 @@ export class AppController {
   }
 
   // ── Insight Studio / B2B ─────────────────────────────────────────────────
+
+  @Post('admin/vehicle-review/evidence/approve-batch')
+  @UseGuards(AdminApiKeyGuard)
+  approveVehicleReviewEvidence(@Body() body: Parameters<AdminReviewService['approveEvidenceBatch']>[0]) {
+    return this.adminReview.approveEvidenceBatch(body);
+  }
 
   @Post('admin/insight-queries')
   @UseGuards(AdminApiKeyGuard)

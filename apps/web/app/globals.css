@@ -1123,6 +1123,19 @@ h3 {
   display: grid;
 }
 
+.bulk-approval-bar {
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 12px;
+}
+
+.compact-button {
+  min-height: 36px;
+  padding: 0 12px;
+}
+
 .evidence-row {
   align-items: center;
   background: transparent;
@@ -1135,6 +1148,13 @@ h3 {
   min-height: 76px;
   padding: 12px 14px;
   text-align: left;
+}
+
+.evidence-row input[type='checkbox'] {
+  accent-color: var(--accent);
+  cursor: pointer;
+  height: 16px;
+  width: 16px;
 }
 
 .evidence-row.selected {

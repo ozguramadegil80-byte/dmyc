@@ -66,6 +66,14 @@ type UpdateEvidenceBody = {
   confidenceScore?: number | null;
 };
 
+type ApproveEvidenceBatchBody = {
+  evidenceIds?: string[];
+  marketCode?: string;
+  decidedBy?: string;
+  publishToCatalog?: boolean;
+  resultingVerificationLevel?: string;
+};
+
 type UpdateDecisionBody = {
   decisionType?: string;
   decisionStatus?: string;
@@ -162,6 +170,10 @@ const vehicleSpecFieldMap: Record<string, { column: string; kind: 'text' | 'numb
   imageUrl: { column: 'image_url', kind: 'text' },
   verificationLevel: { column: 'verification_level', kind: 'text' },
 };
+
+const vehicleSpecJsonFieldMap = Object.fromEntries(
+  Object.entries(vehicleSpecFieldMap).map(([key, field]) => [field.column, { key, ...field }]),
+) as Record<string, { key: string; column: string; kind: 'text' | 'number' | 'integer' | 'boolean' }>;
 
 @Injectable()
 export class AdminReviewService {
@@ -513,6 +525,116 @@ export class AdminReviewService {
     return mapDecision(result.rows[0]);
   }
 
+  async approveEvidenceBatch(body: ApproveEvidenceBatchBody) {
+    const marketCode = normalizeMarket(body.marketCode);
+    const evidenceIds = (body.evidenceIds ?? []).map((id) => id.trim()).filter(Boolean);
+    const decidedBy = body.decidedBy?.trim() || 'admin';
+    const publishToCatalog = body.publishToCatalog ?? true;
+    const resultingVerificationLevel = normalizeApprovalVerificationLevel(body.resultingVerificationLevel);
+    const params: unknown[] = [];
+    let where = "WHERE vse.evidence_status IS DISTINCT FROM 'applied'";
+
+    if (evidenceIds.length > 0) {
+      params.push(evidenceIds);
+      where += ` AND vse.id = ANY($${params.length}::uuid[])`;
+    } else {
+      where += " AND vse.evidence_status = 'pending_review'";
+    }
+
+    const evidenceResult = await this.db.query<ReviewEvidenceRow>(
+      `
+        SELECT
+          vse.id,
+          vse.vehicle_spec_id,
+          vse.canonical_vehicle_id,
+          vse.evidence_key,
+          vse.source_type,
+          vse.source_name,
+          vse.source_url,
+          vse.source_retrieved_at,
+          vse.brand,
+          vse.model,
+          vse.variant,
+          vse.field_values,
+          vse.conflict_fields,
+          vse.evidence_status,
+          vse.confidence_score,
+          vse.notes,
+          vse.raw_payload,
+          vse.created_at,
+          vse.updated_at,
+          vs.brand AS vehicle_brand,
+          vs.model AS vehicle_model,
+          vs.variant AS vehicle_variant,
+          vs.official_sales_status,
+          vs.verification_level
+        FROM vehicle_source_evidence vse
+        LEFT JOIN vehicle_specs vs ON vs.id = vse.vehicle_spec_id
+        ${where}
+        ORDER BY vse.created_at ASC
+      `,
+      params,
+    );
+
+    let approved = 0;
+    let skipped = 0;
+    const skippedItems: Array<{ evidenceId: string; reason: string }> = [];
+    const decisions = [];
+
+    for (const row of evidenceResult.rows) {
+      if (!row.vehicle_spec_id) {
+        skipped += 1;
+        skippedItems.push({ evidenceId: row.id, reason: 'Araç eşleşmesi yok.' });
+        continue;
+      }
+
+      const fieldDecisions = buildApprovedFieldDecisions(row);
+      const patch = buildApprovedSpecPatch(row, resultingVerificationLevel);
+
+      if (publishToCatalog) {
+        patch.localSalesStatus = 'active';
+        patch.marketVerificationLevel = resultingVerificationLevel;
+      }
+
+      if (Object.keys(patch).length > 0) {
+        await this.updateVehicleSpec(row.vehicle_spec_id, {
+          ...patch,
+          marketCode,
+        });
+      }
+
+      await this.db.query(
+        `
+          UPDATE vehicle_source_evidence
+          SET evidence_status = 'applied', updated_at = now()
+          WHERE id = $1
+        `,
+        [row.id],
+      );
+
+      const decision = await this.createDecision({
+        evidenceId: row.id,
+        vehicleSpecId: row.vehicle_spec_id,
+        decisionType: 'update_existing_spec',
+        decisionStatus: 'approved',
+        decidedBy,
+        fieldDecisions,
+        resultingVerificationLevel,
+        rationale: 'Admin toplu onayı ile kaynak değerleri araç kaydına işlendi.',
+      });
+
+      decisions.push(decision);
+      approved += 1;
+    }
+
+    return {
+      approved,
+      skipped,
+      skippedItems,
+      decisions,
+    };
+  }
+
   async updateEvidence(id: string, body: UpdateEvidenceBody) {
     const result = await this.db.query<ReviewEvidenceRow>(
       `
@@ -750,6 +872,59 @@ function pickMarketAvailabilityPatch(body: UpdateVehicleSpecBody) {
   }
 
   return patch;
+}
+
+function buildApprovedFieldDecisions(row: ReviewEvidenceRow) {
+  const values = isRecord(row.field_values) ? row.field_values : {};
+  const entries = Object.entries(values).filter(([key]) => key in vehicleSpecJsonFieldMap);
+
+  return Object.fromEntries(entries);
+}
+
+function buildApprovedSpecPatch(row: ReviewEvidenceRow, resultingVerificationLevel: string) {
+  const values = isRecord(row.field_values) ? row.field_values : {};
+  const patch: UpdateVehicleSpecBody = {};
+
+  for (const [jsonKey, value] of Object.entries(values)) {
+    const field = vehicleSpecJsonFieldMap[jsonKey];
+    if (!field) {
+      continue;
+    }
+
+    if (value === null || value === undefined || value === '') {
+      continue;
+    }
+
+    patch[field.key] = value;
+  }
+
+  if (!('sourceName' in patch)) {
+    patch.sourceName = row.source_name;
+  }
+
+  if (!('sourceUrl' in patch)) {
+    patch.sourceUrl = row.source_url;
+  }
+
+  patch.verificationLevel = resultingVerificationLevel;
+  patch.marketSourceName = row.source_name;
+  patch.marketSourceUrl = row.source_url;
+
+  return patch;
+}
+
+function normalizeApprovalVerificationLevel(value: string | undefined) {
+  const normalized = value?.trim();
+
+  if (!normalized || normalized === 'research_needed' || normalized === 'seed' || normalized === 'inferred') {
+    return 'verified';
+  }
+
+  return normalized;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function mapDecision(row: ReviewDecisionRow) {

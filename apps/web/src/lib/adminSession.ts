@@ -2,6 +2,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { cookies } from 'next/headers';
+import { verifyStoredAdminCredentials } from './adminProfileStore';
 
 export const ADMIN_SESSION_COOKIE = 'dmyc_admin_session';
 
@@ -69,10 +70,14 @@ export function getAdminApiKey() {
   return process.env.DMYC_ADMIN_API_KEY ?? 'dmyc-local-admin-api-key-change-me';
 }
 
-export function credentialsAreValid(username: string, password: string) {
-  const expectedUsername = process.env.DMYC_ADMIN_USERNAME ?? 'admin';
-  const expectedPassword = process.env.DMYC_ADMIN_PASSWORD ?? 'DMyC-admin-2026';
-  return safeEqual(username, expectedUsername) && safeEqual(password, expectedPassword);
+export async function credentialsAreValid(username: string, password: string) {
+  try {
+    return await verifyStoredAdminCredentials(username, password);
+  } catch {
+    const expectedUsername = process.env.DMYC_ADMIN_USERNAME ?? 'admin';
+    const expectedPassword = process.env.DMYC_ADMIN_PASSWORD ?? 'DMyC-admin-2026';
+    return safeEqual(username, expectedUsername) && safeEqual(password, expectedPassword);
+  }
 }
 
 function sign(payload: string) {
