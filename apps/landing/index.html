@@ -256,12 +256,12 @@
     <h2 class="font-baslik text-2xl font-bold text-[#dbfcff] mb-2">İki tür rapor, iki farklı ihtiyaç.</h2>
     <p class="text-[#b9cacb] text-sm mb-10">İkisi de tarayıcıda açılır, PDF olarak kaydedilir.</p>
 
-    <div class="space-y-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
 
       <!-- EV Karnesi -->
-      <div class="relative group">
+      <div class="relative group flex flex-col">
         <div class="absolute -inset-0.5 bg-gradient-to-r from-[#00f0ff] to-blue-500 blur opacity-20 group-hover:opacity-40 transition"></div>
-        <div class="relative glass-panel-heavy p-7">
+        <div class="relative glass-panel-heavy p-7 flex flex-col flex-1">
           <div class="flex items-center gap-2 mb-4">
             <span class="w-2 h-2 bg-[#00f0ff] rounded-full"></span>
             <span class="text-[#00f0ff] text-xs font-bold tracking-widest uppercase">EV Karnesi</span>
@@ -270,12 +270,19 @@
           <p class="text-[#b9cacb] text-sm leading-relaxed mb-6">
             Bataryan ne notta? Gerçek menzil ne kadar? Şarj alışkanlıkların iyi mi kötü mü? Bunların hepsini tek sayfada, net bir dille gösterir. Aracını satarken ya da değer biçerken işine yarar.
           </p>
-          <img src="./assets/arac-karne-raporu.png" alt="DMyC uygulama ekranı" class="w-full rounded-sm border border-white/10 shadow-xl"/>
+          <img src="./assets/arac-karne-raporu.png" alt="DMyC uygulama ekranı" class="w-full rounded-sm border border-white/10 shadow-xl mb-6"/>
+          <div class="mt-auto">
+            <a href="https://app.dmyc.digital/reports/premium/d62e22b8-e191-4f9d-95dd-be9e79480716" target="_blank" rel="noopener"
+               class="inline-flex items-center gap-2 text-[#00f0ff] text-sm font-semibold border border-[#00f0ff]/40 rounded-lg px-4 py-2 hover:bg-[#00f0ff]/10 transition">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+              Örnek Raporu Gör
+            </a>
+          </div>
         </div>
       </div>
 
       <!-- Kasko Karnesi -->
-      <div class="glass-panel p-7">
+      <div class="glass-panel p-7 flex flex-col">
         <div class="flex items-center gap-2 mb-4">
           <span class="w-2 h-2 bg-[#b9cacb] rounded-full"></span>
           <span class="text-[#b9cacb] text-xs font-bold tracking-widest uppercase">Kasko Değer Karnesi</span>
@@ -284,7 +291,14 @@
         <p class="text-[#b9cacb] text-sm leading-relaxed mb-6">
           4 fotoğraf çek, rapor hazır. Aracının muayene geçmişi, batarya durumu ve tahmini değer aralığı — hepsi tek belgede. WhatsApp yerine profesyonel bir dosya gönderirsin.
         </p>
-          <img src="./assets/screen-kasko.png.png" alt="Kasko Değer Karnesi ekranı" class="w-full rounded-sm border border-white/10 shadow-xl"/>
+        <img src="./assets/screen-kasko.png.png" alt="Kasko Değer Karnesi ekranı" class="w-full rounded-sm border border-white/10 shadow-xl mb-6"/>
+        <div class="mt-auto">
+          <a href="https://app.dmyc.digital/reports/kasko/1c44c539-ea03-4686-9641-7a51f1dbe70b" target="_blank" rel="noopener"
+             class="inline-flex items-center gap-2 text-[#b9cacb] text-sm font-semibold border border-white/20 rounded-lg px-4 py-2 hover:bg-white/5 transition">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+            Örnek Raporu Gör
+          </a>
+        </div>
       </div>
 
     </div>
