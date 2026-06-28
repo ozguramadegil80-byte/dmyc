@@ -1,4 +1,15 @@
 const mapsKey = process.env.GOOGLE_MAPS_API_KEY ?? '';
+const { withAndroidManifest } = require('@expo/config-plugins');
+
+// expo-notifications adds RECORD_AUDIO; we don't use audio — strip it at prebuild
+const withoutRecordAudio = (config) =>
+  withAndroidManifest(config, (c) => {
+    const perms = c.modResults.manifest['uses-permission'] ?? [];
+    c.modResults.manifest['uses-permission'] = perms.filter(
+      (p) => p.$['android:name'] !== 'android.permission.RECORD_AUDIO'
+    );
+    return c;
+  });
 
 /** @type {import('@expo/config').ExpoConfig} */
 module.exports = {
@@ -61,6 +72,7 @@ module.exports = {
         sounds: [],
       },
     ],
+    withoutRecordAudio,
   ],
   extra: {
     eas: { projectId: '17ef6b8f-edce-468b-ab75-58f16c17f406' },
