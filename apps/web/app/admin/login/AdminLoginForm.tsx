@@ -41,8 +41,8 @@ export function AdminLoginForm() {
   }
 
   return (
-    <main className="login-shell">
-      <section className="login-panel">
+    <main className="login-shell" style={{ background: '#080f10', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+      <section className="login-panel" style={{ background: '#0d1a1c', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, boxShadow: '0 24px 64px rgba(0,0,0,0.5)', maxWidth: 560, width: '100%', padding: 32 }}>
         <div className="login-brand" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 8 }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/yatay-logo.png" alt="DMyC" style={{ height: 30, width: 'auto' }} />
