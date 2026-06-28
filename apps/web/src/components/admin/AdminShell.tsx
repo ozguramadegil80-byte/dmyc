@@ -4,14 +4,13 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
-  Car, ClipboardCheck, Wrench, Users, Star,
+  Car, ClipboardCheck, Users, Star,
   ChevronLeft, ChevronRight, LogOut, Menu, X,
 } from 'lucide-react';
 
 const NAV = [
-  { href: '/admin/vehicles',    icon: Car,           label: 'Araçlar' },
+  { href: '/admin/vehicles',    icon: Car,            label: 'Araçlar' },
   { href: '/admin/review',      icon: ClipboardCheck, label: 'İnceleme' },
-  { href: '/admin/maintenance', icon: Wrench,         label: 'Bakım Adayları' },
   { href: '/admin/users',       icon: Users,          label: 'Kullanıcılar' },
   { href: '/admin/sponsor',     icon: Star,           label: 'Sponsor' },
 ];
