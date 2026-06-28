@@ -583,8 +583,31 @@ export class AdminReviewService {
 
     for (const row of evidenceResult.rows) {
       if (!row.vehicle_spec_id) {
-        skipped += 1;
-        skippedItems.push({ evidenceId: row.id, reason: 'Araç eşleşmesi yok.' });
+        await this.db.query(
+          `
+            UPDATE vehicle_source_evidence
+            SET
+              evidence_status = 'applied_partial',
+              notes = CONCAT_WS(' ', NULLIF(notes, ''), 'Toplu onayda araç eşleşmesi bulunamadı; kayıt beklemeden çıkarıldı.'),
+              updated_at = now()
+            WHERE id = $1
+          `,
+          [row.id],
+        );
+
+        const decision = await this.createDecision({
+          evidenceId: row.id,
+          vehicleSpecId: undefined,
+          decisionType: 'mark_needs_more_evidence',
+          decisionStatus: 'approved',
+          decidedBy,
+          fieldDecisions: buildApprovedFieldDecisions(row),
+          resultingVerificationLevel,
+          rationale: 'Toplu onayda araç eşleşmesi bulunamadı; evidence kısmen uygulandı ve beklemeden çıkarıldı.',
+        });
+
+        decisions.push(decision);
+        approved += 1;
         continue;
       }
 

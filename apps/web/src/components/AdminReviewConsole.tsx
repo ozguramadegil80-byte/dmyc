@@ -518,7 +518,7 @@ export function AdminReviewConsole({
       setDecisions((current) => [...result.decisions, ...current]);
       setSelectedApprovalEvidenceIds([]);
       await refresh();
-      setMessage(`${result.approved} kanıt onaylandı, ${result.skipped} kayıt atlandı.`);
+      setMessage(`${result.approved} kanıt beklemeden çıkarıldı. Araç eşleşmesi olanlar katalog kaydına işlendi.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Kanıtlar onaylanamadı.');
     } finally {
@@ -1126,11 +1126,18 @@ export function AdminReviewConsole({
             </div>
             <div className="evidence-list">
               {evidence.map((item) => (
-                <button
+                <div
                   className={`evidence-row ${selectedEvidence?.id === item.id ? 'selected' : ''}`}
                   key={item.id}
-                  type="button"
+                  role="button"
+                  tabIndex={0}
                   onClick={() => setSelectedEvidenceId(item.id)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      setSelectedEvidenceId(item.id);
+                    }
+                  }}
                 >
                   <input
                     aria-label={`${formatEvidenceName(item)} onay seçimi`}
@@ -1145,7 +1152,7 @@ export function AdminReviewConsole({
                     <small>{item.sourceName}</small>
                   </span>
                   <span className={`status-badge ${statusTone(item.evidenceStatus)}`}>{formatEvidenceStatus(item.evidenceStatus)}</span>
-                </button>
+                </div>
               ))}
             </div>
           </aside>
@@ -1715,7 +1722,7 @@ function statusTone(status: string) {
 }
 
 function canApproveEvidence(item: ReviewEvidence) {
-  return item.evidenceStatus === 'pending_review' && Boolean(item.vehicleSpecId);
+  return item.evidenceStatus === 'pending_review';
 }
 
 function defaultDecisionType(item: ReviewEvidence) {
