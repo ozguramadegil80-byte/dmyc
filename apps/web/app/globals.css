@@ -1754,9 +1754,14 @@ textarea {
 }
 
 .admin-root .primary-button {
-  background: #27e7ef;
-  border-color: #27e7ef;
-  color: #0d0f12;
+  background: #16a34a;
+  border-color: #16a34a;
+  color: #ffffff;
+}
+
+.admin-root .primary-button:hover:not(:disabled) {
+  background: #15803d;
+  border-color: #15803d;
 }
 
 .admin-root .danger-button,
