@@ -55,15 +55,29 @@ Start-Process -FilePath "cmd.exe" `
   -WindowStyle Hidden
 
 # ── 3. Web (port 4310) ────────────────────────────────────────────────────
-Write-Host "[DMYC] Web baslatiliyor (port 4310)..."
+Write-Host "[DMYC] Web build basliyor (bu 1-2 dakika surebilir)..."
 Stop-ProcessOnPort -Port 4310
 
 $webDir = Join-Path $repoRoot "apps\web"
 $webOut = Join-Path $logsDir "web.out.log"
 $webErr = Join-Path $logsDir "web.err.log"
 
+$buildProc = Start-Process -FilePath "cmd.exe" `
+  -ArgumentList "/c npm run build > `"$webOut`" 2> `"$webErr`"" `
+  -WorkingDirectory $webDir `
+  -WindowStyle Hidden `
+  -PassThru
+
+$buildProc.WaitForExit()
+
+if ($buildProc.ExitCode -ne 0) {
+  Write-Warning "[DMYC] Web build basarisiz! Loglara bakin: $webErr"
+  exit 1
+}
+
+Write-Host "[DMYC] Build tamam, web sunucu baslatiliyor..."
 Start-Process -FilePath "cmd.exe" `
-  -ArgumentList "/c npm run dev > `"$webOut`" 2> `"$webErr`"" `
+  -ArgumentList "/c npm run start > `"$webOut`" 2> `"$webErr`"" `
   -WorkingDirectory $webDir `
   -WindowStyle Hidden
 
