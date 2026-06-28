@@ -1,0 +1,113 @@
+{
+  "title": "Kullanım Koşulları",
+  "version": "1.0",
+  "effectiveDate": "2026-07-01",
+  "lastUpdated": "2026-06-28",
+  "sections": [
+    {
+      "id": "taraflar",
+      "title": "1. Taraflar ve Kapsam",
+      "paragraphs": [
+        "Bu Kullanım Koşulları ("Koşullar"), DMyC – Digital Mobility Control ("DMyC", "biz") tarafından sunulan mobil uygulama, web uygulaması ve ilgili dijital hizmetlerin ("Hizmet") kullanımını düzenler.",
+        "Uygulamayı indirerek, hesap oluşturarak veya Hizmeti herhangi bir şekilde kullanarak bu Koşulları okuduğunuzu, anladığınızı ve kabul ettiğinizi beyan edersiniz. Koşulları kabul etmiyorsanız Hizmeti kullanmayınız."
+      ]
+    },
+    {
+      "id": "hizmet",
+      "title": "2. Hizmetin Tanımı",
+      "paragraphs": [
+        "DMyC; elektrikli araç sahiplerine şarj takibi, sürüş analizi, batarya durumu izleme, EV karnesi (premium araç raporu) ve kasko değer karnesi üretimi gibi araç yönetim hizmetleri sunar.",
+        "Raporlar ve analizler, yalnızca DMyC platformu üzerinden kaydedilen kullanım dönemine ait verilere dayalı olarak algoritmik yöntemlerle üretilir. Bu çıktılar bilgilendirme amaçlıdır; resmi eksper raporu, sigorta belgesi veya teknik muayene belgesi niteliği taşımaz.",
+        "DMyC, Hizmet kapsamını zaman zaman güncelleyebilir, yeni özellikler ekleyebilir veya mevcut özellikleri değiştirebilir. Önemli değişiklikler uygulama içi bildirim veya e-posta ile duyurulur."
+      ]
+    },
+    {
+      "id": "hesap",
+      "title": "3. Hesap Oluşturma ve Güvenlik",
+      "paragraphs": [
+        "Hizmeti kullanabilmek için geçerli bir e-posta adresi ile hesap oluşturmanız gerekmektedir. 18 yaşından küçükseniz ebeveyn veya yasal vasi iznini almadan kayıt olamazsınız.",
+        "Hesap güvenliğinizden tamamen siz sorumlusunuz. Şifrenizi kimseyle paylaşmayınız. Yetkisiz erişim şüphesi durumunda derhal info@dmyc.digital adresine bildirin.",
+        "Sahte, yanıltıcı veya başkasına ait bilgilerle hesap oluşturmak yasaktır ve hesabınızın derhal kapatılmasına yol açar."
+      ]
+    },
+    {
+      "id": "yukumlulukler",
+      "title": "4. Kullanıcı Yükümlülükleri",
+      "paragraphs": [
+        "Hizmeti yalnızca kişisel, ticari olmayan amaçlarla kullanabilirsiniz. Aşağıdaki eylemler kesinlikle yasaktır:",
+        "• Hizmeti yasadışı amaçlarla veya üçüncü kişilerin haklarını ihlal edecek şekilde kullanmak.",
+        "• Sisteme zarar verebilecek yazılım, virüs veya kötü amaçlı kod göndermek.",
+        "• Uygulama veya API'ye otomatik botlarla erişim sağlamak.",
+        "• Başkalarının araç verilerini izinsiz görüntülemek veya paylaşmak.",
+        "• Hizmetin kaynak kodunu tersine mühendislik yoluyla çözmeye çalışmak."
+      ]
+    },
+    {
+      "id": "ucretlendirme",
+      "title": "5. Ücretlendirme ve Abonelik",
+      "paragraphs": [
+        "DMyC'nin temel özellikleri ücretsiz sunulmaktadır. EV Karnesi ve Kasko Değer Karnesi gibi premium raporlar ücrete tabi olabilir; güncel fiyatlar uygulama içinde belirtilir.",
+        "Satın alınan dijital hizmetler, ilgili yasal düzenlemeler çerçevesinde iade politikasına tabidir. Rapor üretimi başlatılmış ise hizmet ifa edilmiş sayılır ve ücret iadesi yapılmaz.",
+        "Abonelik varsa, iptal etmediğiniz sürece dönem sonu otomatik olarak yenilenir. İptal işlemi uygulama ayarlarından veya info@dmyc.digital adresinden yapılabilir."
+      ]
+    },
+    {
+      "id": "sorumluluk",
+      "title": "6. Sorumluluk Sınırlaması",
+      "paragraphs": [
+        "DMyC, sunulan verilerin ve raporların doğruluğunu en üst düzeyde tutmak için çaba gösterse de algoritmik çıktıların ve kullanıcı tarafından girilen bilgilerin kesin doğruluğunu garanti etmez.",
+        "Araç satış, sigorta veya finansal kararlarınızı yalnızca DMyC raporlarına dayandırmamanızı tavsiye ederiz. Bu kararlar için yetkili eksper, sigorta şirketi veya ilgili resmi kurumlardan görüş alınız.",
+        "DMyC, hizmet kesintilerinden, veri kaybından veya üçüncü taraf entegrasyonlarından kaynaklanan dolaylı zararlardan sorumlu tutulamaz. Azami sorumluluğumuz, ilgili dönemde ödediğiniz hizmet bedeli ile sınırlıdır."
+      ]
+    },
+    {
+      "id": "raporlar",
+      "title": "7. Raporların Hukuki Niteliği",
+      "paragraphs": [
+        "EV Karnesi ve Kasko Değer Karnesi raporları, yalnızca DMyC platformunda kayıtlı kullanım dönemine ait şarj, sürüş ve bakım verilerine dayalı algoritmik tahminlerdir.",
+        "Bu raporlar; 6362 sayılı Sermaye Piyasası Kanunu kapsamında ekspertiz belgesi, Sigorta Şirketleri tarafından düzenlenen resmi kasko değer belgesi veya herhangi bir resmi kurum belgesi değildir.",
+        "Raporlarda belirtilen değer aralıkları tahmini nitelikte olup gerçek piyasa değeri, fiziksel muayene, güncel piyasa koşulları ve resmi belgeler esas alınarak belirlenir."
+      ]
+    },
+    {
+      "id": "fikri-mulkiyet",
+      "title": "8. Fikri Mülkiyet",
+      "paragraphs": [
+        "DMyC markası, logosu, uygulama tasarımı, algoritmaları ve içeriklerinin tüm hakları DMyC'ye aittir. Yazılı izin olmaksızın ticari amaçla kullanılamaz, çoğaltılamaz veya dağıtılamaz.",
+        "Kullanıcıların platforma yüklediği veriler (araç bilgileri, sürüş verisi vb.) kullanıcıya aittir. DMyC bu verileri yalnızca hizmet sunumu ve iyileştirme amacıyla kullanır; üçüncü taraflara satmaz."
+      ]
+    },
+    {
+      "id": "fesih",
+      "title": "9. Hizmetin Sona Ermesi",
+      "paragraphs": [
+        "Hesabınızı istediğiniz zaman uygulama ayarları üzerinden kapatabilirsiniz. Hesap kapatma talebinden sonra verileriniz 30 gün içinde sistemden silinir.",
+        "DMyC, bu Koşulları ihlal ettiğiniz durumlarda önceden bildirim yapmaksızın hesabınızı askıya alabilir veya kapatabilir.",
+        "DMyC, hizmetin tamamını veya bir bölümünü en az 30 gün önceden bildirim yaparak sonlandırma hakkını saklı tutar."
+      ]
+    },
+    {
+      "id": "hukuk",
+      "title": "10. Uygulanacak Hukuk ve Uyuşmazlık",
+      "paragraphs": [
+        "Bu Koşullar Türk Hukuku'na tabidir. Doğabilecek uyuşmazlıklarda İstanbul Mahkemeleri ve İcra Daireleri yetkilidir.",
+        "Uyuşmazlıkların çözümünde öncelikle info@dmyc.digital adresi üzerinden karşılıklı müzakere yoluna başvurulması tavsiye edilir."
+      ]
+    },
+    {
+      "id": "degisiklikler",
+      "title": "11. Koşullarda Değişiklik",
+      "paragraphs": [
+        "DMyC, bu Koşulları zaman zaman güncelleyebilir. Önemli değişiklikler, yürürlük tarihinden en az 15 gün önce uygulama içinde veya kayıtlı e-posta adresinize bildirilir.",
+        "Değişikliklerden sonra Hizmeti kullanmaya devam etmeniz, güncel Koşulları kabul ettiğiniz anlamına gelir."
+      ]
+    },
+    {
+      "id": "iletisim",
+      "title": "12. İletişim",
+      "paragraphs": [
+        "Bu Koşullar hakkında sorularınız için: info@dmyc.digital"
+      ]
+    }
+  ]
+}

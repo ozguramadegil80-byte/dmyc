@@ -1,0 +1,87 @@
+{
+  "title": "Kişisel Verilerin Korunması Kanunu (KVKK) Aydınlatma Metni",
+  "version": "1.0",
+  "effectiveDate": "2026-07-01",
+  "lastUpdated": "2026-06-28",
+  "sections": [
+    {
+      "id": "veri-sorumlusu",
+      "title": "1. Veri Sorumlusu",
+      "paragraphs": [
+        "6698 sayılı Kişisel Verilerin Korunması Kanunu ("KVKK") uyarınca, kişisel verileriniz; DMyC – Digital Mobility Control ("DMyC") tarafından veri sorumlusu sıfatıyla aşağıda açıklanan amaçlar ve yöntemlerle işlenmektedir.",
+        "İletişim: kvkk@dmyc.digital"
+      ]
+    },
+    {
+      "id": "islenen-veriler",
+      "title": "2. İşlenen Kişisel Veriler",
+      "paragraphs": [
+        "DMyC, aşağıdaki kategorilerde kişisel veri işleyebilir:",
+        "Kimlik ve İletişim Verileri: Ad, soyad, e-posta adresi, telefon numarası.",
+        "Araç Verileri: Araç markası, modeli, yılı, plaka (kullanıcı girişiyle isteğe bağlı), şarj sayısı, şarj türü (AC/DC), tahmini EFC (eşdeğer tam şarj), sürüş verisi, kilometre bilgisi.",
+        "Konum Verileri: Yolculuk rotaları, şarj istasyonu konumları (yalnızca uygulama içinde aktif olarak paylaşıldığında ve kullanıcı izniyle).",
+        "Kullanım Verileri: Uygulama içi etkileşimler, özellik kullanım istatistikleri, hata raporları.",
+        "Finansal Veriler: Ödeme işlemleri için ödeme altyapısı sağlayıcısına yönlendirilirsiniz; kart veya banka bilgileri DMyC tarafından işlenmez veya saklanmaz.",
+        "Görsel Veriler: Kasko Değer Karnesi için yüklenen araç fotoğrafları."
+      ]
+    },
+    {
+      "id": "isleme-amaci",
+      "title": "3. Kişisel Veri İşleme Amaçları ve Hukuki Dayanakları",
+      "paragraphs": [
+        "Kişisel verileriniz aşağıdaki amaçlarla ve KVKK'nın 5. maddesi kapsamındaki hukuki dayanaklar çerçevesinde işlenmektedir:",
+        "Hizmet Sunumu (Sözleşmenin ifası – md. 5/2-c): Hesap oluşturma, araç takibi, şarj analizi, EV karnesi ve kasko raporu üretimi.",
+        "Uygulama İyileştirme (Meşru menfaat – md. 5/2-f): Hata tespiti, performans analizi, yeni özellik geliştirme.",
+        "Yasal Yükümlülük (md. 5/2-ç): İlgili mevzuat kapsamındaki saklama ve raporlama yükümlülükleri.",
+        "Pazarlama ve Bildirimler (Açık rıza – md. 5/1): Kampanya, güncelleme ve öneri bildirimleri (açık rıza verilmesi halinde).",
+        "Kimlik Doğrulama (Meşru menfaat – md. 5/2-f): Hesap güvenliği, yetkisiz erişim önleme."
+      ]
+    },
+    {
+      "id": "veri-aktarimi",
+      "title": "4. Kişisel Verilerin Aktarımı",
+      "paragraphs": [
+        "Kişisel verileriniz aşağıdaki taraflarla ve koşullarda paylaşılabilir:",
+        "Altyapı ve Bulut Sağlayıcıları: Sunucu, veri tabanı ve depolama hizmetleri için KVKK'ya uygun sözleşmeler çerçevesinde çalışılan sağlayıcılar.",
+        "Yapay Zeka / Analiz Hizmetleri: Rapor üretimi için kullanılan AI servis sağlayıcıları – yalnızca araç ve kullanım verileri, kimlik verisi aktarılmaz.",
+        "Harita ve Konum Hizmetleri: Rota hesaplama için Google Maps Platform (konum verisi, kişisel kimlik aktarılmaz).",
+        "Hukuki Zorunluluk: Yetkili kamu kurum ve kuruluşlarının talepleri doğrultusunda, ilgili mevzuat çerçevesinde.",
+        "Kişisel verileriniz hiçbir koşulda üçüncü taraflara satılmaz veya ticari amaçla devredilmez."
+      ]
+    },
+    {
+      "id": "saklama",
+      "title": "5. Kişisel Verilerin Saklanma Süresi",
+      "paragraphs": [
+        "Kişisel verileriniz, işleme amacının ortadan kalkmasıyla birlikte silinir, yok edilir veya anonimleştirilir.",
+        "Hesap kapatma talebini izleyen 30 gün içinde kişisel verileriniz silinir; yasal saklama yükümlülüğü bulunan veriler (ör. fatura kayıtları) ilgili mevzuatta öngörülen süre kadar saklanır.",
+        "Araç kullanım verileri, hesap aktif olduğu sürece tutulur ve hesap silindiğinde kaldırılır."
+      ]
+    },
+    {
+      "id": "haklar",
+      "title": "6. Veri Sahibinin Hakları (KVKK Madde 11)",
+      "paragraphs": [
+        "KVKK'nın 11. maddesi uyarınca aşağıdaki haklara sahipsiniz:",
+        "• Kişisel verilerinizin işlenip işlenmediğini öğrenme hakkı.",
+        "• İşlenmiş ise buna ilişkin bilgi talep etme hakkı.",
+        "• İşlenme amacını ve amacına uygun kullanılıp kullanılmadığını öğrenme hakkı.",
+        "• Yurt içinde veya yurt dışında aktarıldığı üçüncü kişileri bilme hakkı.",
+        "• Eksik veya yanlış işlenmesi hâlinde bunların düzeltilmesini isteme hakkı.",
+        "• KVKK'nın 7. maddesi çerçevesinde silinmesini veya yok edilmesini isteme hakkı.",
+        "• Düzeltme ve silme işlemlerinin aktarılan üçüncü kişilere bildirilmesini isteme hakkı.",
+        "• İşlenen verilerin münhasıran otomatik sistemler vasıtasıyla analiz edilmesi suretiyle aleyhinize bir sonucun ortaya çıkmasına itiraz etme hakkı.",
+        "• Kanuna aykırı olarak işlenmesi sebebiyle zarara uğramanız hâlinde zararın giderilmesini talep etme hakkı."
+      ]
+    },
+    {
+      "id": "basvuru",
+      "title": "7. Başvuru Yöntemi",
+      "paragraphs": [
+        "Haklarınızı kullanmak için kvkk@dmyc.digital adresine e-posta gönderebilirsiniz. Başvurunuzda adınız, soyadınız, iletişim bilgileriniz ve talebinizin açık bir şekilde belirtilmesi gerekmektedir.",
+        "Talebiniz en geç 30 gün içinde sonuçlandırılır. Talebin niteliğine göre ücretsiz yanıt verilir; ancak işlemin ayrıca bir maliyet gerektirdiği durumlarda Kişisel Verileri Koruma Kurulu tarafından belirlenen tarifedeki ücret alınabilir.",
+        "Başvurunuzun reddedilmesi, verilen yanıtı yetersiz bulmanız veya süresinde yanıt alamamanız durumunda Kişisel Verileri Koruma Kurumu'na şikâyette bulunma hakkınız mevcuttur: www.kvkk.gov.tr"
+      ]
+    }
+  ]
+}
