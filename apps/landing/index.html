@@ -39,6 +39,19 @@
     background: rgba(17,26,28,0.5);
     gap: 0.4rem;
   }
+  @keyframes heroFade {
+    0%   { opacity: 0; }
+    5%   { opacity: 0.55; }
+    20%  { opacity: 0.55; }
+    25%  { opacity: 0; }
+    100% { opacity: 0; }
+  }
+  .hero-slide {
+    animation: heroFade 20s infinite;
+    opacity: 0;
+    background-size: cover;
+    background-position: center;
+  }
   .step-line {
     width: 2px;
     height: 48px;
@@ -96,7 +109,10 @@
 
   <!-- HERO -->
   <section class="relative min-h-[92vh] flex flex-col justify-end px-6 pb-16 overflow-hidden">
-    <div class="absolute inset-0 bg-cover bg-center opacity-50" style="background-image: url('./assets/hero-bg.jpg')"></div>
+    <div class="absolute inset-0 bg-cover bg-center hero-slide" style="background-image:url('./assets/hero-bg.jpg');animation-delay:0s"></div>
+    <div class="absolute inset-0 bg-cover bg-center hero-slide" style="background-image:url('./assets/hero-1.png');animation-delay:5s"></div>
+    <div class="absolute inset-0 bg-cover bg-center hero-slide" style="background-image:url('./assets/hero-2.png');animation-delay:10s"></div>
+    <div class="absolute inset-0 bg-cover bg-center hero-slide" style="background-image:url('./assets/hero-3.png');animation-delay:15s"></div>
     <div class="absolute inset-0 bg-gradient-to-t from-[#051424] via-[#051424]/75 to-[#051424]/20 pointer-events-none"></div>
     <div class="relative z-10 max-w-lg">
       <div class="inline-block mb-5 px-3 py-1 border border-[#00f0ff]/30 text-[#00f0ff] text-xs font-bold tracking-widest uppercase">Ücretsiz · Android</div>
