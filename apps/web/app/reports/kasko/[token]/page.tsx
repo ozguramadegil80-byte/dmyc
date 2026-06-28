@@ -378,10 +378,14 @@ function StatCell({ label, value, sub }: { label: string; value: string; sub?: s
 
 export default async function KaskoReportPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ token: string }>;
+  searchParams: Promise<{ demo?: string }>;
 }) {
   const { token } = await params;
+  const { demo } = await searchParams;
+  const isDemo = demo === '1';
   const r = await fetchReport(token);
   if (!r) notFound();
 
@@ -414,8 +418,41 @@ export default async function KaskoReportPage({
   const hasService    = r.serviceEventCount > 0 || r.lastServiceKm != null;
 
   return (
-    <div className="rpt-root">
+    <div className="rpt-root" style={{ position: 'relative' }}>
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
+
+      {/* ── Demo watermark ── */}
+      {isDemo && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 9999,
+          pointerEvents: 'none',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <div style={{
+            transform: 'rotate(-35deg)',
+            fontSize: 'clamp(48px, 10vw, 96px)',
+            fontWeight: 900,
+            letterSpacing: '0.12em',
+            color: 'rgba(255,255,255,0.07)',
+            userSelect: 'none',
+            whiteSpace: 'nowrap',
+          }}>
+            ÖRNEK RAPOR
+          </div>
+        </div>
+      )}
+
+      {/* ── Demo banner ── */}
+      {isDemo && (
+        <div style={{
+          background: 'linear-gradient(90deg,#0ea5e9,#06b6d4)',
+          color: '#fff', textAlign: 'center',
+          padding: '10px 16px', fontSize: '13px', fontWeight: 600,
+          letterSpacing: '0.04em',
+        }}>
+          Bu bir örnek rapordur — gerçek bir araç satın alma kararı için kullanılmamalıdır.
+        </div>
+      )}
 
       {/* ── Navbar ── */}
       <div className="rpt-navbar" style={{
