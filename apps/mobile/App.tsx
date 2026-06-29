@@ -4601,6 +4601,7 @@ type KarneScreenProps = {
 
 function KarneScreen({ batteryLifecycle, communityBenchmark, monthlyReport, usageProfile, routeSummary, language }: KarneScreenProps) {
   const translate = createTranslator(language);
+  const [chargeModal, setChargeModal] = useState(false);
 
   const showMonthly   = !!monthlyReport;
   const showUsage     = !!(usageProfile && (usageProfile.confidenceScore ?? 0) >= 0.50);
@@ -4703,12 +4704,15 @@ function KarneScreen({ batteryLifecycle, communityBenchmark, monthlyReport, usag
               <Text style={{ color: '#5e7a7e', fontSize: 9, marginTop: 4 }}>DC · {monthlyReport!.dcChargeCount} seans</Text>
             </View>
 
-            {/* Rapor */}
-            <View style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.03)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', borderRadius: 8, padding: 10, alignItems: 'center', justifyContent: 'center' }}>
-              <Text style={{ color: '#5e7a7e', fontSize: 9, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 6, textAlign: 'center' }}>Şarj Raporu</Text>
+            {/* Rapor butonu */}
+            <Pressable
+              onPress={() => setChargeModal(true)}
+              style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.03)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', borderRadius: 8, padding: 10, alignItems: 'center', justifyContent: 'center' }}
+            >
+              <Text style={{ color: '#5e7a7e', fontSize: 9, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 6, textAlign: 'center' }}>Şarj{'\n'}Analizi</Text>
               <Text style={{ color: '#b9cacb', fontSize: 18 }}>⚡</Text>
               <Text style={{ color: '#00f0ff', fontSize: 9, fontWeight: '700', marginTop: 6, textAlign: 'center' }}>DETAY →</Text>
-            </View>
+            </Pressable>
 
           </View>
 
@@ -4729,6 +4733,115 @@ function KarneScreen({ batteryLifecycle, communityBenchmark, monthlyReport, usag
           </View>
         </View>
       )}
+
+      {/* ── ŞARJ ANALİZİ MODALİ ───────────────────────────────────────── */}
+      {showMonthly && (() => {
+        const acKwh = monthlyReport!.acEnergyKwh ?? 0;
+        const dcKwh = monthlyReport!.dcEnergyKwh ?? 0;
+        const acCost = monthlyReport!.acCostAmount ?? 0;
+        const dcCost = monthlyReport!.dcCostAmount ?? 0;
+        const acRate = acKwh > 0 ? acCost / acKwh : null;
+        const dcRate = dcKwh > 0 ? dcCost / dcKwh : null;
+        const diffRate = acRate != null && dcRate != null ? dcRate - acRate : null;
+        const diffPct = acRate != null && dcRate != null && acRate > 0
+          ? Math.round(((dcRate - acRate) / acRate) * 100) : null;
+        const dcRatio = (monthlyReport!.dcChargeCount + monthlyReport!.acChargeCount) > 0
+          ? monthlyReport!.dcChargeCount / (monthlyReport!.dcChargeCount + monthlyReport!.acChargeCount)
+          : 0;
+
+        return (
+          <Modal visible={chargeModal} transparent animationType="slide" onRequestClose={() => setChargeModal(false)}>
+            <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)' }} onPress={() => setChargeModal(false)} />
+            <View style={{ backgroundColor: '#0d1a1c', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, maxHeight: '85%' }}>
+              {/* Başlık */}
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                <Text style={{ color: '#dbfcff', fontSize: 16, fontWeight: '700' }}>Şarj Analizi</Text>
+                <Pressable onPress={() => setChargeModal(false)}>
+                  <Text style={{ color: '#5e7a7e', fontSize: 22 }}>×</Text>
+                </Pressable>
+              </View>
+
+              <ScrollView showsVerticalScrollIndicator={false}>
+
+                {/* kWh birim fiyat karşılaştırma */}
+                <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
+                  <View style={{ flex: 1, backgroundColor: 'rgba(0,240,255,0.06)', borderWidth: 1, borderColor: 'rgba(0,240,255,0.2)', borderRadius: 10, padding: 12 }}>
+                    <Text style={{ color: '#5e7a7e', fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6 }}>Ev Şarjı (AC)</Text>
+                    <Text style={{ color: '#00f0ff', fontSize: 22, fontWeight: '800' }}>
+                      {acRate != null ? `₺${acRate.toFixed(2)}` : '—'}
+                    </Text>
+                    <Text style={{ color: '#5e7a7e', fontSize: 10, marginTop: 2 }}>kWh başı</Text>
+                    <Text style={{ color: '#5e7a7e', fontSize: 10, marginTop: 6 }}>{monthlyReport!.acChargeCount} seans · {acKwh.toFixed(1)} kWh</Text>
+                  </View>
+                  <View style={{ flex: 1, backgroundColor: 'rgba(250,204,21,0.06)', borderWidth: 1, borderColor: 'rgba(250,204,21,0.2)', borderRadius: 10, padding: 12 }}>
+                    <Text style={{ color: '#5e7a7e', fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6 }}>İstasyon (DC)</Text>
+                    <Text style={{ color: '#facc15', fontSize: 22, fontWeight: '800' }}>
+                      {dcRate != null ? `₺${dcRate.toFixed(2)}` : '—'}
+                    </Text>
+                    <Text style={{ color: '#5e7a7e', fontSize: 10, marginTop: 2 }}>kWh başı</Text>
+                    <Text style={{ color: '#5e7a7e', fontSize: 10, marginTop: 6 }}>{monthlyReport!.dcChargeCount} seans · {dcKwh.toFixed(1)} kWh</Text>
+                  </View>
+                </View>
+
+                {/* Fark kutusu */}
+                {diffRate != null && (
+                  <View style={{ backgroundColor: diffRate > 0 ? 'rgba(250,204,21,0.08)' : 'rgba(0,240,255,0.08)', borderWidth: 1, borderColor: diffRate > 0 ? 'rgba(250,204,21,0.25)' : 'rgba(0,240,255,0.25)', borderRadius: 10, padding: 14, marginBottom: 20, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                    <Text style={{ fontSize: 28 }}>{diffRate > 0 ? '⚠️' : '✅'}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: '#dbfcff', fontSize: 13, fontWeight: '700', marginBottom: 2 }}>
+                        {diffRate > 0
+                          ? `İstasyon şarjı ${diffPct != null ? `%${diffPct}` : ''} daha pahalı`
+                          : 'İstasyon şarjı evden ucuz!'}
+                      </Text>
+                      <Text style={{ color: '#5e7a7e', fontSize: 11 }}>
+                        {diffRate > 0
+                          ? `Her kWh için ₺${diffRate.toFixed(2)} fazla ödüyorsun`
+                          : `Her kWh için ₺${Math.abs(diffRate).toFixed(2)} kazanıyorsun`}
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
+                {/* DC oranı uyarısı */}
+                {dcRatio > 0.4 && (
+                  <View style={{ backgroundColor: 'rgba(239,68,68,0.07)', borderWidth: 1, borderColor: 'rgba(239,68,68,0.2)', borderRadius: 10, padding: 14, marginBottom: 16 }}>
+                    <Text style={{ color: '#fca5a5', fontSize: 12, fontWeight: '700', marginBottom: 4 }}>
+                      ⚡ DC şarj oranın yüksek ({Math.round(dcRatio * 100)}%)
+                    </Text>
+                    <Text style={{ color: '#5e7a7e', fontSize: 11, lineHeight: 17 }}>
+                      Şarjlarının büyük bölümü hızlı istasyondan. Bu hem daha pahalı hem batarya sağlığına uzun vadede olumsuz etki eder. Mümkün olduğunda ev veya yavaş AC şarjı tercih et.
+                    </Text>
+                  </View>
+                )}
+
+                {/* AC bilgi */}
+                <View style={{ backgroundColor: 'rgba(0,240,255,0.04)', borderWidth: 1, borderColor: 'rgba(0,240,255,0.12)', borderRadius: 10, padding: 14, marginBottom: 10 }}>
+                  <Text style={{ color: '#00f0ff', fontSize: 12, fontWeight: '700', marginBottom: 8 }}>🏠 Ev Şarjı (AC) — Ne zaman ideal?</Text>
+                  <Text style={{ color: '#b9cacb', fontSize: 11, lineHeight: 18 }}>
+                    {'✓  Gece şarjı: tarife ucuz, ağ boş\n'}
+                    {'✓  Yavaş şarj batarya hücrelerini korur\n'}
+                    {'✓  %20–%80 aralığı → maksimum ömür\n'}
+                    {'✗  Uzun yolculuk öncesi tek başına yetersiz kalabilir'}
+                  </Text>
+                </View>
+
+                {/* DC bilgi */}
+                <View style={{ backgroundColor: 'rgba(250,204,21,0.04)', borderWidth: 1, borderColor: 'rgba(250,204,21,0.12)', borderRadius: 10, padding: 14, marginBottom: 20 }}>
+                  <Text style={{ color: '#facc15', fontSize: 12, fontWeight: '700', marginBottom: 8 }}>⚡ İstasyon Şarjı (DC) — Ne zaman kabul edilebilir?</Text>
+                  <Text style={{ color: '#b9cacb', fontSize: 11, lineHeight: 18 }}>
+                    {'✓  Uzun yolculukta zorunlu ara şarj\n'}
+                    {'✓  20 dakikada %80 → yolculuğa devam\n'}
+                    {'✗  Sık tekrar → batarya ısısını artırır\n'}
+                    {'✗  %80 üstü DC şarj en fazla yıpratır\n'}
+                    {'✗  kWh başı maliyet AC\'den genellikle yüksek'}
+                  </Text>
+                </View>
+
+              </ScrollView>
+            </View>
+          </Modal>
+        );
+      })()}
 
       {/* ── KULLANIM PROFİLİ ───────────────────────────────────────────── */}
       {showUsage && (
