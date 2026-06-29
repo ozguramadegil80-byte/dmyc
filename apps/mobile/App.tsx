@@ -1141,7 +1141,7 @@ export default function App() {
       }
 
       if (restoredUser) {
-        setStep(restoredBindingLinked ? 'today' : storedTrackingMode ? 'brand' : 'tracking');
+        setStep(restoredBindingLinked ? 'today' : 'brand');
       }
     }
 
@@ -1240,7 +1240,7 @@ export default function App() {
         } else {
           setBackendBinding(null);
           setBindingStatus('idle');
-          setStep('tracking');
+          setStep('brand');
         }
       }
 
@@ -1284,7 +1284,9 @@ export default function App() {
       setSelectedVehicle(null);
       setUsageProfile(null);
       setRegisteredUser(user);
-      setStep('tracking');
+      setTrackingMode('basic');
+      await AsyncStorage.setItem(TRACKING_MODE_STORAGE_KEY, 'basic');
+      setStep('brand');
       await safeStorageSet(REGISTERED_USER_STORAGE_KEY, JSON.stringify(user));
     } catch (error) {
       setRegistrationError(authErrorMessage(error, 'register'));
@@ -1719,13 +1721,8 @@ export default function App() {
   };
 
   const goBack = () => {
-    if (step === 'tracking') {
-      setStep('register');
-      return;
-    }
-
     if (step === 'brand') {
-      setStep('tracking');
+      setStep('register');
       return;
     }
 
@@ -2837,14 +2834,6 @@ export default function App() {
           onSubmit={submitRegistration}
           onOpenLogin={() => setStep('login')}
           saving={registrationStatus === 'saving'}
-        />
-      ) : null}
-
-      {step === 'tracking' ? (
-        <TrackingStep
-          language={language}
-          onSelectMode={chooseTrackingMode}
-          selectedMode={trackingMode}
         />
       ) : null}
 
@@ -7844,10 +7833,6 @@ function canContinue(
   selectedVehicle: VehicleCatalogItem | null,
   trackingMode: TrackingMode | null
 ) {
-  if (step === 'tracking') {
-    return Boolean(trackingMode);
-  }
-
   if (step === 'brand') {
     return Boolean(selectedBrand);
   }
@@ -7860,11 +7845,7 @@ function canContinue(
     return Boolean(selectedVehicle);
   }
 
-  if (step === 'assessment') {
-    return true;
-  }
-
-  return false;
+  return true;
 }
 
 function nextStep(step: Step): Step {
