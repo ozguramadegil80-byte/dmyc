@@ -19,8 +19,6 @@ type VerifyAdminProfileResponse = {
   source: 'database' | 'environment';
 };
 
-const API_BASE_URL = process.env.DMYC_API_BASE_URL ?? process.env.NEXT_PUBLIC_DMYC_API_BASE_URL ?? 'http://localhost:4311';
-
 export async function getAdminProfile(): Promise<PublicAdminProfile> {
   return normalizeAdminProfile(await adminApiFetch<RawAdminProfile>('/admin/profile'));
 }
@@ -64,7 +62,7 @@ async function adminApiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
   headers.set('x-dmyc-admin-key', process.env.DMYC_ADMIN_API_KEY ?? 'dmyc-local-admin-api-key-change-me');
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await fetch(`${getAdminApiBaseUrl()}${path}`, {
     ...init,
     headers,
     cache: 'no-store',
@@ -75,4 +73,14 @@ async function adminApiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   }
 
   return response.json() as Promise<T>;
+}
+
+function getAdminApiBaseUrl() {
+  return (
+    process.env.DMYC_API_URL ??
+    process.env.DMYC_API_BASE_URL ??
+    process.env.NEXT_PUBLIC_DMYC_API_URL ??
+    process.env.NEXT_PUBLIC_DMYC_API_BASE_URL ??
+    'http://localhost:4311'
+  ).replace(/\/$/, '');
 }
