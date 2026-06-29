@@ -3,6 +3,7 @@ import { AnnualReportService } from './annual-report.service';
 import { BatteryLifecycleService } from './battery-lifecycle.service';
 import { DatabaseService } from './database.service';
 import { DriverIntelligenceService } from './driver-intelligence.service';
+import { ElectricityTariffService } from './electricity-tariff.service';
 import { MonthlyReportService } from './monthly-report.service';
 import { UsageProfileService } from './usage-profile.service';
 import { VehiclesService } from './vehicles.service';
@@ -29,6 +30,7 @@ type CreateChargeSessionBody = {
   currency?: string;
   source?: string;
   confidenceScore?: number;
+  kmSinceLastCharge?: number;
 };
 
 type CreateChargeEvidenceBody = {
@@ -63,10 +65,64 @@ export class ChargingService {
     private readonly db: DatabaseService,
     private readonly batteryLifecycle: BatteryLifecycleService,
     private readonly driverIntelligence: DriverIntelligenceService,
+    private readonly electricityTariff: ElectricityTariffService,
     private readonly monthlyReports: MonthlyReportService,
     private readonly usageProfile: UsageProfileService,
     private readonly vehicleAccess: VehiclesService,
   ) {}
+
+  private static haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+    const R = 6371;
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLng = ((lng2 - lng1) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos((lat1 * Math.PI) / 180) *
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLng / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
+  async estimateKmSinceLastCharge(
+    vehicleId: string,
+    lat: number,
+    lng: number,
+  ): Promise<{ estimatedKm: number | null; source: 'gps' | 'none' }> {
+    const result = await this.db.query<{ lat: number; lng: number }>(
+      `SELECT ST_Y(location::geometry) AS lat, ST_X(location::geometry) AS lng
+       FROM charge_sessions
+       WHERE vehicle_id = $1 AND location IS NOT NULL
+       ORDER BY created_at DESC LIMIT 1`,
+      [vehicleId],
+    );
+    if (!result.rows[0]) return { estimatedKm: null, source: 'none' };
+    const { lat: prevLat, lng: prevLng } = result.rows[0];
+    const km = ChargingService.haversineKm(Number(prevLat), Number(prevLng), lat, lng);
+    return { estimatedKm: Math.round(km * 10) / 10, source: 'gps' };
+  }
+
+  async listAnomalousSessions(limit = 50) {
+    const result = await this.db.query(
+      `SELECT
+         cs.id,
+         cs.vehicle_id          AS "vehicleId",
+         cs.energy_kwh          AS "energyKwh",
+         cs.cost_amount         AS "costAmount",
+         CASE WHEN cs.energy_kwh > 0 THEN round(cs.cost_amount / cs.energy_kwh, 2) END AS "costPerKwh",
+         cs.charge_location_type AS "chargeLocationType",
+         cs.created_at          AS "createdAt",
+         v_spec.brand,
+         v_spec.model
+       FROM charge_sessions cs
+       JOIN vehicles v ON v.id = cs.vehicle_id
+       JOIN vehicle_specs v_spec ON v_spec.id = v.vehicle_spec_id
+       WHERE cs.cost_anomaly_flag = true
+       ORDER BY cs.created_at DESC
+       LIMIT $1`,
+      [limit],
+    );
+    return result.rows;
+  }
 
   async createChargeSession(body: CreateChargeSessionBody) {
     // Access guard: actorUserId (kaydı giren) bu araçta add_charge iznine sahip olmalı.
@@ -84,6 +140,30 @@ export class ChargingService {
     }
 
     const driverUserId = actorUserId;
+
+    // GPS'ten km tahmini
+    let gpsEstimatedKm: number | null = null;
+    if (body.location?.latitude != null && body.location?.longitude != null) {
+      const est = await this.estimateKmSinceLastCharge(
+        body.vehicleId,
+        body.location.latitude,
+        body.location.longitude,
+      );
+      gpsEstimatedKm = est.estimatedKm;
+    }
+
+    // Maliyet anomali tespiti — girilen ₺/kWh EPDK referansından 5x fazla veya 0.1x az ise flag
+    let costAnomalyFlag = false;
+    if (body.energyKwh && body.energyKwh > 0 && body.costAmount != null && body.costAmount > 0) {
+      const ratePerKwh = body.costAmount / body.energyKwh;
+      const tariff = await this.electricityTariff.getActiveTariff('residential', 'TR');
+      if (tariff && tariff.tlPerKwh > 0) {
+        const ratio = ratePerKwh / tariff.tlPerKwh;
+        costAnomalyFlag = ratio > 5 || ratio < 0.1;
+      }
+    }
+
+    const kmSinceLastCharge = body.kmSinceLastCharge ?? null;
 
     const result = await this.db.query(
       `
@@ -106,7 +186,10 @@ export class ChargingService {
           currency,
           source,
           confidence_score,
-          evidence_status
+          evidence_status,
+          km_since_last_charge,
+          gps_estimated_km,
+          cost_anomaly_flag
         )
         VALUES (
           $1,
@@ -129,14 +212,19 @@ export class ChargingService {
           $16,
           $17,
           $18,
-          'none'
+          'none',
+          $19,
+          $20,
+          $21
         )
         RETURNING id, vehicle_id AS "vehicleId", ownership_id AS "ownershipId", user_id AS "userId",
           actor_user_id AS "actorUserId", driver_user_id AS "driverUserId",
           started_at AS "startedAt", ended_at AS "endedAt", charge_location_type AS "chargeLocationType",
           connector_type AS "connectorType", start_soc AS "startSoc", end_soc AS "endSoc",
           energy_kwh AS "energyKwh", cost_amount AS "costAmount", currency, source,
-          confidence_score AS "confidenceScore", evidence_status AS "evidenceStatus", created_at AS "createdAt"
+          confidence_score AS "confidenceScore", evidence_status AS "evidenceStatus",
+          km_since_last_charge AS "kmSinceLastCharge", gps_estimated_km AS "gpsEstimatedKm",
+          cost_anomaly_flag AS "costAnomalyFlag", created_at AS "createdAt"
       `,
       [
         body.vehicleId,
@@ -158,6 +246,9 @@ export class ChargingService {
         body.currency ?? 'TRY',
         body.source ?? 'mobile_estimated',
         body.confidenceScore ?? 0,
+        kmSinceLastCharge,
+        gpsEstimatedKm,
+        costAnomalyFlag,
       ],
     );
 
@@ -336,5 +427,31 @@ export class ChargingService {
       dcEnergyKwh: Number(summary.dcEnergyKwh),
       dcCostAmount: Number(summary.dcCostAmount),
     };
+  }
+
+  async getChargeSummaryByDriver(vehicleId: string) {
+    const result = await this.db.query(
+      `SELECT
+         cs.driver_user_id                                          AS "driverUserId",
+         COALESCE(u.username, split_part(u.email,'@',1), 'Bilinmiyor') AS "driverLabel",
+         count(*)::int                                              AS "sessionCount",
+         COALESCE(sum(cs.energy_kwh), 0)::numeric(10,2)            AS "energyKwh",
+         COALESCE(sum(cs.cost_amount), 0)::numeric(10,2)           AS "costAmount",
+         COALESCE(sum(cs.km_since_last_charge), 0)::numeric(10,1)  AS "totalKm"
+       FROM charge_sessions cs
+       LEFT JOIN users u ON u.id = cs.driver_user_id
+       WHERE cs.vehicle_id = $1
+       GROUP BY cs.driver_user_id, u.username, u.email
+       ORDER BY count(*) DESC`,
+      [vehicleId],
+    );
+    return result.rows.map((r) => ({
+      driverUserId: r.driverUserId as string | null,
+      driverLabel: r.driverLabel as string,
+      sessionCount: Number(r.sessionCount),
+      energyKwh: Number(r.energyKwh),
+      costAmount: Number(r.costAmount),
+      totalKm: Number(r.totalKm),
+    }));
   }
 }

@@ -421,6 +421,22 @@ export async function updateMaintenanceCandidate(
   });
 }
 
+export type AnomalousSession = {
+  id: string;
+  vehicleId: string;
+  energyKwh: number | null;
+  costAmount: number | null;
+  costPerKwh: number | null;
+  chargeLocationType: string;
+  createdAt: string;
+  brand: string;
+  model: string;
+};
+
+export async function fetchAdminAnomalies(limit = 100): Promise<AnomalousSession[]> {
+  return fetchJson<AnomalousSession[]>(`/admin/charge-anomalies?limit=${limit}`);
+}
+
 async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
   const isBrowser = typeof window !== 'undefined';
   const url = isBrowser ? `/api/admin-review/proxy${path}` : `${API_BASE_URL}${path}`;

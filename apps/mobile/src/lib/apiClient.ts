@@ -924,11 +924,34 @@ export async function createChargeSession(input: {
   currency?: string;
   source?: string;
   confidenceScore?: number;
+  kmSinceLastCharge?: number;
+  driverUserId?: string;
 }) {
   return fetchJson<ApiChargeSession>('/charge-sessions', {
     body: JSON.stringify(input),
     method: 'POST',
   });
+}
+
+export async function fetchChargeKmEstimate(
+  vehicleId: string,
+  lat: number,
+  lng: number,
+): Promise<{ estimatedKm: number | null; source: 'gps' | 'none' }> {
+  return fetchJson(`/vehicles/${vehicleId}/charge-km-estimate?lat=${lat}&lng=${lng}`);
+}
+
+export type ApiDriverChargeSummary = {
+  driverUserId: string | null;
+  driverLabel: string;
+  sessionCount: number;
+  energyKwh: number;
+  costAmount: number;
+  totalKm: number;
+};
+
+export async function fetchChargeSummaryByDriver(vehicleId: string) {
+  return fetchJson<ApiDriverChargeSummary[]>(`/vehicles/${vehicleId}/charge-summary-by-driver`);
 }
 
 export async function createChargingDecisionEvent(input: {

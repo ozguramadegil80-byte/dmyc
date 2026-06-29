@@ -4,15 +4,17 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
-  Car, ClipboardCheck, Users, Star,
+  Car, ClipboardCheck, Users, Star, AlertTriangle, Wrench,
   Bell, ChevronLeft, ChevronRight, KeyRound, LogOut, Menu, Settings, UserRound, X,
 } from 'lucide-react';
 
 const NAV = [
-  { href: '/admin/vehicles',    icon: Car,            label: 'Araçlar' },
-  { href: '/admin/review',      icon: ClipboardCheck, label: 'İnceleme' },
-  { href: '/admin/users',       icon: Users,          label: 'Kullanıcılar' },
-  { href: '/admin/sponsor',     icon: Star,           label: 'Sponsor' },
+  { href: '/admin/vehicles',     icon: Car,            label: 'Araçlar' },
+  { href: '/admin/review',       icon: ClipboardCheck, label: 'İnceleme' },
+  { href: '/admin/users',        icon: Users,          label: 'Kullanıcılar' },
+  { href: '/admin/sponsor',      icon: Star,           label: 'Sponsor' },
+  { href: '/admin/anomalies',    icon: AlertTriangle,  label: 'Anomaliler' },
+  { href: '/admin/maintenance',  icon: Wrench,         label: 'Bakım Adayları' },
 ];
 
 const SIDEBAR_FULL = 240;

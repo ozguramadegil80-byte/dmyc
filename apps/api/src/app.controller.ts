@@ -530,6 +530,29 @@ export class AppController {
     return this.charging.getChargeSummary(id);
   }
 
+  @Get('vehicles/:id/charge-summary-by-driver')
+  getChargeSummaryByDriver(@Param('id') id: string) {
+    return this.charging.getChargeSummaryByDriver(id);
+  }
+
+  @Get('vehicles/:id/charge-km-estimate')
+  getChargeKmEstimate(
+    @Param('id') id: string,
+    @Query('lat') lat: string,
+    @Query('lng') lng: string,
+  ) {
+    const latN = parseFloat(lat);
+    const lngN = parseFloat(lng);
+    if (isNaN(latN) || isNaN(lngN)) return { estimatedKm: null, source: 'none' };
+    return this.charging.estimateKmSinceLastCharge(id, latN, lngN);
+  }
+
+  @Get('admin/charge-anomalies')
+  @UseGuards(AdminApiKeyGuard)
+  listChargeAnomalies(@Query('limit') limit?: string) {
+    return this.charging.listAnomalousSessions(limit ? parseInt(limit) : 50);
+  }
+
   @Get('vehicles/:id/trips')
   listVehicleTrips(@Param('id') id: string) {
     return this.trips.listVehicleTrips(id);

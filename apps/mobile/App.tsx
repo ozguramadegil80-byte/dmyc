@@ -67,6 +67,7 @@ import {
   generatePublicReport,
   fetchRegistrySummary,
   fetchChargeSummary,
+  fetchChargeKmEstimate,
   fetchChargeStopPoiCandidates,
   fetchCommunityBenchmark,
   fetchRouteSummary,
@@ -169,6 +170,8 @@ import {
   type RouteWeatherResult,
   fetchRouteWeather,
   fetchSponsor,
+  fetchChargeSummaryByDriver,
+  type ApiDriverChargeSummary,
   WEB_BASE_URL,
 } from './src/lib/apiClient';
 import { getTooltip, type TooltipKey } from './src/lib/tooltips';
@@ -300,12 +303,14 @@ type SavedLocationForm = {
 type ChargeForm = {
   startSoc: string;
   endSoc: string;
+  driverUserId: string;
   energyKwh: string;
   costAmount: string;
   locationType: string;
   perceivedNeed: string;
   targetSoc: string;
   stationName: string;
+  kmSinceLastCharge: string;
 };
 
 function getTrackingModes(locale: Locale): Array<{
@@ -395,12 +400,14 @@ const emptySavedLocationForm: SavedLocationForm = {
 const emptyChargeForm: ChargeForm = {
   startSoc: '',
   endSoc: '',
+  driverUserId: '',
   energyKwh: '',
   costAmount: '',
   locationType: 'unknown',
   perceivedNeed: '',
   targetSoc: '',
   stationName: '',
+  kmSinceLastCharge: '',
 };
 
 export default function App() {
@@ -2726,6 +2733,10 @@ export default function App() {
 
     try {
       const now = new Date().toISOString();
+      const parsedKm = chargeForm.kmSinceLastCharge.trim()
+        ? parseFloat(chargeForm.kmSinceLastCharge.replace(',', '.'))
+        : undefined;
+
       const chargeSession = await createChargeSession({
         chargeLocationType: chargeForm.locationType || 'unknown',
         confidenceScore: parsed.hasManualData ? 0.35 : 0.1,
@@ -2740,6 +2751,8 @@ export default function App() {
         startedAt: now,
         userId: backendBinding.user.id,
         vehicleId: backendBinding.vehicle.id,
+        kmSinceLastCharge: parsedKm && !isNaN(parsedKm) ? parsedKm : undefined,
+        driverUserId: chargeForm.driverUserId || undefined,
       });
 
       await createChargingDecisionEvent({
@@ -3187,6 +3200,8 @@ export default function App() {
           usageProfile={usageProfile}
           routeSummary={routeSummary}
           language={language}
+          vehicleId={backendBinding?.vehicle.id ?? null}
+          currentUserId={backendBinding?.user.id ?? null}
         />
       ) : null}
 
@@ -4597,11 +4612,19 @@ type KarneScreenProps = {
   usageProfile: ApiUsageProfile | null;
   routeSummary: ApiRouteSummary | null;
   language: Locale;
+  vehicleId: string | null;
+  currentUserId: string | null;
 };
 
-function KarneScreen({ batteryLifecycle, communityBenchmark, monthlyReport, usageProfile, routeSummary, language }: KarneScreenProps) {
+function KarneScreen({ batteryLifecycle, communityBenchmark, monthlyReport, usageProfile, routeSummary, language, vehicleId, currentUserId }: KarneScreenProps) {
   const translate = createTranslator(language);
   const [chargeModal, setChargeModal] = useState(false);
+  const [driverSummary, setDriverSummary] = useState<ApiDriverChargeSummary[]>([]);
+
+  useEffect(() => {
+    if (!vehicleId) return;
+    fetchChargeSummaryByDriver(vehicleId).then(setDriverSummary).catch(() => {});
+  }, [vehicleId]);
 
   const showMonthly   = !!monthlyReport;
   const showUsage     = !!(usageProfile && (usageProfile.confidenceScore ?? 0) >= 0.50);
@@ -4914,6 +4937,45 @@ function KarneScreen({ batteryLifecycle, communityBenchmark, monthlyReport, usag
             <KarneDataItem label={translate('mobile.community.metric.speed')} value={formatSpeed(communityBenchmark!.topBenchmark?.communityAvgSpeedKmh ?? null)} />
             <KarneDataItem label={translate('mobile.community.metric.confidence')} value={formatConfidence(communityBenchmark!.topBenchmark?.matchQualityScore ?? null)} accent />
           </View>
+        </View>
+      )}
+
+      {/* ── SÜRÜCÜ KIRILIMLARI ────────────────────────────────────────── */}
+      {driverSummary.length > 1 && (
+        <View style={styles.karneCard}>
+          <View style={styles.karneCardHeader}>
+            <Text style={styles.karneCardTitle}>SÜRÜCÜ KIRILIMLARI</Text>
+            <Text style={styles.karneAccentLabel}>{driverSummary.length} sürücü</Text>
+          </View>
+          {driverSummary.map((d) => {
+            const isSelf = d.driverUserId === currentUserId;
+            return (
+              <View key={d.driverUserId ?? 'unknown'} style={{
+                flexDirection: 'row', alignItems: 'center',
+                paddingVertical: 10, paddingHorizontal: 4,
+                borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)',
+              }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: isSelf ? colors.cyan : '#b9cacb', fontSize: 13, fontWeight: '600' }}>
+                    {isSelf ? 'Ben' : d.driverLabel}
+                  </Text>
+                  <Text style={{ color: colors.muted, fontSize: 10, marginTop: 2 }}>
+                    {d.sessionCount} şarj · {d.energyKwh.toFixed(1)} kWh
+                  </Text>
+                </View>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={{ color: '#facc15', fontSize: 14, fontWeight: '700' }}>
+                    {d.costAmount > 0 ? `₺${d.costAmount.toLocaleString('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : '—'}
+                  </Text>
+                  {d.totalKm > 0 ? (
+                    <Text style={{ color: colors.muted, fontSize: 10, marginTop: 2 }}>
+                      {Math.round(d.totalKm)} km
+                    </Text>
+                  ) : null}
+                </View>
+              </View>
+            );
+          })}
         </View>
       )}
 
@@ -6457,6 +6519,8 @@ function ChargeLoggerStep({
   const [detectNote, setDetectNote] = useState<string | null>(null);
   const [compareCard, setCompareCard] = useState<ChargeCompareCard | null>(null);
   const [elapsed, setElapsed] = useState('');
+  const [kmNote, setKmNote] = useState<string | null>(null);
+  const [coDrivers, setCoDrivers] = useState<ApiVehicleAccess[]>([]);
 
   useEffect(() => {
     if (!chargeStartedAt) { setElapsed(''); return; }
@@ -6464,6 +6528,13 @@ function ChargeLoggerStep({
     const id = setInterval(() => setElapsed(elapsedLabel(chargeStartedAt)), 15000);
     return () => clearInterval(id);
   }, [chargeStartedAt]);
+
+  useEffect(() => {
+    if (!backendBinding) return;
+    listVehicleAccess(backendBinding.vehicle.id, backendBinding.user.id)
+      .then((list) => setCoDrivers(list.filter((a) => a.userId !== backendBinding.user.id && a.accessStatus === 'active')))
+      .catch(() => {});
+  }, [backendBinding?.vehicle.id]);
 
   async function detectLocation() {
     setDetectStatus('detecting');
@@ -6532,6 +6603,19 @@ function ChargeLoggerStep({
 
       setDetectStatus('done');
       if (!chargeStartedAt) onStartTimer();
+
+      // GPS'ten km tahmini al — yoksa alanı boş bırak, kullanıcı doldurur
+      if (backendBinding?.vehicle?.id) {
+        try {
+          const est = await fetchChargeKmEstimate(backendBinding.vehicle.id, latitude, longitude);
+          if (est.estimatedKm != null && est.estimatedKm > 0) {
+            onChange('kmSinceLastCharge', String(est.estimatedKm));
+            setKmNote(`GPS'ten hesaplandı · düzenleyebilirsin`);
+          }
+        } catch {
+          // sessizce geç
+        }
+      }
     } catch {
       setDetectStatus('error');
       setDetectNote('Konum alınamadı. Tekrar dene.');
@@ -6786,6 +6870,76 @@ function ChargeLoggerStep({
               placeholder={chargeStartedAt ? 'otomatik' : '1sa 20dk'}
             />
             <SarjInput label="MALİYET" value={form.costAmount} onChange={(v) => onChange('costAmount', v)} placeholder="₺" accent />
+          </View>
+
+          {/* KİM ŞARJ ETTİ — sadece birden fazla sürücü varsa göster */}
+          {coDrivers.length > 0 ? (
+            <View style={{ marginTop: 8, marginBottom: 4 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6, gap: 6 }}>
+                <MaterialIcons color={colors.muted} name="person" size={13} />
+                <Text style={{ color: colors.muted, fontSize: 10, letterSpacing: 0.7, textTransform: 'uppercase', fontWeight: '700' }}>
+                  Kim Şarj Etti?
+                </Text>
+              </View>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                <Pressable
+                  onPress={() => onChange('driverUserId', '')}
+                  style={{
+                    paddingHorizontal: 12, paddingVertical: 5,
+                    borderRadius: 20,
+                    backgroundColor: !form.driverUserId ? 'rgba(0,240,255,0.15)' : 'transparent',
+                    borderWidth: 1,
+                    borderColor: !form.driverUserId ? colors.cyan : 'rgba(255,255,255,0.12)',
+                  }}
+                >
+                  <Text style={{ color: !form.driverUserId ? colors.cyan : colors.muted, fontSize: 11, fontWeight: '600' }}>
+                    Ben
+                  </Text>
+                </Pressable>
+                {coDrivers.map((d) => {
+                  const label = d.fullName?.trim() || d.username?.trim() || d.userId.slice(-6).toUpperCase();
+                  const active = form.driverUserId === d.userId;
+                  return (
+                    <Pressable
+                      key={d.userId}
+                      onPress={() => onChange('driverUserId', d.userId)}
+                      style={{
+                        paddingHorizontal: 12, paddingVertical: 5,
+                        borderRadius: 20,
+                        backgroundColor: active ? 'rgba(0,240,255,0.15)' : 'transparent',
+                        borderWidth: 1,
+                        borderColor: active ? colors.cyan : 'rgba(255,255,255,0.12)',
+                      }}
+                    >
+                      <Text style={{ color: active ? colors.cyan : colors.muted, fontSize: 11, fontWeight: '600' }}>
+                        {label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          ) : null}
+
+          {/* KM ALANI */}
+          <View style={{ marginTop: 8, marginBottom: 4 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4, gap: 6 }}>
+              <MaterialIcons color={colors.muted} name="speed" size={13} />
+              <Text style={{ color: colors.muted, fontSize: 10, letterSpacing: 0.7, textTransform: 'uppercase', fontWeight: '700' }}>
+                Son Şarjdan Bugüne (km)
+              </Text>
+            </View>
+            <TextInput
+              keyboardType="numeric"
+              onChangeText={(v) => { onChange('kmSinceLastCharge', v); setKmNote(null); }}
+              placeholder="GPS'ten tahmin edilecek"
+              placeholderTextColor={colors.muted}
+              style={[styles.sarjInput, { width: '100%' }]}
+              value={form.kmSinceLastCharge}
+            />
+            {kmNote ? (
+              <Text style={{ color: colors.cyan, fontSize: 10, marginTop: 3, opacity: 0.7 }}>{kmNote}</Text>
+            ) : null}
           </View>
 
           {message ? <Text style={styles.sarjMessage}>{message}</Text> : null}
