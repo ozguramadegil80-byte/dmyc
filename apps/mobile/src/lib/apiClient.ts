@@ -210,6 +210,12 @@ export type ApiChargeSummary = {
   socSessionCount: number;
   socBasedEnergyKwh: number;
   estimationContinuesWithoutManualData: boolean;
+  acSessionCount: number;
+  acEnergyKwh: number;
+  acCostAmount: number;
+  dcSessionCount: number;
+  dcEnergyKwh: number;
+  dcCostAmount: number;
 };
 
 export type ApiUsageProfile = {

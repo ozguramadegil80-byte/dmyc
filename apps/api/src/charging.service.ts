@@ -285,7 +285,31 @@ export class ChargingService {
             sum((cs.end_soc - cs.start_soc) / 100.0 * vs.battery_net_kwh)
               FILTER (WHERE cs.start_soc IS NOT NULL AND cs.end_soc IS NOT NULL AND cs.end_soc > cs.start_soc),
             0
-          )::numeric(10,2) AS "socBasedEnergyKwh"
+          )::numeric(10,2) AS "socBasedEnergyKwh",
+          count(*) FILTER (
+            WHERE cs.charge_location_type NOT IN ('dc','public_dc','fast_dc')
+              AND (cs.connector_type IS NULL OR cs.connector_type NOT ILIKE '%dc%')
+          )::int AS "acSessionCount",
+          COALESCE(sum(energy_kwh) FILTER (
+            WHERE cs.charge_location_type NOT IN ('dc','public_dc','fast_dc')
+              AND (cs.connector_type IS NULL OR cs.connector_type NOT ILIKE '%dc%')
+          ), 0)::numeric(10,2) AS "acEnergyKwh",
+          COALESCE(sum(cost_amount) FILTER (
+            WHERE cs.charge_location_type NOT IN ('dc','public_dc','fast_dc')
+              AND (cs.connector_type IS NULL OR cs.connector_type NOT ILIKE '%dc%')
+          ), 0)::numeric(10,2) AS "acCostAmount",
+          count(*) FILTER (
+            WHERE cs.charge_location_type IN ('dc','public_dc','fast_dc')
+              OR cs.connector_type ILIKE '%dc%'
+          )::int AS "dcSessionCount",
+          COALESCE(sum(energy_kwh) FILTER (
+            WHERE cs.charge_location_type IN ('dc','public_dc','fast_dc')
+              OR cs.connector_type ILIKE '%dc%'
+          ), 0)::numeric(10,2) AS "dcEnergyKwh",
+          COALESCE(sum(cost_amount) FILTER (
+            WHERE cs.charge_location_type IN ('dc','public_dc','fast_dc')
+              OR cs.connector_type ILIKE '%dc%'
+          ), 0)::numeric(10,2) AS "dcCostAmount"
         FROM charge_sessions cs
         JOIN vehicles v ON v.id = cs.vehicle_id
         JOIN vehicle_specs vs ON vs.id = v.vehicle_spec_id
@@ -305,6 +329,12 @@ export class ChargingService {
       socSessionCount: Number(summary.socSessionCount),
       socBasedEnergyKwh: Number(summary.socBasedEnergyKwh),
       estimationContinuesWithoutManualData: Number(summary.chargeSessionCount) === 0,
+      acSessionCount: Number(summary.acSessionCount),
+      acEnergyKwh: Number(summary.acEnergyKwh),
+      acCostAmount: Number(summary.acCostAmount),
+      dcSessionCount: Number(summary.dcSessionCount),
+      dcEnergyKwh: Number(summary.dcEnergyKwh),
+      dcCostAmount: Number(summary.dcCostAmount),
     };
   }
 }

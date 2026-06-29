@@ -3157,6 +3157,7 @@ export default function App() {
           status={chargeStatus}
           summary={chargeSummary}
           vehicle={selectedVehicle}
+          onGoKarne={() => setStep('karne')}
         />
       ) : null}
 
@@ -6296,6 +6297,7 @@ type ChargeLoggerStepProps = {
   status: 'idle' | 'saving' | 'offline';
   summary: ApiChargeSummary | null;
   vehicle: VehicleCatalogItem | null;
+  onGoKarne: () => void;
 };
 
 function formatChargeTime(minutes: number): string {
@@ -6334,6 +6336,7 @@ function ChargeLoggerStep({
   status,
   summary,
   vehicle,
+  onGoKarne,
 }: ChargeLoggerStepProps) {
   const disabled = status === 'saving' || !backendBinding;
 
@@ -6484,6 +6487,51 @@ function ChargeLoggerStep({
           </Text>
         </View>
       </View>
+
+      {/* ── EV / İSTASYON / RAPOR ────────────────────────────────────── */}
+      {summary && (summary.acSessionCount > 0 || summary.dcSessionCount > 0) && (
+        <View style={{ flexDirection: 'row', gap: 8, marginHorizontal: 16, marginBottom: 12 }}>
+
+          {/* Ev (AC) */}
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,240,255,0.05)', borderWidth: 1, borderColor: 'rgba(0,240,255,0.2)', borderRadius: 8, padding: 10 }}>
+            <Text style={{ color: '#5e7a7e', fontSize: 9, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 4 }}>Ev Şarjı</Text>
+            <Text style={{ color: '#00f0ff', fontSize: 15, fontWeight: '700' }}>
+              {formatTL(summary.acCostAmount)}
+            </Text>
+            <Text style={{ color: '#5e7a7e', fontSize: 10, marginTop: 2 }}>
+              {summary.acEnergyKwh.toFixed(1)} kWh
+            </Text>
+            <Text style={{ color: '#5e7a7e', fontSize: 9, marginTop: 3 }}>
+              {summary.acSessionCount} seans
+            </Text>
+          </View>
+
+          {/* İstasyon (DC) */}
+          <View style={{ flex: 1, backgroundColor: 'rgba(250,204,21,0.05)', borderWidth: 1, borderColor: 'rgba(250,204,21,0.2)', borderRadius: 8, padding: 10 }}>
+            <Text style={{ color: '#5e7a7e', fontSize: 9, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 4 }}>İstasyon</Text>
+            <Text style={{ color: '#facc15', fontSize: 15, fontWeight: '700' }}>
+              {formatTL(summary.dcCostAmount)}
+            </Text>
+            <Text style={{ color: '#5e7a7e', fontSize: 10, marginTop: 2 }}>
+              {summary.dcEnergyKwh.toFixed(1)} kWh
+            </Text>
+            <Text style={{ color: '#5e7a7e', fontSize: 9, marginTop: 3 }}>
+              {summary.dcSessionCount} seans
+            </Text>
+          </View>
+
+          {/* Rapor → Karne */}
+          <Pressable
+            onPress={onGoKarne}
+            style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.03)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', borderRadius: 8, padding: 10, alignItems: 'center', justifyContent: 'center' }}
+          >
+            <Text style={{ color: '#5e7a7e', fontSize: 9, letterSpacing: 0.6, textTransform: 'uppercase', textAlign: 'center', marginBottom: 6 }}>Şarj{'\n'}Raporu</Text>
+            <Text style={{ color: '#b9cacb', fontSize: 18 }}>⚡</Text>
+            <Text style={{ color: '#00f0ff', fontSize: 9, fontWeight: '700', marginTop: 6 }}>KARNE →</Text>
+          </Pressable>
+
+        </View>
+      )}
 
       {/* ── ŞARJ ETTİM KARTI ──────────────────────────────────────────── */}
       <View style={styles.sarjLogCard}>
