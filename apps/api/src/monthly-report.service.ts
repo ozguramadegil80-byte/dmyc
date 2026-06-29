@@ -54,7 +54,23 @@ export class MonthlyReportService {
             count(*) FILTER (
               WHERE charge_location_type IN ('dc','public_dc','fast_dc')
                 OR connector_type ILIKE '%dc%'
-            )::int                                             AS dc_charge_count
+            )::int                                             AS dc_charge_count,
+            COALESCE(sum(energy_kwh) FILTER (
+              WHERE charge_location_type NOT IN ('dc','public_dc','fast_dc')
+                AND (connector_type IS NULL OR connector_type NOT ILIKE '%dc%')
+            ), 0)::numeric(10,3)                              AS ac_energy_kwh,
+            COALESCE(sum(cost_amount) FILTER (
+              WHERE charge_location_type NOT IN ('dc','public_dc','fast_dc')
+                AND (connector_type IS NULL OR connector_type NOT ILIKE '%dc%')
+            ), 0)::numeric(12,2)                              AS ac_cost_amount,
+            COALESCE(sum(energy_kwh) FILTER (
+              WHERE charge_location_type IN ('dc','public_dc','fast_dc')
+                OR connector_type ILIKE '%dc%'
+            ), 0)::numeric(10,3)                              AS dc_energy_kwh,
+            COALESCE(sum(cost_amount) FILTER (
+              WHERE charge_location_type IN ('dc','public_dc','fast_dc')
+                OR connector_type ILIKE '%dc%'
+            ), 0)::numeric(12,2)                              AS dc_cost_amount
           FROM charge_sessions
           WHERE vehicle_id = $1
             AND EXTRACT(YEAR FROM started_at)  = $2
@@ -73,6 +89,10 @@ export class MonthlyReportService {
             c.total_cost_amount,
             c.ac_charge_count,
             c.dc_charge_count,
+            c.ac_energy_kwh,
+            c.ac_cost_amount,
+            c.dc_energy_kwh,
+            c.dc_cost_amount,
             CASE
               WHEN t.total_distance_m > 0
               THEN round((c.total_cost_amount / (t.total_distance_m / 1000.0))::numeric, 4)
@@ -97,6 +117,7 @@ export class MonthlyReportService {
           trip_count, total_distance_m, total_duration_seconds, avg_speed_kmh,
           total_energy_kwh, total_cost_amount, currency, cost_per_km,
           ac_charge_count, dc_charge_count,
+          ac_energy_kwh, ac_cost_amount, dc_energy_kwh, dc_cost_amount,
           fossil_equiv_cost, estimated_savings,
           confidence_score, last_calculated_at,
           created_at, updated_at
@@ -129,6 +150,10 @@ export class MonthlyReportService {
           cost_per_km            = EXCLUDED.cost_per_km,
           ac_charge_count        = EXCLUDED.ac_charge_count,
           dc_charge_count        = EXCLUDED.dc_charge_count,
+          ac_energy_kwh          = EXCLUDED.ac_energy_kwh,
+          ac_cost_amount         = EXCLUDED.ac_cost_amount,
+          dc_energy_kwh          = EXCLUDED.dc_energy_kwh,
+          dc_cost_amount         = EXCLUDED.dc_cost_amount,
           fossil_equiv_cost      = EXCLUDED.fossil_equiv_cost,
           estimated_savings      = EXCLUDED.estimated_savings,
           confidence_score       = EXCLUDED.confidence_score,
@@ -162,6 +187,10 @@ export class MonthlyReportService {
           cost_per_km       AS "costPerKm",
           ac_charge_count   AS "acChargeCount",
           dc_charge_count   AS "dcChargeCount",
+          ac_energy_kwh     AS "acEnergyKwh",
+          ac_cost_amount    AS "acCostAmount",
+          dc_energy_kwh     AS "dcEnergyKwh",
+          dc_cost_amount    AS "dcCostAmount",
           fossil_equiv_cost AS "fossilEquivCost",
           estimated_savings AS "estimatedSavings",
           confidence_score  AS "confidenceScore",
@@ -189,6 +218,10 @@ export class MonthlyReportService {
         costPerKm: null,
         acChargeCount: 0,
         dcChargeCount: 0,
+        acEnergyKwh: null,
+        acCostAmount: null,
+        dcEnergyKwh: null,
+        dcCostAmount: null,
         fossilEquivCost: null,
         estimatedSavings: null,
         confidenceScore: 0,
@@ -212,6 +245,10 @@ export class MonthlyReportService {
       costPerKm: row.costPerKm !== null ? Number(row.costPerKm) : null,
       acChargeCount: Number(row.acChargeCount),
       dcChargeCount: Number(row.dcChargeCount),
+      acEnergyKwh: row.acEnergyKwh !== null ? Number(row.acEnergyKwh) : null,
+      acCostAmount: row.acCostAmount !== null ? Number(row.acCostAmount) : null,
+      dcEnergyKwh: row.dcEnergyKwh !== null ? Number(row.dcEnergyKwh) : null,
+      dcCostAmount: row.dcCostAmount !== null ? Number(row.dcCostAmount) : null,
       fossilEquivCost: row.fossilEquivCost !== null ? Number(row.fossilEquivCost) : null,
       estimatedSavings: row.estimatedSavings !== null ? Number(row.estimatedSavings) : null,
       confidenceScore: Number(row.confidenceScore),

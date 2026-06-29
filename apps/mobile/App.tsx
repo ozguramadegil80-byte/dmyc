@@ -4665,6 +4665,70 @@ function KarneScreen({ batteryLifecycle, communityBenchmark, monthlyReport, usag
         </View>
       )}
 
+      {/* ── ŞARJ TÜRÜ DAĞILIMI ────────────────────────────────────────── */}
+      {showMonthly && (monthlyReport!.acChargeCount > 0 || monthlyReport!.dcChargeCount > 0) && (
+        <View style={styles.karneCard}>
+          <View style={styles.karneCardHeader}>
+            <Text style={styles.karneCardTitle}>ŞARJ TÜRÜ</Text>
+            <Text style={styles.karneAccentLabel}>
+              {monthlyReport!.acChargeCount + monthlyReport!.dcChargeCount} şarj
+            </Text>
+          </View>
+
+          {/* 3 sütun */}
+          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+
+            {/* Ev (AC) */}
+            <View style={{ flex: 1, backgroundColor: 'rgba(0,240,255,0.05)', borderWidth: 1, borderColor: 'rgba(0,240,255,0.15)', borderRadius: 8, padding: 10 }}>
+              <Text style={{ color: '#5e7a7e', fontSize: 9, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 4 }}>Ev Şarjı</Text>
+              <Text style={{ color: '#00f0ff', fontSize: 16, fontWeight: '700', fontFamily: 'SpaceGrotesk' }}>
+                {monthlyReport!.acCostAmount != null ? formatTL(monthlyReport!.acCostAmount) : '—'}
+              </Text>
+              <Text style={{ color: '#5e7a7e', fontSize: 10, marginTop: 2 }}>
+                {monthlyReport!.acEnergyKwh != null ? `${monthlyReport!.acEnergyKwh.toFixed(1)} kWh` : '—'}
+              </Text>
+              <Text style={{ color: '#5e7a7e', fontSize: 9, marginTop: 4 }}>AC · {monthlyReport!.acChargeCount} seans</Text>
+            </View>
+
+            {/* İstasyon (DC) */}
+            <View style={{ flex: 1, backgroundColor: 'rgba(250,204,21,0.05)', borderWidth: 1, borderColor: 'rgba(250,204,21,0.15)', borderRadius: 8, padding: 10 }}>
+              <Text style={{ color: '#5e7a7e', fontSize: 9, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 4 }}>İstasyon</Text>
+              <Text style={{ color: '#facc15', fontSize: 16, fontWeight: '700', fontFamily: 'SpaceGrotesk' }}>
+                {monthlyReport!.dcCostAmount != null ? formatTL(monthlyReport!.dcCostAmount) : '—'}
+              </Text>
+              <Text style={{ color: '#5e7a7e', fontSize: 10, marginTop: 2 }}>
+                {monthlyReport!.dcEnergyKwh != null ? `${monthlyReport!.dcEnergyKwh.toFixed(1)} kWh` : '—'}
+              </Text>
+              <Text style={{ color: '#5e7a7e', fontSize: 9, marginTop: 4 }}>DC · {monthlyReport!.dcChargeCount} seans</Text>
+            </View>
+
+            {/* Rapor */}
+            <View style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.03)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', borderRadius: 8, padding: 10, alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ color: '#5e7a7e', fontSize: 9, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 6, textAlign: 'center' }}>Şarj Raporu</Text>
+              <Text style={{ color: '#b9cacb', fontSize: 18 }}>⚡</Text>
+              <Text style={{ color: '#00f0ff', fontSize: 9, fontWeight: '700', marginTop: 6, textAlign: 'center' }}>DETAY →</Text>
+            </View>
+
+          </View>
+
+          {/* AC/DC açıklama */}
+          <View style={{ gap: 6 }}>
+            <View style={{ flexDirection: 'row', gap: 6, alignItems: 'flex-start' }}>
+              <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#00f0ff', marginTop: 4, flexShrink: 0 }} />
+              <Text style={{ color: '#5e7a7e', fontSize: 11, flex: 1, lineHeight: 16 }}>
+                <Text style={{ color: '#b9cacb', fontWeight: '600' }}>AC (Ev):</Text> Evde gece şarjı, yavaş ve ucuz tarife. Batarya ömrünü korur.
+              </Text>
+            </View>
+            <View style={{ flexDirection: 'row', gap: 6, alignItems: 'flex-start' }}>
+              <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#facc15', marginTop: 4, flexShrink: 0 }} />
+              <Text style={{ color: '#5e7a7e', fontSize: 11, flex: 1, lineHeight: 16 }}>
+                <Text style={{ color: '#b9cacb', fontWeight: '600' }}>DC (İstasyon):</Text> Hızlı şarj, yüksek güç, yolculukta pratik — ama kWh başı maliyeti daha yüksek.
+              </Text>
+            </View>
+          </View>
+        </View>
+      )}
+
       {/* ── KULLANIM PROFİLİ ───────────────────────────────────────────── */}
       {showUsage && (
         <View style={styles.karneCard}>

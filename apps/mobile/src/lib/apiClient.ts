@@ -305,6 +305,10 @@ export type ApiMonthlyReport = {
   costPerKm: number | null;
   acChargeCount: number;
   dcChargeCount: number;
+  acEnergyKwh: number | null;
+  acCostAmount: number | null;
+  dcEnergyKwh: number | null;
+  dcCostAmount: number | null;
   fossilEquivCost: number | null;
   estimatedSavings: number | null;
   confidenceScore: number;
