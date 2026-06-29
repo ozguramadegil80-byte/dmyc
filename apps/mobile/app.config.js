@@ -20,8 +20,8 @@ module.exports = {
   icon: './assets/icon.png',
   userInterfaceStyle: 'light',
   splash: {
-    image: './assets/splash-icon.png',
-    resizeMode: 'contain',
+    image: './assets/icon.png',
+    resizeMode: 'cover',
     backgroundColor: '#0D1515',
   },
   ios: {
