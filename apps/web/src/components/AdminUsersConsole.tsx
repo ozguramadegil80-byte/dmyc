@@ -66,14 +66,43 @@ function fmtUserVehicles(user: AdminListItem) {
 }
 
 function cleanAdminDraft(draft: AdminProfileDraft) {
+  const password = draft.password;
+  const passwordConfirmation = draft.passwordConfirmation;
+
   return {
     avatarUrl: safeText(draft.avatarUrl).trim(),
     email: safeText(draft.email).trim(),
     fullName: safeText(draft.fullName).trim(),
-    password: draft.password ? draft.password : undefined,
-    passwordConfirmation: draft.passwordConfirmation ? draft.passwordConfirmation : undefined,
+    password: password || passwordConfirmation ? password : undefined,
+    passwordConfirmation: password || passwordConfirmation ? passwordConfirmation : undefined,
     username: safeText(draft.username).trim(),
   };
+}
+
+function validateAdminDraft(draft: AdminProfileDraft) {
+  const username = safeText(draft.username).trim();
+  const password = draft.password;
+  const passwordConfirmation = draft.passwordConfirmation;
+
+  if (!username) {
+    return 'Admin kullanıcı adı boş olamaz.';
+  }
+
+  if (password || passwordConfirmation) {
+    if (!password || !passwordConfirmation) {
+      return 'Yeni şifre ve şifre tekrarı birlikte girilmeli.';
+    }
+
+    if (password.length < 8) {
+      return 'Admin şifresi en az 8 karakter olmalı.';
+    }
+
+    if (password !== passwordConfirmation) {
+      return 'Admin şifre doğrulaması eşleşmiyor.';
+    }
+  }
+
+  return null;
 }
 
 function safeText(value: string | null | undefined) {
@@ -269,6 +298,12 @@ export function AdminUsersConsole({ adminProfile: initialAdminProfile, adminUser
     setModalMsg(null);
     try {
       if (modal?.user?.isSystemAdmin) {
+        const validationError = validateAdminDraft(adminDraft);
+        if (validationError) {
+          setModalMsg(validationError);
+          return;
+        }
+
         const response = await fetch('/api/admin-auth/profile', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },

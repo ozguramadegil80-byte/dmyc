@@ -13,8 +13,12 @@ export async function POST(request: Request) {
     maxAge: 0,
     path: '/',
     sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
+    secure: isSecureRequest(request),
   });
 
   return response;
+}
+
+function isSecureRequest(request: Request) {
+  return new URL(request.url).protocol === 'https:';
 }

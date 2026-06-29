@@ -312,8 +312,8 @@ export class AracSiciliService {
     return {
       inspection: inspection
         ? {
-            nextInspectionDate: inspection.next_inspection_date,
-            lastInspectionDate: inspection.last_inspection_date,
+            nextInspectionDate: inspection.nextInspectionDate,
+            lastInspectionDate: inspection.lastInspectionDate,
             confidence: inspection.confidence,
             result: inspection.result,
           }

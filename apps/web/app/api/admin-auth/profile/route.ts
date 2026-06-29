@@ -4,7 +4,11 @@ import {
   createAdminSession,
   getAdminSession,
 } from '../../../../src/lib/adminSession';
-import { getAdminProfile, updateAdminProfile } from '../../../../src/lib/adminProfileStore';
+import {
+  getAdminProfile,
+  updateAdminProfile,
+  verifyStoredAdminCredentials,
+} from '../../../../src/lib/adminProfileStore';
 
 export async function GET() {
   const session = await getAdminSession();
@@ -32,6 +36,22 @@ export async function PATCH(request: Request) {
 
   try {
     const profile = await updateAdminProfile(body);
+    const passwordWasChanged = Boolean(body.password || body.passwordConfirmation);
+
+    if (passwordWasChanged) {
+      const nextUsername = profile.username || body.username || session.username;
+      const nextPasswordWorks = body.password
+        ? await verifyStoredAdminCredentials(nextUsername, body.password)
+        : false;
+
+      if (!nextPasswordWorks) {
+        return NextResponse.json(
+          { error: 'Admin şifresi kaydedildi ama yeni şifre doğrulanamadı. Lütfen tekrar deneyin.' },
+          { status: 500 },
+        );
+      }
+    }
+
     const response = NextResponse.json(profile);
     response.cookies.set(
       ADMIN_SESSION_COOKIE,
@@ -45,7 +65,7 @@ export async function PATCH(request: Request) {
         maxAge: 12 * 60 * 60,
         path: '/',
         sameSite: 'lax',
-        secure: process.env.NODE_ENV === 'production',
+        secure: isSecureRequest(request),
       },
     );
     return response;
@@ -55,4 +75,8 @@ export async function PATCH(request: Request) {
       { status: 400 },
     );
   }
+}
+
+function isSecureRequest(request: Request) {
+  return new URL(request.url).protocol === 'https:';
 }
