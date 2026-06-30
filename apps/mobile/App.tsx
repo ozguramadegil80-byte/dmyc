@@ -843,6 +843,12 @@ export default function App() {
     return () => sub.remove();
   }, []);
 
+  // GPS iznini kayıt ekranında önceden iste
+  useEffect(() => {
+    if (step !== 'register' || Platform.OS === 'web') return;
+    Location.requestForegroundPermissionsAsync().catch(() => {});
+  }, [step]);
+
   useEffect(() => {
     if (!backendBinding) {
       setUsageProfile(null);
@@ -1860,6 +1866,9 @@ export default function App() {
   const handleContinue = async () => {
     if (step === 'variant') {
       setStep('assessment');
+      if (selectedVehicle?.yearFrom) {
+        setAssessmentPurchaseYear(String(selectedVehicle.yearFrom));
+      }
       return;
     }
 
@@ -3333,7 +3342,7 @@ export default function App() {
         </>
       ) : null}
 
-      {isOnboardingStep(step, sicilReturnStep) ? (
+      {isOnboardingStep(step, sicilReturnStep) && step !== 'register' ? (
         <BottomAction
           disabled={!canContinue(step, selectedBrand, selectedModel, selectedVehicle, trackingMode)}
           label={continueLabel(step, language)}
@@ -3875,24 +3884,6 @@ function BrandStep({
         <Pressable accessibilityRole="button" onPress={onRetryApi} style={styles.retryButton}>
           <Text style={styles.retryText}>Yeniden dene</Text>
         </Pressable>
-      </View>
-
-      <View style={styles.sectionHeader}>
-        <Text style={styles.heading}>Popüler</Text>
-        <Text style={styles.countText}>{popularBrands.length} MARKA</Text>
-      </View>
-
-      <View style={styles.popularGrid}>
-        {popularBrands.map((brand, index) => (
-          <BrandCard
-            brand={brand}
-            featured={index === 0}
-            imageUrl={brandImageByBrand[brand] ?? null}
-            key={brand}
-            onPress={() => onSelectBrand(brand)}
-            selected={selectedBrand === brand}
-          />
-        ))}
       </View>
 
       <View style={styles.sectionHeader}>
@@ -8698,7 +8689,7 @@ function AssessmentInputStep({
         <TextInput
           style={styles.formInput}
           keyboardType="numeric"
-          placeholder="örn. 2021"
+          placeholder={vehicle?.yearFrom ? String(vehicle.yearFrom) : 'örn. 2021'}
           value={purchaseYear}
           onChangeText={onChangePurchaseYear}
           maxLength={4}
