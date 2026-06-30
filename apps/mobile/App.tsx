@@ -1183,6 +1183,11 @@ export default function App() {
         setSelectedModel(storedVehicle.model);
         setSelectedVehicle(storedVehicle);
         setStep('today');
+      } else if (isMounted && registeredUser && !storedVehicle) {
+        // Stored key doesn't match any catalog entry — re-fetch from API
+        restoreActiveBindingFromApi(registeredUser).then((freshBinding) => {
+          if (!freshBinding) setStep('brand');
+        });
       }
     }
 
@@ -1334,7 +1339,11 @@ export default function App() {
     setLoginForm(emptyLoginForm);
     setLoginError(null);
     setStep('login');
-    await safeStorageRemove(REGISTERED_USER_STORAGE_KEY);
+    await Promise.all([
+      safeStorageRemove(REGISTERED_USER_STORAGE_KEY),
+      safeStorageRemove(BACKEND_BINDING_STORAGE_KEY),
+      safeStorageRemove(SELECTED_VEHICLE_STORAGE_KEY),
+    ]);
   };
 
   const chooseVehicle = (vehicle: VehicleCatalogItem) => {
