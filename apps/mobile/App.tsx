@@ -9697,7 +9697,7 @@ function WelcomeAssessmentModal({
             contentContainerStyle={styles.welcomeModalScroll}
             showsVerticalScrollIndicator={false}
           >
-            {assessment === null ? (
+            {!assessment ? (
               <View style={styles.welcomeModalLoading}>
                 <ActivityIndicator size="large" color="#fff" />
                 <Text style={styles.welcomeModalLoadingText}>Araç analiz ediliyor...</Text>
