@@ -54,6 +54,14 @@ module.exports = {
   },
   plugins: [
     [
+      'expo-splash-screen',
+      {
+        image: './assets/icon.png',
+        resizeMode: 'contain',
+        backgroundColor: '#0D1515',
+      },
+    ],
+    [
       'expo-location',
       {
         locationWhenInUsePermission:
