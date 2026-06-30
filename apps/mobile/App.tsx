@@ -12,10 +12,10 @@ import {
   Image,
   Linking,
   useWindowDimensions,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
-  SafeAreaView,
   ScrollView,
   Share,
   StatusBar as RNStatusBar,
@@ -25,6 +25,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let RNMaps: any = null;
 if (Platform.OS === 'ios' || Platform.OS === 'android') {
@@ -2799,6 +2800,7 @@ export default function App() {
   };
 
   return (
+    <SafeAreaProvider>
     <View style={{ flex: 1 }}>
       <Image
         source={require('./assets/yolculuk-bg.jpg')}
@@ -3427,6 +3429,7 @@ export default function App() {
       ) : null}
     </SafeAreaView>
     </View>
+    </SafeAreaProvider>
   );
 }
 
@@ -3568,6 +3571,11 @@ function LoginStep({ error, form, language, onChange, onChangeLanguage, onOpenRe
       };
 
   return (
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={{ flex: 1 }}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}
+    >
     <ScrollView contentContainerStyle={styles.loginContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
       <View style={styles.loginHeader}>
         <LanguageFlags language={language} onChange={onChangeLanguage} />
@@ -3637,6 +3645,7 @@ function LoginStep({ error, form, language, onChange, onChangeLanguage, onOpenRe
         </Pressable>
       </View>
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -3689,7 +3698,12 @@ function RegisterStep({ error, form, language, onChange, onChangeLanguage, onOpe
       };
 
   return (
-    <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={{ flex: 1 }}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}
+    >
+    <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
       <LanguageFlags language={language} onChange={onChangeLanguage} />
       <View style={styles.accountPanel}>
         <Text style={styles.badge}>{copy.badge}</Text>
@@ -3771,6 +3785,7 @@ function RegisterStep({ error, form, language, onChange, onChangeLanguage, onOpe
         </Pressable>
       </View>
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
