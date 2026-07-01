@@ -253,9 +253,11 @@ export class PremiumVehicleReportService {
     const fossilEquivCost = Number(annual?.fossil_equiv_cost ?? 0);
     const estimatedSavings = Number(annual?.estimated_savings ?? 0);
     const currentTariffCost =
-      activeTariff && totalKwh > 0
-        ? Math.round(totalKwh * activeTariff.tlPerKwh)
-        : null;
+      annual?.total_cost_amount != null && Number(annual.total_cost_amount) > 0
+        ? Math.round(Number(annual.total_cost_amount))
+        : activeTariff && totalKwh > 0
+          ? Math.round(totalKwh * activeTariff.tlPerKwh)
+          : null;
 
     return {
       vehicleSummary: assessment
@@ -384,7 +386,53 @@ export class PremiumVehicleReportService {
       ],
     );
 
-    return res.rows[0];
+    const report = res.rows[0];
+
+    // Kaynak anlık görüntüsünü immutable olarak kaydet
+    void this.saveSourceSnapshot(report.id, vehicleId, data).catch(() => {});
+
+    return report;
+  }
+
+  private async saveSourceSnapshot(
+    reportId: string,
+    vehicleId: string,
+    data: Awaited<ReturnType<typeof this.buildReport>>,
+  ) {
+    const bls = data.driverUsageProfile.drivingStyle.signals;
+    const totalCharges = (bls.totalChargeCount ?? 0);
+
+    await this.db.query(
+      `INSERT INTO report_source_snapshots
+         (report_id, vehicle_id,
+          usage_confidence, usage_data_source,
+          battery_grade, battery_confidence_score,
+          total_charge_sessions, assessment_included,
+          verification_level, external_reports_count,
+          sources_summary)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb)
+       ON CONFLICT (report_id) DO NOTHING`,
+      [
+        reportId,
+        vehicleId,
+        data.driverUsageProfile.confidence,
+        data.driverUsageProfile.dataSource,
+        bls.batteryUsageGrade ?? null,
+        null, // confidence_score batarya tablosundan gelmez; buildReport dışına çıkarmak gerekir
+        totalCharges,
+        data.vehicleSummary !== null,
+        data.verificationSummary?.verificationLevel ?? null,
+        data.externalBatteryReports.length,
+        JSON.stringify({
+          drivingStyleLabel: data.driverUsageProfile.drivingStyle.label,
+          consumptionDeviationPercent: bls.consumptionDeviationPercent,
+          dcFastChargeRatio: bls.dcFastChargeRatio,
+          chargingStyle: data.driverUsageProfile.chargingStyle.label,
+          economicTotalKwh: data.economicSummary.totalKwh,
+          externalReportProviders: (data.externalBatteryReports as { provider?: unknown }[]).map(r => r.provider),
+        }),
+      ],
+    );
   }
 
   async getLatestReport(vehicleId: string) {

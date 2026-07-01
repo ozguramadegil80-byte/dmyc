@@ -496,6 +496,63 @@ export default async function PremiumReportPage({
           </section>
         )}
 
+        {/* ── 5. Veri Kaynakları ve Güvenilirlik (rapor sonu) ── */}
+        <section style={{ marginBottom:'48px' }}>
+          <h3 className="rpt-sg rpt-label rpt-muted" style={{ marginBottom:'16px', fontSize:'11px' }}>
+            VERİ KAYNAKLARI VE GÜVENİLİRLİK
+          </h3>
+          <div className="rpt-card">
+            <p style={{ fontSize:'12px', color:'#849490', lineHeight:'1.7', marginBottom:'20px' }}>
+              Her veri kaleminin kaynağı ve doğrulanabilirlik seviyesi. ◉ dolu daireler güven puanını gösterir (5 üzerinden).
+            </p>
+
+            <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+              {([
+                { label:'Araç modeli / varyant',       source:'Kullanıcı beyanı',         confidence:3 },
+                { label:'Kilometre (odometer)',          source:'Kullanıcı beyanı',         confidence:3 },
+                { label:'Şarj geçmişi',                 source:'DMyC kayıtlı ölçüm',      confidence:5 },
+                { label:'Batarya EFC / döngü sayısı',   source:'DMyC algoritması',         confidence:4 },
+                { label:'Sürüş stili skoru',             source:'DMyC algoritması',         confidence:4 },
+                { label:'Muayene kaydı',    source: report.nextInspectionDate ? 'DMyC doğrulamalı' : 'Girilmemiş', confidence: report.nextInspectionDate ? 4 : 2 },
+                { label:'Bakım geçmişi',    source: (report.lastServiceDate || report.lastServiceKm) ? 'Kullanıcı beyanı' : 'Girilmemiş', confidence: (report.lastServiceDate || report.lastServiceKm) ? 3 : 2 },
+                { label:'Yakıt tasarrufu tahmini',       source:'Referans model',           confidence:3 },
+              ] as { label:string; source:string; confidence:number }[]).map(({ label, source, confidence }) => (
+                <div key={label} style={{
+                  display:'flex', alignItems:'center', gap:'12px',
+                  padding:'8px 12px', borderRadius:'6px',
+                  background:'rgba(255,255,255,0.03)',
+                }}>
+                  <span style={{ fontSize:'12px', color:'#dfe3e4', flex:1, minWidth:0 }}>{label}</span>
+                  <span style={{ fontSize:'10px', color:'#849490', flexShrink:0, width:'150px', textAlign:'center' }}>{source}</span>
+                  <span style={{ fontFamily:'JetBrains Mono, monospace', fontSize:'12px', letterSpacing:'2px', flexShrink:0, color: confidence >= 5 ? '#4ade80' : confidence >= 4 ? '#71ffe8' : confidence >= 3 ? '#facc15' : '#f87171' }}>
+                    {'◉'.repeat(confidence)}{'○'.repeat(5 - confidence)}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            <div style={{
+              marginTop:'20px', padding:'14px 16px', borderRadius:'8px',
+              background:'rgba(113,255,232,0.04)', border:'1px solid rgba(113,255,232,0.12)',
+            }}>
+              <p className="rpt-label rpt-cyan" style={{ fontSize:'10px', marginBottom:'6px' }}>
+                DEĞİŞTİRİLEMEZ ANLIK GÖRÜNTÜ
+              </p>
+              <p style={{ fontSize:'11px', color:'#849490', lineHeight:'1.7' }}>
+                Bu rapor oluşturulma anındaki verilerin değiştirilemez anlık görüntüsüdür.
+                Sonradan girilen veriler bu rapora yansımaz.{' '}
+                ID: <span className="rpt-mono" style={{ color:'#dfe3e4' }}>{report.id.slice(-8).toUpperCase()}</span>
+                {' · '}{createdAt}
+              </p>
+            </div>
+
+            <p style={{ fontSize:'10px', color:'rgba(132,148,144,0.6)', lineHeight:'1.7', marginTop:'12px', fontStyle:'italic' }}>
+              Bu rapor resmi ekspertiz belgesi, TSB kasko bedel belgesi veya yetkili servis pil sağlık raporu değildir.
+              Bilgi amaçlı hazırlanmıştır; yasal bağlayıcılığı yoktur.
+            </p>
+          </div>
+        </section>
+
         {/* ── Footer ── */}
         <footer style={{ borderTop:'1px solid rgba(59,74,70,0.5)', paddingTop:'40px', display:'flex', justifyContent:'space-between', alignItems:'flex-end', flexWrap:'wrap', gap:'16px' }}>
           <div>

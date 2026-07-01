@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { JwtModule } from '@nestjs/jwt';
 import { AppController } from './app.controller';
 import { AdminReviewService } from './admin-review.service';
 import { AnnualReportService } from './annual-report.service';
@@ -36,8 +37,17 @@ import { VehicleSpecsService } from './vehicle-specs.service';
 import { VehiclesService } from './vehicles.service';
 import { SponsorService } from './sponsor.service';
 import { AracSiciliService } from './arac-sicili.service';
+import { JwtAuthGuard } from './jwt-auth.guard';
+import { VehicleAccessGuard } from './vehicle-access.guard';
 
 @Module({
+  imports: [
+    JwtModule.register({
+      secret: process.env.JWT_SECRET ?? 'dmyc-local-jwt-secret-change-in-production',
+      signOptions: { expiresIn: '30d' },
+      global: true,
+    }),
+  ],
   controllers: [AppController],
   providers: [
     AdminReviewService,
@@ -76,6 +86,8 @@ import { AracSiciliService } from './arac-sicili.service';
     VehiclesService,
     SponsorService,
     AracSiciliService,
+    JwtAuthGuard,
+    VehicleAccessGuard,
   ],
 })
 export class AppModule {}

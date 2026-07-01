@@ -582,7 +582,7 @@ export class AracSiciliService {
         candidate.first_due_months ?? null,
         candidate.source_name ?? 'DMyC Admin',
         candidate.source_url,
-        candidate.source_confidence ?? 'community_unverified',
+        'manufacturer_verified',
         candidate.warnings ? JSON.stringify(candidate.warnings) : null,
       ],
     );

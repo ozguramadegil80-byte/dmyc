@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'crypto';
+import { JwtService } from '@nestjs/jwt';
 import { DatabaseService } from './database.service';
 import { FirstCardService } from './first-card.service';
 import { PremiumAccessService } from './premium-access.service';
@@ -74,6 +75,7 @@ export class VehiclesService {
     private readonly premiumAccess: PremiumAccessService,
     private readonly usageProfile: UsageProfileService,
     private readonly vehicleSpecs: VehicleSpecsService,
+    private readonly jwt: JwtService,
   ) {}
 
   async createUser(body: CreateUserBody) {
@@ -125,7 +127,10 @@ export class VehiclesService {
       const user = result.rows[0];
       await this.premiumAccess.ensureTrialForUser(user.id);
 
-      return user;
+      return {
+        ...user,
+        token: this.jwt.sign({ sub: user.id, email: user.email }),
+      };
     } catch (error) {
       if (isUniqueViolation(error)) {
         const existingUser = await this.findExistingUser(username, email, phone);
@@ -140,6 +145,7 @@ export class VehiclesService {
             phone: existingUser.phone,
             fullName: existingUser.full_name,
             createdAt: existingUser.created_at,
+            token: this.jwt.sign({ sub: existingUser.id, email: existingUser.email }),
           };
         }
 
@@ -190,6 +196,7 @@ export class VehiclesService {
       phone: user.phone,
       fullName: user.full_name,
       createdAt: user.created_at,
+      token: this.jwt.sign({ sub: user.id, email: user.email }),
     };
   }
 

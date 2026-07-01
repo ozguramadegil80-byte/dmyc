@@ -877,49 +877,77 @@ export default async function KaskoReportPage({
           </div>
         </div>
 
-        {/* ── Veri Güven Seviyesi ── */}
-        <div style={{
-          background: 'rgba(255,255,255,0.03)', borderRadius: 10,
-          border: '1px solid rgba(255,255,255,0.06)', padding: '16px 20px', marginBottom: 20,
-        }}>
-          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', color: '#849490', textTransform: 'uppercase', marginBottom: 12 }}>
-            Rapor Veri Güven Seviyesi
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 24px' }}>
-            {[
-              { label: 'Araç bilgisi', value: 'Kullanıcı beyanı' },
-              { label: 'Kilometre', value: 'Kullanıcı beyanı' },
-              { label: 'Şarj / EFC verisi', value: 'DMyC kayıtlı dönem' },
-              { label: 'Bakım verisi', value: hasService ? 'DMyC kayıtlı' : 'Girilmemiş' },
-              { label: 'Muayene verisi', value: hasInspection ? 'DMyC kayıtlı' : 'Girilmemiş' },
-              { label: 'Değer hesabı', value: 'Tahmini model' },
-            ].map(({ label, value }) => {
-              const isConfirmed = value === 'DMyC kayıtlı' || value === 'DMyC kayıtlı dönem';
-              const isMissing   = value === 'Girilmemiş';
-              return (
-                <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 11, color: '#849490' }}>{label}</span>
-                  <span style={{
-                    fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 20,
-                    background: isConfirmed ? 'rgba(74,222,128,0.12)' : isMissing ? 'rgba(255,255,255,0.06)' : 'rgba(250,204,21,0.1)',
-                    color: isConfirmed ? '#4ade80' : isMissing ? '#4b5a57' : '#fde68a',
-                  }}>{value}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
         {/* ── Feragat ── */}
         <div style={{
           background: 'rgba(255,255,255,0.03)', borderRadius: 10,
           border: '1px solid rgba(255,255,255,0.06)', padding: '16px 20px',
-          fontSize: 11, color: '#849490', lineHeight: 1.6, marginBottom: 32,
+          fontSize: 11, color: '#849490', lineHeight: 1.6, marginBottom: 20,
         }}>
           <strong style={{ color: '#dfe3e4' }}>Feragat:</strong> Bu rapor bilgi amaçlı ön değerlendirmedir; sigorta teklifi, eksper raporu veya resmi kasko değer belgesi değildir.
           Tahmini değer; araç yaşı, kilometre, batarya kullanım sinyalleri ve kullanıcı/uygulama verilerine göre hesaplanır.
           Nihai teklif ve değer; sigorta şirketi, eksper değerlendirmesi ve ilgili resmi kurumsal kaynaklar tarafından belirlenir.
           <br />Hesaplama tarihi: {formatDate(r.createdAt)}.
+        </div>
+
+        {/* ── Veri Kaynakları ve Güvenilirlik (rapor sonu) ── */}
+        <div style={{
+          background: 'rgba(255,255,255,0.03)', borderRadius: 10,
+          border: '1px solid rgba(255,255,255,0.06)', padding: '20px', marginBottom: 32,
+        }}>
+          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', color: '#849490', textTransform: 'uppercase', marginBottom: 4 }}>
+            Veri Kaynakları ve Güvenilirlik
+          </div>
+          <div style={{ fontSize: 11, color: '#4b5a57', marginBottom: 16 }}>
+            ◉ dolu daireler güven puanını gösterir (5 üzerinden).
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 20 }}>
+            {([
+              { label: 'Araç modeli / varyant',      source: 'Kullanıcı beyanı',     confidence: 3 },
+              { label: 'Kilometre (odometer)',          source: 'Kullanıcı beyanı',     confidence: 3 },
+              { label: 'Şarj geçmişi / EFC',           source: 'DMyC kayıtlı ölçüm', confidence: 5 },
+              { label: 'Batarya kullanım notu',         source: 'DMyC algoritması',     confidence: 4 },
+              { label: 'Muayene kaydı',  source: hasInspection ? 'DMyC doğrulamalı' : 'Girilmemiş', confidence: hasInspection ? 4 : 2 },
+              { label: 'Bakım geçmişi', source: hasService ? 'Kullanıcı beyanı' : 'Girilmemiş',     confidence: hasService ? 3 : 2 },
+              { label: 'Kasko değer tahmini',           source: 'Tahmini model',         confidence: 3 },
+            ] as { label: string; source: string; confidence: number }[]).map(({ label, source, confidence }) => (
+              <div key={label} style={{
+                display: 'flex', alignItems: 'center', gap: 12,
+                padding: '7px 10px', borderRadius: 6,
+                background: 'rgba(255,255,255,0.02)',
+              }}>
+                <span style={{ fontSize: 11, color: '#dfe3e4', flex: 1 }}>{label}</span>
+                <span style={{ fontSize: 10, color: '#849490', flexShrink: 0, minWidth: 130, textAlign: 'center' }}>{source}</span>
+                <span style={{
+                  fontFamily: 'JetBrains Mono, monospace', fontSize: 11, letterSpacing: 2, flexShrink: 0,
+                  color: confidence >= 5 ? '#4ade80' : confidence >= 4 ? '#71ffe8' : confidence >= 3 ? '#facc15' : '#f87171',
+                }}>
+                  {'◉'.repeat(confidence)}{'○'.repeat(5 - confidence)}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          <div style={{
+            padding: '12px 14px', borderRadius: 8,
+            background: 'rgba(113,255,232,0.04)', border: '1px solid rgba(113,255,232,0.10)',
+            marginBottom: 12,
+          }}>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', color: '#71ffe8', textTransform: 'uppercase', marginBottom: 6 }}>
+              Değiştirilemez Anlık Görüntü
+            </div>
+            <div style={{ fontSize: 11, color: '#849490', lineHeight: 1.7 }}>
+              Bu rapor oluşturulma anındaki verilerin değiştirilemez anlık görüntüsüdür.
+              Sonradan girilen veriler bu rapora yansımaz.{' '}
+              Rapor ID: <span style={{ color: '#dfe3e4', fontFamily: 'JetBrains Mono, monospace' }}>{r.id.slice(-8).toUpperCase()}</span>
+              {' · '}{formatDate(r.createdAt)}
+            </div>
+          </div>
+
+          <div style={{ fontSize: 10, color: 'rgba(132,148,144,0.6)', lineHeight: 1.7, fontStyle: 'italic' }}>
+            Bu rapor resmi ekspertiz belgesi, TSB kasko bedel belgesi veya yetkili servis pil sağlık raporu değildir.
+            Bilgi amaçlı hazırlanmıştır; yasal bağlayıcılığı yoktur.
+          </div>
         </div>
 
         {/* ── Footer ── */}

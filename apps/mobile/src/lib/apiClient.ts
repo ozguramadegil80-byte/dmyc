@@ -1,5 +1,18 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import type { VehicleCatalogItem } from '../types/vehicleCatalog';
+
+export const AUTH_TOKEN_STORAGE_KEY = 'dmyc:authToken';
+
+export async function clearStoredAuthToken(): Promise<void> {
+  await AsyncStorage.removeItem(AUTH_TOKEN_STORAGE_KEY).catch(() => {});
+}
+
+let _onUnauthorized: (() => void) | null = null;
+
+export function setUnauthorizedHandler(fn: () => void): void {
+  _onUnauthorized = fn;
+}
 
 export type ApiHealth = {
   ok: boolean;
@@ -582,17 +595,25 @@ export async function fetchVehicleSpecs(market = 'TR') {
 }
 
 export async function createUser(input: CreateUserInput) {
-  return fetchJson<ApiUser>('/users', {
+  const result = await fetchJson<ApiUser & { token?: string }>('/users', {
     body: JSON.stringify(input),
     method: 'POST',
   });
+  if (result.token) {
+    await AsyncStorage.setItem(AUTH_TOKEN_STORAGE_KEY, result.token).catch(() => {});
+  }
+  return result;
 }
 
 export async function loginUser(input: LoginUserInput) {
-  return fetchJson<ApiUser>('/users/login', {
+  const result = await fetchJson<ApiUser & { token?: string }>('/users/login', {
     body: JSON.stringify(input),
     method: 'POST',
   });
+  if (result.token) {
+    await AsyncStorage.setItem(AUTH_TOKEN_STORAGE_KEY, result.token).catch(() => {});
+  }
+  return result;
 }
 
 export async function fetchActiveBindingForUser(userId: string) {
@@ -1818,14 +1839,27 @@ async function fetchJson<T>(path: string, init: RequestInit = {}): Promise<T> {
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
   try {
+    let authHeader: Record<string, string> = {};
+    if (Platform.OS !== 'web') {
+      const token = await AsyncStorage.getItem(AUTH_TOKEN_STORAGE_KEY).catch(() => null);
+      if (token) authHeader = { Authorization: `Bearer ${token}` };
+    }
+
     const response = await fetch(`${API_BASE_URL}${path}`, {
       ...init,
       headers: {
         'Content-Type': 'application/json',
+        ...authHeader,
         ...init.headers,
       },
       signal: controller.signal,
     });
+
+    if (response.status === 401) {
+      await AsyncStorage.removeItem(AUTH_TOKEN_STORAGE_KEY).catch(() => {});
+      _onUnauthorized?.();
+      throw new Error('Oturum süresi doldu. Lütfen tekrar giriş yapın.');
+    }
 
     if (!response.ok) {
       const payload = await response.json().catch(() => null) as { message?: string } | null;

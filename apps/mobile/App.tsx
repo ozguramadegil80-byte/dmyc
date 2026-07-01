@@ -174,6 +174,8 @@ import {
   fetchChargeSummaryByDriver,
   type ApiDriverChargeSummary,
   WEB_BASE_URL,
+  clearStoredAuthToken,
+  setUnauthorizedHandler,
 } from './src/lib/apiClient';
 import { getTooltip, type TooltipKey } from './src/lib/tooltips';
 import { buildFirstCard } from './src/lib/firstCard';
@@ -1148,6 +1150,8 @@ export default function App() {
           restoredBindingLinked = true;
           setBackendBinding(parsedBinding);
           setBindingStatus('linked');
+          // Cache stale olabilir (araç değişti, seed vs.) — arka planda API'den tazele
+          restoreActiveBindingFromApi(parsedUser).catch(() => {});
         } else {
           await safeStorageRemove(BACKEND_BINDING_STORAGE_KEY);
           await safeStorageRemove(SELECTED_VEHICLE_STORAGE_KEY);
@@ -1175,7 +1179,8 @@ export default function App() {
       }
 
       const storedVehicleId = await safeStorageGet(SELECTED_VEHICLE_STORAGE_KEY);
-      const vehicleKey = storedVehicleId ?? backendBinding.catalogKey;
+      // backendBinding.catalogKey is authoritative — stored key may belong to a previous user/session
+      const vehicleKey = backendBinding.catalogKey ?? storedVehicleId;
       const storedVehicle = catalogItems.find((vehicle) => stableVehicleKey(vehicle) === vehicleKey || vehicle.id === vehicleKey);
 
       if (isMounted && storedVehicle) {
@@ -1242,25 +1247,23 @@ export default function App() {
       setLoginForm(emptyLoginForm);
       await safeStorageSet(REGISTERED_USER_STORAGE_KEY, JSON.stringify(user));
 
-      if (storedBinding?.user.id === user.id) {
+      // Login'de her zaman API'den taze binding al — cache stale olabilir (farklı araç seçilmiş olabilir)
+      await safeStorageRemove(BACKEND_BINDING_STORAGE_KEY);
+      await safeStorageRemove(SELECTED_VEHICLE_STORAGE_KEY);
+
+      const apiBinding = await restoreActiveBindingFromApi(user);
+
+      if (apiBinding) {
+        setStep('today');
+      } else if (storedBinding?.user.id === user.id) {
+        // API ulaşılamazsa cached binding'e fall back et
         setBackendBinding(storedBinding);
         setBindingStatus('linked');
         setStep('today');
       } else {
-        if (storedBinding) {
-          await safeStorageRemove(BACKEND_BINDING_STORAGE_KEY);
-          await safeStorageRemove(SELECTED_VEHICLE_STORAGE_KEY);
-        }
-
-        const apiBinding = await restoreActiveBindingFromApi(user);
-
-        if (apiBinding) {
-          setStep('today');
-        } else {
-          setBackendBinding(null);
-          setBindingStatus('idle');
-          setStep('brand');
-        }
+        setBackendBinding(null);
+        setBindingStatus('idle');
+        setStep('brand');
       }
 
     } catch (error) {
@@ -1343,8 +1346,16 @@ export default function App() {
       safeStorageRemove(REGISTERED_USER_STORAGE_KEY),
       safeStorageRemove(BACKEND_BINDING_STORAGE_KEY),
       safeStorageRemove(SELECTED_VEHICLE_STORAGE_KEY),
+      clearStoredAuthToken(),
     ]);
   };
+
+  // 401 gelince oturumu kapat — apiClient.ts fetchJson'dan tetiklenir
+  const logoutRef = useRef(logout);
+  useEffect(() => { logoutRef.current = logout; });
+  useEffect(() => {
+    setUnauthorizedHandler(() => { void logoutRef.current(); });
+  }, []);
 
   const chooseVehicle = (vehicle: VehicleCatalogItem) => {
     setSelectedVehicle(vehicle);
@@ -1785,6 +1796,21 @@ export default function App() {
   };
 
   const skipToSummary = () => {
+    // Kullanıcının zaten bağlı bir aracı varsa onu koru — rastgele catalog[0]'a (örn. BMW) düşürme
+    const activeCatalogKey = backendBinding?.user.id === registeredUser?.id ? backendBinding?.catalogKey : null;
+    if (activeCatalogKey) {
+      const boundVehicle = catalogItems.find(
+        (v) => stableVehicleKey(v) === activeCatalogKey || v.id === activeCatalogKey
+      );
+      if (boundVehicle) {
+        setSelectedBrand(boundVehicle.brand);
+        setSelectedModel(boundVehicle.model);
+        setSelectedVehicle(boundVehicle);
+        setStep('today');
+        return;
+      }
+    }
+
     const fallbackVehicle = selectedVehicle ?? catalogItems[0] ?? null;
 
     if (fallbackVehicle) {
@@ -3067,6 +3093,7 @@ export default function App() {
           language={language}
           onOpenAssessmentModal={() => setShowWelcomeModal(true)}
           onSaveLocations={() => setStep('locations')}
+          totalDmycKm={Math.round((tripSummary?.totalDistanceM ?? 0) / 1000)}
           user={registeredUser}
           vehicle={selectedVehicle}
         />
@@ -3298,6 +3325,7 @@ export default function App() {
           registrySummary={registrySummary}
           serviceCompliance={serviceCompliance}
           serviceVisits={serviceVisits}
+          totalDmycKm={Math.round((tripSummary?.totalDistanceM ?? 0) / 1000)}
           user={registeredUser}
           vehicle={selectedVehicle}
         />
@@ -4125,6 +4153,7 @@ function SummaryStep({
   language,
   onOpenAssessmentModal,
   onSaveLocations,
+  totalDmycKm,
   user,
   vehicle,
 }: {
@@ -4132,6 +4161,7 @@ function SummaryStep({
   language: Locale;
   onOpenAssessmentModal: () => void;
   onSaveLocations: () => void;
+  totalDmycKm: number;
   user: ApiUser | null;
   vehicle: VehicleCatalogItem | null;
 }) {
@@ -4149,9 +4179,63 @@ function SummaryStep({
   const translate = createTranslator(language);
   const socMin = firstCard.dailySocMin ?? 20;
   const socMax = firstCard.dailySocMax ?? 80;
+  const [showKmModal, setShowKmModal] = React.useState(false);
+
+  const odometerKm = latestAssessment?.odometerKm ?? null;
+  const estimatedKm = odometerKm != null ? Math.round(odometerKm + totalDmycKm) : null;
 
   return (
     <ScrollView contentContainerStyle={styles.todayScroll} style={styles.todayRoot} showsVerticalScrollIndicator={false}>
+
+      {/* ── KM AÇIKLAMA MODAL ─────────────────────────────────────────── */}
+      <Modal visible={showKmModal} transparent animationType="fade" onRequestClose={() => setShowKmModal(false)}>
+        <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', alignItems: 'center', padding: 24 }} onPress={() => setShowKmModal(false)}>
+          <Pressable onPress={(e) => e.stopPropagation()} style={{
+            backgroundColor: '#111c1d', borderRadius: 16, padding: 24, width: '100%', maxWidth: 360,
+            borderWidth: 1, borderColor: 'rgba(0,240,255,0.2)',
+          }}>
+            <Text style={{ color: colors.cyan, fontSize: 11, fontWeight: '700', letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 12 }}>
+              Tahmini Güncel KM
+            </Text>
+
+            <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6, marginBottom: 20 }}>
+              <Text style={{ color: '#fff', fontSize: 36, fontWeight: '800' }}>
+                ~{(estimatedKm ?? 0).toLocaleString('tr-TR')}
+              </Text>
+              <Text style={{ color: colors.muted, fontSize: 16 }}>km</Text>
+            </View>
+
+            <View style={{ gap: 10, marginBottom: 20 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)' }}>
+                <Text style={{ color: '#849490', fontSize: 13 }}>Sisteme giriş odometresi</Text>
+                <Text style={{ color: '#dfe3e4', fontSize: 13, fontWeight: '600' }}>
+                  {odometerKm != null ? odometerKm.toLocaleString('tr-TR') + ' km' : '—'}
+                </Text>
+              </View>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)' }}>
+                <Text style={{ color: '#849490', fontSize: 13 }}>DMyC ile biriken</Text>
+                <Text style={{ color: colors.cyan, fontSize: 13, fontWeight: '600' }}>
+                  +{totalDmycKm.toLocaleString('tr-TR')} km
+                </Text>
+              </View>
+            </View>
+
+            <View style={{ backgroundColor: 'rgba(113,255,232,0.05)', borderRadius: 10, padding: 14, marginBottom: 20, borderWidth: 1, borderColor: 'rgba(113,255,232,0.12)' }}>
+              <Text style={{ color: '#849490', fontSize: 12, lineHeight: 19 }}>
+                Bu değer uygulamaya ilk girdiğindeki kilometre ile DMyC{"'"}nin yolculuklarından ölçtüğü mesafeyi toplar. Her yolculukla otomatik olarak güncellenir.
+              </Text>
+            </View>
+
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setShowKmModal(false)}
+              style={{ backgroundColor: 'rgba(0,240,255,0.12)', borderRadius: 10, padding: 14, alignItems: 'center' }}
+            >
+              <Text style={{ color: colors.cyan, fontWeight: '700', fontSize: 14 }}>Tamam</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* ── HERO ──────────────────────────────────────────────────────── */}
       <View style={styles.todayHero}>
@@ -4161,7 +4245,25 @@ function SummaryStep({
           <Text style={styles.todayHeroBadgeText}>{vehicle.variant.toUpperCase()}</Text>
         </View>
         <View style={styles.todayHeroTitleWrap}>
-          <Text style={styles.todayHeroName}>{vehicle.brand} {vehicle.model}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Text style={styles.todayHeroName}>{vehicle.brand} {vehicle.model}</Text>
+            {estimatedKm != null ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setShowKmModal(true)}
+                style={{
+                  backgroundColor: '#2e3637',
+                  borderColor: 'rgba(0,240,255,0.3)',
+                  borderWidth: 1, borderRadius: 999,
+                  paddingHorizontal: 10, paddingVertical: 4,
+                }}
+              >
+                <Text style={{ color: colors.cyan, fontSize: 12, fontWeight: '700', letterSpacing: 1 }}>
+                  ~{estimatedKm.toLocaleString('tr-TR')} km
+                </Text>
+              </Pressable>
+            ) : null}
+          </View>
         </View>
       </View>
 
@@ -4698,9 +4800,12 @@ function KarneScreen({ batteryLifecycle, communityBenchmark, monthlyReport, usag
           </View>
           <View style={styles.karneCardFooter}>
             <Text style={styles.karneFooterLeft}>{monthlyReport!.tripCount} yolculuk</Text>
-            <Text style={styles.karneFooterRight}>
-              {`Benzinli: ${monthlyReport!.fossilEquivCost != null ? formatTL(monthlyReport!.fossilEquivCost) : '—'}`}
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Text style={styles.karneFooterRight}>
+                {`Benzinli: ${monthlyReport!.fossilEquivCost != null ? formatTL(monthlyReport!.fossilEquivCost) : '—'}`}
+              </Text>
+              <ConfidenceBadge score={monthlyReport!.confidenceScore} />
+            </View>
           </View>
         </View>
       )}
@@ -4894,10 +4999,13 @@ function KarneScreen({ batteryLifecycle, communityBenchmark, monthlyReport, usag
             <KarneDataItem label="REJENERASYON" value={formatRatio(usageProfile!.homeChargeRatio ?? null)} />
             <KarneDataItem label="VERİMLİLİK" value={formatSoc(usageProfile!.avgStartSoc ?? null, usageProfile!.avgEndSoc ?? null)} accent />
           </View>
-          <View style={styles.signalBars}>
-            {[0, 1, 2, 3].map((i) => (
-              <View key={i} style={[styles.signalBar, i < usageProfileSignalLevel(usageProfile) ? styles.signalBarActive : null]} />
-            ))}
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
+            <View style={styles.signalBars}>
+              {[0, 1, 2, 3].map((i) => (
+                <View key={i} style={[styles.signalBar, i < usageProfileSignalLevel(usageProfile) ? styles.signalBarActive : null]} />
+              ))}
+            </View>
+            <ConfidenceBadge score={usageProfile!.confidenceScore} />
           </View>
         </View>
       )}
@@ -5041,6 +5149,7 @@ type AracScreenProps = {
   registrySummary: ApiRegistrySummary | null;
   serviceCompliance: ApiServiceCompliance | null;
   serviceVisits: ApiServiceVisit[];
+  totalDmycKm: number;
   user: ApiUser | null;
   vehicle: VehicleCatalogItem | null;
 };
@@ -5071,6 +5180,7 @@ function AracScreen({
   registrySummary,
   serviceCompliance,
   serviceVisits,
+  totalDmycKm,
   user,
   vehicle,
 }: AracScreenProps) {
@@ -5110,6 +5220,14 @@ function AracScreen({
         <View style={styles.aracHeroStatusWrap}>
           <Text style={styles.aracHeroStatusText}>AKTİF DURUM: İYİ</Text>
         </View>
+        {latestAssessment?.odometerKm != null ? (() => {
+          const estimatedKm = Math.round(latestAssessment.odometerKm + totalDmycKm);
+          return (
+            <View style={styles.aracHeroKmWrap}>
+              <Text style={styles.aracHeroStatusText}>~{estimatedKm.toLocaleString('tr-TR')} KM</Text>
+            </View>
+          );
+        })() : null}
       </View>
 
       {/* ── GÜN 0 DEĞERLENDİRME ───────────────────────────────────────── */}
@@ -8772,6 +8890,110 @@ function inspectionStatusLabel(nextDate: string | null, confidence: string): str
   return `${dateStr}${suffix}`;
 }
 
+// ─── Kaynak Şeffaflığı — Bileşenler ─────────────────────────────────────────
+
+type SourceLevel = 'verified' | 'declared' | 'estimated';
+
+function sourceLevel(confidence: string | null | undefined): SourceLevel {
+  if (confidence === 'document_seen' || confidence === 'manufacturer_verified' || confidence === 'verified') return 'verified';
+  if (confidence === 'user_declared' || confidence === 'user_input') return 'declared';
+  return 'estimated';
+}
+
+function KaskoEstimateCard({ estimate }: { estimate: NonNullable<ApiKaskoEstimate & { available: true }> }) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <View style={{
+      backgroundColor: '#071a1a',
+      borderRadius: 8,
+      padding: 12,
+      marginBottom: 12,
+      borderWidth: 1,
+      borderColor: '#0d3030',
+      alignItems: 'center',
+    }}>
+      <Text style={[styles.signalCaption, { fontSize: 9, letterSpacing: 1, color: colors.muted, marginBottom: 4 }]}>
+        TAHMİNİ PAZAR DEĞERİ
+      </Text>
+      <Text style={{ color: colors.cyan, fontSize: 18, fontWeight: '700', letterSpacing: 0.3 }}>
+        ₺{estimate.estimatedMin.toLocaleString('tr-TR')} – ₺{estimate.estimatedMax.toLocaleString('tr-TR')}
+      </Text>
+      <Text style={[styles.signalCaption, { fontSize: 9, color: colors.muted, marginTop: 3, marginBottom: 0 }]}>
+        Yaş katsayısı {estimate.ageFactor} · EFC notu {estimate.batteryGrade} ({estimate.batteryFactor}) · {estimate.annualKm.toLocaleString('tr-TR')} km/yıl
+      </Text>
+
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => setExpanded(v => !v)}
+        style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 4 }}
+      >
+        <Text style={{ color: colors.cyan, fontSize: 10, letterSpacing: 0.3 }}>
+          Bu değer nasıl hesaplandı? {expanded ? '▲' : '▼'}
+        </Text>
+      </Pressable>
+
+      {expanded && (
+        <View style={{ marginTop: 8, width: '100%', gap: 5 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+            <Text style={[styles.signalCaption, { color: colors.muted }]}>Liste Fiyatı</Text>
+            <Text style={[styles.signalCaption, { color: colors.text }]}>
+              ₺{estimate.listPriceTry.toLocaleString('tr-TR')}{estimate.listPriceYear ? ` (${estimate.listPriceYear})` : ''}
+            </Text>
+          </View>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+            <Text style={[styles.signalCaption, { color: colors.muted }]}>Yaş Katsayısı ({estimate.ageYears} yıl)</Text>
+            <Text style={[styles.signalCaption, { color: colors.text }]}>× {estimate.ageFactor}</Text>
+          </View>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+            <Text style={[styles.signalCaption, { color: colors.muted }]}>Batarya Notu ({estimate.batteryGrade})</Text>
+            <Text style={[styles.signalCaption, { color: colors.text }]}>× {estimate.batteryFactor}</Text>
+          </View>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+            <Text style={[styles.signalCaption, { color: colors.muted }]}>Yıllık KM ({estimate.annualKm.toLocaleString('tr-TR')} km)</Text>
+            <Text style={[styles.signalCaption, { color: colors.text }]}>× {estimate.kmFactor}</Text>
+          </View>
+          <View style={{ height: 1, backgroundColor: '#0d3030', marginVertical: 2 }} />
+          <Text style={[styles.signalCaption, { color: '#5e7a7e', fontSize: 8, lineHeight: 12 }]}>
+            {estimate.disclaimer}
+          </Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
+function SourceBadge({ level, compact = false }: { level: SourceLevel; compact?: boolean }) {
+  const cfg = {
+    verified: { symbol: '●', color: '#4ade80', text: 'Doğrulandı' },
+    declared: { symbol: '◐', color: '#facc15', text: 'Beyan' },
+    estimated: { symbol: '○', color: '#5e7a7e', text: 'Tahmin' },
+  }[level];
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+      <Text style={{ color: cfg.color, fontSize: compact ? 7 : 8 }}>{cfg.symbol}</Text>
+      <Text style={{ color: cfg.color, fontSize: compact ? 9 : 10, letterSpacing: 0.3 }}>{cfg.text}</Text>
+    </View>
+  );
+}
+
+function confidenceLevelFromScore(score: number): 'high' | 'mid' | 'low' {
+  if (score >= 0.75) return 'high';
+  if (score >= 0.45) return 'mid';
+  return 'low';
+}
+
+function ConfidenceBadge({ score }: { score: number }) {
+  const level = confidenceLevelFromScore(score);
+  const cfg = {
+    high: { text: 'Yüksek güven', color: '#4ade80' },
+    mid:  { text: 'Orta güven',   color: '#facc15' },
+    low:  { text: 'Düşük güven',  color: '#f97316' },
+  }[level];
+  return <Text style={{ color: cfg.color, fontSize: 9, letterSpacing: 0.3 }}>{'○ ' + cfg.text}</Text>;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 function InspectionCard({
   inspection,
   onOpenSicilEntry,
@@ -8805,9 +9027,10 @@ function InspectionCard({
             <Text style={[styles.aracDataTileValue, { fontSize: 13, color: statusColor, flex: 1 }]}>
               {statusLabel}
             </Text>
+            <SourceBadge level={sourceLevel(inspection.confidence)} compact />
           </View>
           {inspection.confidence === 'user_declared' && (
-            <Text style={styles.signalCaption}>Kullanıcı beyanı · Belge yükleyerek doğrulayabilirsiniz.</Text>
+            <Text style={styles.signalCaption}>Beyan · Belge yükleyerek doğrulayabilirsiniz.</Text>
           )}
           {inspection.lastInspectionDate && (
             <Text style={styles.signalCaption}>
@@ -8867,50 +9090,58 @@ function MaintenanceRuleRow({ rule }: { rule: MaintenanceRule }) {
   const label = kmRemainingLabel(rule.kmRemaining);
   const itemLabel = rule.itemCode ? (ITEM_CODE_LABELS[rule.itemCode] ?? rule.itemCode.replace(/_/g, ' ')) : 'Periyodik Bakım';
   const isCondition = rule.ruleType === 'condition_based' || rule.ruleType === 'manual_required';
+  const isVerified = rule.sourceConfidence === 'manufacturer_verified';
 
   return (
     <View style={{
-      flexDirection: 'row',
-      alignItems: 'center',
       paddingVertical: 9,
       borderBottomWidth: 1,
       borderBottomColor: '#0d2527',
-      gap: 10,
     }}>
-      {/* Renk göstergesi */}
-      <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: isCondition ? colors.muted : color }} />
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+        {/* Renk göstergesi */}
+        <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: isCondition ? colors.muted : color }} />
 
-      {/* Etiket */}
-      <Text style={{ flex: 1, color: '#c9d6d6', fontSize: 13 }}>{itemLabel}</Text>
+        {/* Etiket */}
+        <Text style={{ flex: 1, color: '#c9d6d6', fontSize: 13 }}>{itemLabel}</Text>
 
-      {/* Aralık ipucu */}
-      {rule.intervalKm && (
-        <Text style={{ color: colors.muted, fontSize: 11 }}>
-          {`${(rule.intervalKm / 1000).toLocaleString('tr-TR', { maximumFractionDigits: 0 })}k`}
-        </Text>
-      )}
+        {/* Aralık ipucu */}
+        {rule.intervalKm && (
+          <Text style={{ color: colors.muted, fontSize: 11 }}>
+            {`${(rule.intervalKm / 1000).toLocaleString('tr-TR', { maximumFractionDigits: 0 })}k`}
+          </Text>
+        )}
 
-      {/* Kalan km veya durum */}
-      {isCondition ? (
-        <Text style={{ color: colors.muted, fontSize: 11, fontStyle: 'italic' }}>
-          {rule.ruleType === 'condition_based' ? 'Durum bazlı' : 'Manuel'}
-        </Text>
-      ) : (
-        <View style={{ alignItems: 'flex-end', minWidth: 80 }}>
-          <Text style={{ color, fontSize: 12, fontWeight: '700' }}>{label}</Text>
-          {/* Mini progres çubuğu */}
-          {rule.kmRemaining !== null && rule.intervalKm && rule.kmRemaining >= 0 && (
-            <View style={{ width: 80, height: 3, backgroundColor: '#0d2527', borderRadius: 2, marginTop: 3 }}>
-              <View style={{
-                width: `${Math.min(100, Math.max(2, (1 - rule.kmRemaining / rule.intervalKm) * 100))}%` as unknown as number,
-                height: 3,
-                backgroundColor: color,
-                borderRadius: 2,
-              }} />
-            </View>
-          )}
-        </View>
-      )}
+        {/* Kalan km veya durum */}
+        {isCondition ? (
+          <Text style={{ color: colors.muted, fontSize: 11, fontStyle: 'italic' }}>
+            {rule.ruleType === 'condition_based' ? 'Durum bazlı' : 'Manuel'}
+          </Text>
+        ) : (
+          <View style={{ alignItems: 'flex-end', minWidth: 80 }}>
+            <Text style={{ color, fontSize: 12, fontWeight: '700' }}>{label}</Text>
+            {/* Mini progres çubuğu */}
+            {rule.kmRemaining !== null && rule.intervalKm && rule.kmRemaining >= 0 && (
+              <View style={{ width: 80, height: 3, backgroundColor: '#0d2527', borderRadius: 2, marginTop: 3 }}>
+                <View style={{
+                  width: `${Math.min(100, Math.max(2, (1 - rule.kmRemaining / rule.intervalKm) * 100))}%` as unknown as number,
+                  height: 3,
+                  backgroundColor: color,
+                  borderRadius: 2,
+                }} />
+              </View>
+            )}
+          </View>
+        )}
+      </View>
+
+      {/* Kaynak rozeti */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4, marginLeft: 16 }}>
+        <SourceBadge level={isVerified ? 'verified' : 'estimated'} compact />
+        {!isVerified && (
+          <Text style={{ color: '#5e7a7e', fontSize: 9 }}>Üretici onayı bekleniyor</Text>
+        )}
+      </View>
     </View>
   );
 }
@@ -8955,11 +9186,14 @@ function MaintenanceCard({
       {/* ── İçerik ── */}
       {!hasVerifiedRules ? (
         <>
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 6 }}>
+            <SourceBadge level="estimated" compact />
+          </View>
           <Text style={[styles.signalCaption, { marginBottom: 4 }]}>
             Bu araç için üretici bakım takvimi henüz doğrulanmadı.
           </Text>
-          <Text style={styles.signalCaption}>
-            Admin panelinden onaylanan kurallar burada görünür.
+          <Text style={[styles.signalCaption, { color: '#f97316' }]}>
+            ⚠ Gösterilen periyotlar üretici verisi değil, genel EV standartlarına göre tahmindir.
           </Text>
         </>
       ) : (
@@ -9124,27 +9358,7 @@ function InsuranceValueCard({
       </View>
 
       {/* ── Tahmini değer aralığı (kasko estimate varsa) ── */}
-      {estimate && (
-        <View style={{
-          backgroundColor: '#071a1a',
-          borderRadius: 8,
-          padding: 12,
-          marginBottom: 12,
-          borderWidth: 1,
-          borderColor: '#0d3030',
-          alignItems: 'center',
-        }}>
-          <Text style={[styles.signalCaption, { fontSize: 9, letterSpacing: 1, color: colors.muted, marginBottom: 4 }]}>
-            TAHMİNİ PAZAR DEĞERİ
-          </Text>
-          <Text style={{ color: colors.cyan, fontSize: 18, fontWeight: '700', letterSpacing: 0.3 }}>
-            ₺{estimate.estimatedMin.toLocaleString('tr-TR')} – ₺{estimate.estimatedMax.toLocaleString('tr-TR')}
-          </Text>
-          <Text style={[styles.signalCaption, { fontSize: 9, color: colors.muted, marginTop: 3, marginBottom: 0 }]}>
-            Yaş katsayısı {estimate.ageFactor} · EFC notu {estimate.batteryGrade} ({estimate.batteryFactor}) · {estimate.annualKm.toLocaleString('tr-TR')} km/yıl
-          </Text>
-        </View>
-      )}
+      {estimate && <KaskoEstimateCard estimate={estimate} />}
 
       {/* ── Araç sicili önizleme ── */}
       <View style={{ gap: 6, marginBottom: 12 }}>
@@ -12745,6 +12959,17 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 10,
     left: 16,
+    backgroundColor: '#2e3637',
+    borderColor: 'rgba(0,240,255,0.3)',
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+  },
+  aracHeroKmWrap: {
+    position: 'absolute',
+    bottom: 10,
+    right: 16,
     backgroundColor: '#2e3637',
     borderColor: 'rgba(0,240,255,0.3)',
     borderWidth: 1,
